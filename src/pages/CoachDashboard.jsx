@@ -109,6 +109,9 @@ export default function CoachDashboard() {
           <a href="https://bestrongagain.netlify.app" target="_blank" rel="noreferrer" style={{ ...s.btn, textDecoration: 'none', textAlign: 'center', flex: '1 1 140px', background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
             Workout Tracker
           </a>
+          <a href="/media-library" style={{ ...s.btn, textDecoration: 'none', textAlign: 'center', flex: '1 1 140px', background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
+            Your Video Library
+          </a>
         </div>
       </div>
 

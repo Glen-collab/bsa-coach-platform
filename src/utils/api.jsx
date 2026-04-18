@@ -39,6 +39,26 @@ export const api = {
   approveVideo: (id) => request(`/admin/videos/${id}/approve`, { method: 'POST' }),
   rejectVideo: (id) => request(`/admin/videos/${id}/reject`, { method: 'POST' }),
 
+  // Media (per-coach video/audio uploads)
+  mediaUploadUrl: (mediaType = 'video', maxDurationSeconds = 600) =>
+    request('/media/upload-url', { method: 'POST', body: JSON.stringify({ media_type: mediaType, max_duration_seconds: maxDurationSeconds }) }),
+  mediaRegister: (body) => request('/media/register', { method: 'POST', body: JSON.stringify(body) }),
+  myMedia: () => request('/media/my-uploads'),
+  deleteMedia: (exerciseName, mediaType) =>
+    request('/media/delete', { method: 'POST', body: JSON.stringify({ exercise_name: exerciseName, media_type: mediaType }) }),
+  adminAllMedia: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/media/admin/all${qs ? '?' + qs : ''}`);
+  },
+  featureMedia: (id, featuredGlobal) =>
+    request('/media/admin/feature', { method: 'POST', body: JSON.stringify({ id, featured_global: featuredGlobal }) }),
+  flagMedia: (id, status) =>
+    request('/media/admin/flag', { method: 'POST', body: JSON.stringify({ id, status }) }),
+  cloudflareList: (search = '', limit = 200) => {
+    const qs = new URLSearchParams({ search, limit }).toString();
+    return request(`/media/admin/cloudflare-list?${qs}`);
+  },
+
   // Health
   health: () => request('/health'),
 };

@@ -32,8 +32,24 @@ export default function AdminDashboard() {
   const [coaches, setCoaches] = useState([]);
   const [applications, setApplications] = useState([]);
   const [videos, setVideos] = useState([]);
+  const [cfVideos, setCfVideos] = useState(null);  // null = not loaded yet
+  const [cfLoading, setCfLoading] = useState(false);
+  const [cfSearch, setCfSearch] = useState('');
+  const [cfPreview, setCfPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+
+  const loadCloudflare = async (search = '') => {
+    setCfLoading(true);
+    try {
+      const res = await api.cloudflareList(search);
+      setCfVideos(res.videos || []);
+    } catch (err) {
+      alert('Cloudflare list failed: ' + err.message);
+      setCfVideos([]);
+    }
+    setCfLoading(false);
+  };
 
   const loadData = () => {
     Promise.all([
@@ -41,18 +57,21 @@ export default function AdminDashboard() {
       api.membersList().catch(() => ({ members: [] })),
       api.coachesList().catch(() => ({ coaches: [] })),
       api.coachApplications().catch(() => ({ applications: [] })),
-      api.pendingVideos().catch(() => ({ videos: [] })),
+      api.adminAllMedia().catch(() => ({ uploads: [] })),
     ]).then(([o, m, c, a, v]) => {
       setOverview(o);
       setMembers(m?.members || []);
       setCoaches(c?.coaches || []);
       setApplications(a?.applications || []);
-      setVideos(v?.videos || []);
+      setVideos(v?.uploads || []);
       setLoading(false);
     });
   };
 
   useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (activeTab === 'cloudflare' && cfVideos === null && !cfLoading) loadCloudflare();
+  }, [activeTab]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleApproveCoach = async (id) => {
     const notes = prompt('Approval notes (optional):') || '';
@@ -66,14 +85,21 @@ export default function AdminDashboard() {
     loadData();
   };
 
-  const handleApproveVideo = async (id) => {
-    await api.approveVideo(id);
-    setVideos(prev => prev.filter(v => v.id !== id));
+  const handleToggleFeature = async (id, current) => {
+    await api.featureMedia(id, !current);
+    loadData();
   };
 
-  const handleRejectVideo = async (id) => {
-    await api.rejectVideo(id);
-    setVideos(prev => prev.filter(v => v.id !== id));
+  const handleFlag = async (id, current) => {
+    const next = current === 'flagged' ? 'live' : 'flagged';
+    await api.flagMedia(id, next);
+    loadData();
+  };
+
+  const handleRemoveVideo = async (id, name) => {
+    if (!confirm(`Remove video for "${name}"? Coach won't see it anymore.`)) return;
+    await api.flagMedia(id, 'removed');
+    loadData();
   };
 
   const [expandedCoach, setExpandedCoach] = useState(null);
@@ -109,7 +135,8 @@ export default function AdminDashboard() {
     { id: 'members', label: `Members (${members.length})` },
     { id: 'coaches', label: `Coaches (${coaches.length})` },
     { id: 'applications', label: `Applications (${applications.length})` },
-    { id: 'videos', label: `Videos (${videos.length})` },
+    { id: 'videos', label: `Coach Uploads (${videos.length})` },
+    { id: 'cloudflare', label: 'Cloudflare Library' },
   ];
 
   return (
@@ -357,24 +384,104 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Pending Videos */}
+      {/* Coach Uploads */}
       {activeTab === 'videos' && (
         <div style={s.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #f0f0f0' }}>
+            <div style={{ fontSize: '13px', color: '#666' }}>
+              All coach uploads across the platform. Use Feature/Flag/Remove to manage.
+            </div>
+            <a href="/media-library" style={{ ...s.btnSmall, background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', textDecoration: 'none', padding: '8px 14px' }}>
+              + Upload Your Own Videos
+            </a>
+          </div>
           {videos.length === 0 ? (
-            <p style={{ color: '#999', textAlign: 'center' }}>No pending videos.</p>
+            <p style={{ color: '#999', textAlign: 'center' }}>No coach uploads yet.</p>
           ) : (
-            videos.map(v => (
-              <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{v.title}</div>
-                  <div style={{ fontSize: '12px', color: '#888' }}>by {v.uploaded_by} &middot; {v.duration_seconds ? `${Math.round(v.duration_seconds / 60)}min` : ''}</div>
+            videos.map(v => {
+              const coachName = `${v.first_name || ''} ${v.last_name || ''}`.trim() || v.email;
+              const statusColor = v.status === 'flagged' ? '#ef4444' : v.status === 'removed' ? '#9ca3af' : '#16a34a';
+              return (
+                <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+                    <div style={{ fontWeight: 600 }}>
+                      {v.exercise_name}
+                      {v.featured_global && <span style={{ fontSize: '11px', color: '#fff', background: '#f59e0b', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px' }}>FEATURED GLOBAL</span>}
+                      <span style={{ fontSize: '11px', color: '#fff', background: statusColor, padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>{v.status}</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#888' }}>
+                      by {coachName} &middot; {v.source_library} / {v.category || '—'} &middot; {v.media_type}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {v.media_type === 'video' && v.cloudflare_uid && (
+                      <a href={`https://watch.cloudflarestream.com/${v.cloudflare_uid}`} target="_blank" rel="noreferrer" style={{ ...s.btnSmall, background: '#667eea', color: '#fff', textDecoration: 'none' }}>▶ View</a>
+                    )}
+                    <button style={{ ...s.btnSmall, background: v.featured_global ? '#fbbf24' : '#fef3c7', color: v.featured_global ? '#fff' : '#92400e' }} onClick={() => handleToggleFeature(v.id, v.featured_global)}>
+                      {v.featured_global ? 'Un-feature' : 'Feature'}
+                    </button>
+                    <button style={{ ...s.btnSmall, background: v.status === 'flagged' ? '#86efac' : '#fde68a', color: v.status === 'flagged' ? '#065f46' : '#92400e' }} onClick={() => handleFlag(v.id, v.status)}>
+                      {v.status === 'flagged' ? 'Un-flag' : 'Flag'}
+                    </button>
+                    <button style={{ ...s.btnSmall, background: '#ef4444', color: '#fff' }} onClick={() => handleRemoveVideo(v.id, v.exercise_name)}>Remove</button>
+                  </div>
                 </div>
-                <div>
-                  <button style={{ ...s.btnSmall, background: '#16a34a', color: '#fff' }} onClick={() => handleApproveVideo(v.id)}>Approve</button>
-                  <button style={{ ...s.btnSmall, background: '#ef4444', color: '#fff' }} onClick={() => handleRejectVideo(v.id)}>Reject</button>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Cloudflare Library — every video in the Cloudflare Stream account */}
+      {activeTab === 'cloudflare' && (
+        <div style={s.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '13px', color: '#666' }}>
+              All videos in your Cloudflare Stream account ({cfVideos?.length ?? 0} loaded). Includes both bundled-library videos and coach uploads.
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                type="text"
+                placeholder="Search by name…"
+                value={cfSearch}
+                onChange={(e) => setCfSearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') loadCloudflare(cfSearch); }}
+                style={{ padding: '6px 10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px' }}
+              />
+              <button style={{ ...s.btnSmall, background: '#667eea', color: '#fff' }} onClick={() => loadCloudflare(cfSearch)}>Search</button>
+              <button style={{ ...s.btnSmall, background: '#e5e7eb', color: '#333' }} onClick={() => { setCfSearch(''); loadCloudflare(''); }}>Reset</button>
+            </div>
+          </div>
+          {cfLoading && <p style={{ textAlign: 'center', color: '#888' }}>Loading from Cloudflare…</p>}
+          {!cfLoading && cfVideos && cfVideos.length === 0 && (
+            <p style={{ textAlign: 'center', color: '#888' }}>No videos found.</p>
+          )}
+          {!cfLoading && cfVideos && cfVideos.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+              {cfVideos.map((v) => (
+                <div key={v.uid} style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden', background: '#fafafa' }}>
+                  {v.thumbnail && (
+                    <img src={v.thumbnail} alt={v.name} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', cursor: 'pointer', display: 'block' }} onClick={() => setCfPreview(cfPreview === v.uid ? null : v.uid)} />
+                  )}
+                  {cfPreview === v.uid && (
+                    <div style={{ aspectRatio: '16/9', background: '#000' }}>
+                      <iframe src={`https://iframe.videodelivery.net/${v.uid}?preload=metadata&autoplay=true`} style={{ width: '100%', height: '100%', border: 'none' }} allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen />
+                    </div>
+                  )}
+                  <div style={{ padding: '8px 10px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v.name}>{v.name}</div>
+                    <div style={{ fontSize: '11px', color: '#888', marginBottom: '6px' }}>
+                      {v.duration ? `${Math.round(v.duration)}s` : '—'} {v.size ? `· ${(v.size / (1024 * 1024)).toFixed(1)}MB` : ''} {v.status_state ? `· ${v.status_state}` : ''}
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button style={{ ...s.btnSmall, background: '#667eea', color: '#fff', fontSize: '11px', padding: '3px 8px' }} onClick={() => setCfPreview(cfPreview === v.uid ? null : v.uid)}>{cfPreview === v.uid ? 'Hide' : 'Preview'}</button>
+                      <button style={{ ...s.btnSmall, background: '#e5e7eb', color: '#333', fontSize: '11px', padding: '3px 8px' }} onClick={() => { navigator.clipboard.writeText(v.uid); }}>Copy UID</button>
+                      <a href={v.watch_url} target="_blank" rel="noreferrer" style={{ ...s.btnSmall, background: '#fbbf24', color: '#fff', textDecoration: 'none', fontSize: '11px', padding: '3px 8px' }}>Open</a>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       )}
