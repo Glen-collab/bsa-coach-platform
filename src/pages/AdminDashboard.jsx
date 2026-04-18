@@ -56,6 +56,9 @@ export default function AdminDashboard() {
   const [cfLoading, setCfLoading] = useState(false);
   const [cfSearch, setCfSearch] = useState('');
   const [cfPreview, setCfPreview] = useState(null);
+  const [proposals, setProposals] = useState(null);  // null = not loaded yet
+  const [proposalsLoading, setProposalsLoading] = useState(false);
+  const [proposalsFilter, setProposalsFilter] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -69,6 +72,29 @@ export default function AdminDashboard() {
       setCfVideos([]);
     }
     setCfLoading(false);
+  };
+
+  const loadProposals = async (status = proposalsFilter) => {
+    setProposalsLoading(true);
+    try {
+      const res = await api.adminCustomExercises(status === 'all' ? undefined : status);
+      setProposals(res.proposals || []);
+    } catch (err) {
+      alert('Proposals load failed: ' + err.message);
+      setProposals([]);
+    }
+    setProposalsLoading(false);
+  };
+
+  const handleDecideProposal = async (id, name, status) => {
+    if (status === 'rejected' && !confirm(`Reject "${name}"?`)) return;
+    if (status === 'removed' && !confirm(`Remove "${name}"? It will disappear from coaches' libraries.`)) return;
+    try {
+      await api.decideCustomExercise(id, status);
+      loadProposals();
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const loadData = () => {
@@ -91,6 +117,7 @@ export default function AdminDashboard() {
   useEffect(() => { loadData(); }, []);
   useEffect(() => {
     if (activeTab === 'cloudflare' && cfVideos === null && !cfLoading) loadCloudflare();
+    if (activeTab === 'proposals' && proposals === null && !proposalsLoading) loadProposals();
   }, [activeTab]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleApproveCoach = async (id) => {
@@ -157,6 +184,7 @@ export default function AdminDashboard() {
     { id: 'applications', label: `Applications (${applications.length})` },
     { id: 'videos', label: `Coach Uploads (${videos.length})` },
     { id: 'cloudflare', label: 'Cloudflare Library' },
+    { id: 'proposals', label: `Exercise Requests${proposals ? ` (${proposals.filter(p => p.status === 'pending').length})` : ''}` },
   ];
 
   return (
@@ -506,6 +534,60 @@ export default function AdminDashboard() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Exercise Requests (proposals) */}
+      {activeTab === 'proposals' && (
+        <div style={s.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
+            <div style={{ fontSize: '13px', color: '#666' }}>
+              Coach-proposed exercises. Approve to add them to the platform library.
+            </div>
+            <select value={proposalsFilter} onChange={(e) => { setProposalsFilter(e.target.value); loadProposals(e.target.value); }} style={{ padding: '6px 10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px' }}>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="removed">Removed</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+          {proposalsLoading && <p style={{ textAlign: 'center', color: '#888' }}>Loading…</p>}
+          {!proposalsLoading && proposals && proposals.length === 0 && (
+            <p style={{ textAlign: 'center', color: '#888' }}>No {proposalsFilter === 'all' ? '' : proposalsFilter} proposals.</p>
+          )}
+          {!proposalsLoading && proposals && proposals.map(p => {
+            const coachName = `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || 'Unknown';
+            const statusColor = p.status === 'pending' ? '#f59e0b' : p.status === 'approved' ? '#16a34a' : p.status === 'rejected' ? '#ef4444' : '#9ca3af';
+            return (
+              <div key={p.id} style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: '15px', marginBottom: '2px' }}>
+                    {p.name}
+                    <span style={{ fontSize: '11px', color: '#fff', background: statusColor, padding: '2px 6px', borderRadius: '4px', marginLeft: '8px' }}>{p.status}</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    by {coachName} · {p.source_library} / {p.category || '—'}
+                  </div>
+                  {p.description && <div style={{ fontSize: '13px', color: '#444', marginTop: '6px', fontStyle: 'italic' }}>"{p.description}"</div>}
+                </div>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {p.status !== 'approved' && (
+                    <button style={{ ...s.btnSmall, background: '#16a34a', color: '#fff' }} onClick={() => handleDecideProposal(p.id, p.name, 'approved')}>Approve</button>
+                  )}
+                  {p.status === 'pending' && (
+                    <button style={{ ...s.btnSmall, background: '#ef4444', color: '#fff' }} onClick={() => handleDecideProposal(p.id, p.name, 'rejected')}>Reject</button>
+                  )}
+                  {p.status === 'approved' && (
+                    <button style={{ ...s.btnSmall, background: '#ef4444', color: '#fff' }} onClick={() => handleDecideProposal(p.id, p.name, 'removed')}>Remove</button>
+                  )}
+                  {(p.status === 'rejected' || p.status === 'removed') && (
+                    <button style={{ ...s.btnSmall, background: '#667eea', color: '#fff' }} onClick={() => handleDecideProposal(p.id, p.name, 'pending')}>Re-open</button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

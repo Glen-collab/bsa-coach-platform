@@ -38,6 +38,152 @@ def require_admin(f):
     return decorated
 
 
+# ── Custom exercises — coaches can propose; admin approves ───────────
+VALID_SOURCE_LIBRARIES = {"exerciseLibrary", "martialArtsLibrary", "mobilityExercises", "warmupExercises", "custom"}
+
+
+@media_bp.route("/custom-exercises", methods=["POST"])
+@require_auth
+def propose_custom_exercise():
+    """Coach proposes a new exercise. Body: { name, category?, subcategory?, source_library?, description? }"""
+    user_id = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Exercise name required"}), 400
+    source_library = data.get("source_library") or "custom"
+    if source_library not in VALID_SOURCE_LIBRARIES:
+        return jsonify({"error": f"Invalid source_library, must be one of {sorted(VALID_SOURCE_LIBRARIES)}"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        try:
+            cur.execute("""
+                INSERT INTO custom_exercises
+                  (proposed_by_user_id, name, category, subcategory, source_library, description)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id, name, category, subcategory, source_library, status, created_at;
+            """, (
+                user_id,
+                name,
+                data.get("category"),
+                data.get("subcategory"),
+                source_library,
+                data.get("description"),
+            ))
+            row = cur.fetchone()
+            db.commit()
+            return jsonify({"success": True, "exercise": row})
+        except psycopg2.errors.UniqueViolation:
+            db.rollback()
+            return jsonify({"error": "That exercise name is already proposed or approved in that library."}), 409
+        except Exception as e:
+            db.rollback()
+            return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
+@media_bp.route("/custom-exercises/approved", methods=["GET"])
+def list_approved_custom_exercises():
+    """Public: every approved custom exercise (so coach MediaLibrary can merge them in)."""
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            SELECT id, name, category, subcategory, source_library, description, approved_at
+            FROM custom_exercises
+            WHERE status = 'approved'
+            ORDER BY source_library, category, name
+        """)
+        rows = cur.fetchall()
+        return jsonify({"exercises": rows, "count": len(rows)})
+    finally:
+        db.close()
+
+
+@media_bp.route("/custom-exercises/mine", methods=["GET"])
+@require_auth
+def list_my_custom_exercise_proposals():
+    """Coach's own proposals with status (pending/approved/rejected/removed)."""
+    user_id = request.current_user["user_id"]
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            SELECT id, name, category, subcategory, source_library, description, status, admin_notes, created_at, approved_at
+            FROM custom_exercises
+            WHERE proposed_by_user_id = %s
+            ORDER BY created_at DESC
+        """, (user_id,))
+        rows = cur.fetchall()
+        return jsonify({"proposals": rows, "count": len(rows)})
+    finally:
+        db.close()
+
+
+@media_bp.route("/admin/custom-exercises", methods=["GET"])
+@require_auth
+@require_admin
+def admin_list_custom_exercises():
+    """Admin: all proposals with coach names. Optional ?status=pending|approved|rejected|removed."""
+    status = request.args.get("status")
+    db = get_db()
+    try:
+        cur = db.cursor()
+        sql = """
+            SELECT ce.*, u.first_name, u.last_name, u.email
+            FROM custom_exercises ce
+            LEFT JOIN users u ON u.id = ce.proposed_by_user_id
+        """
+        params = []
+        if status:
+            sql += " WHERE ce.status = %s"
+            params.append(status)
+        sql += " ORDER BY ce.created_at DESC LIMIT 500"
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+        return jsonify({"proposals": rows, "count": len(rows)})
+    finally:
+        db.close()
+
+
+@media_bp.route("/admin/custom-exercises/decide", methods=["POST"])
+@require_auth
+@require_admin
+def admin_decide_custom_exercise():
+    """
+    Admin approves/rejects/removes a proposal.
+    Body: { id, status: 'approved'|'rejected'|'removed', admin_notes? }
+    """
+    admin_id = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+    ce_id = data.get("id")
+    status = data.get("status")
+    if not ce_id or status not in ("approved", "rejected", "removed", "pending"):
+        return jsonify({"error": "id + valid status required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            UPDATE custom_exercises
+            SET status = %s,
+                admin_notes = COALESCE(%s, admin_notes),
+                approved_by_user_id = CASE WHEN %s = 'approved' THEN %s ELSE approved_by_user_id END,
+                approved_at = CASE WHEN %s = 'approved' THEN NOW() ELSE approved_at END
+            WHERE id = %s
+            RETURNING id, name, status, approved_at
+        """, (status, data.get("admin_notes"), status, admin_id, status, ce_id))
+        row = cur.fetchone()
+        db.commit()
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        return jsonify({"success": True, "exercise": row})
+    finally:
+        db.close()
+
+
 # ── Video use waiver — version string bumps when terms materially change ─
 VIDEO_WAIVER_VERSION = "2026-04-18-v1"
 

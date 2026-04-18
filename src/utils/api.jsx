@@ -42,6 +42,12 @@ export const api = {
   // Media (per-coach video/audio uploads)
   waiverStatus: () => request('/media/waiver/status'),
   waiverAccept: () => request('/media/waiver/accept', { method: 'POST' }),
+  proposeExercise: (body) => request('/media/custom-exercises', { method: 'POST', body: JSON.stringify(body) }),
+  approvedCustomExercises: () => request('/media/custom-exercises/approved'),
+  myExerciseProposals: () => request('/media/custom-exercises/mine'),
+  adminCustomExercises: (status) => request(`/media/admin/custom-exercises${status ? '?status=' + encodeURIComponent(status) : ''}`),
+  decideCustomExercise: (id, status, adminNotes) =>
+    request('/media/admin/custom-exercises/decide', { method: 'POST', body: JSON.stringify({ id, status, admin_notes: adminNotes || null }) }),
   mediaUploadUrl: (opts = {}) => {
     const body = {
       media_type: opts.mediaType || 'video',

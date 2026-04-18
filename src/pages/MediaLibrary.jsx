@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
 import manifest from '../data/exercise_manifest.json';
 import VideoWaiverModal from '../components/VideoWaiverModal';
+import ProposeExerciseModal from '../components/ProposeExerciseModal';
 
 const s = {
   page: { maxWidth: '1100px', margin: '0 auto', padding: '24px 20px' },
@@ -81,13 +82,22 @@ export default function MediaLibrary() {
   const [openVideo, setOpenVideo] = useState(null);
   const [waiverAccepted, setWaiverAccepted] = useState(null); // null = unknown, true/false once resolved
   const [showWaiver, setShowWaiver] = useState(false);
+  const [showPropose, setShowPropose] = useState(false);
+  const [customExercises, setCustomExercises] = useState([]);
 
-  // Fetch existing uploads + waiver status
+  const reloadCustom = () => {
+    api.approvedCustomExercises()
+      .then((r) => setCustomExercises(r.exercises || []))
+      .catch(() => setCustomExercises([]));
+  };
+
+  // Fetch existing uploads + waiver status + approved custom exercises
   useEffect(() => {
     api.myMedia().then((r) => setMyMedia(r.uploads || [])).catch(() => setMyMedia([]));
     api.waiverStatus()
       .then((r) => setWaiverAccepted(!!r.accepted))
       .catch(() => setWaiverAccepted(false));
+    reloadCustom();
   }, []);
 
   const myByKey = useMemo(() => {
@@ -96,10 +106,24 @@ export default function MediaLibrary() {
     return map;
   }, [myMedia]);
 
-  // Group manifest by source_library + category
+  // Merge bundled manifest with approved community exercises
+  const allExercises = useMemo(() => {
+    const custom = (customExercises || []).map((c) => ({
+      name: c.name,
+      category: c.category || 'Community',
+      subcategory: c.subcategory || null,
+      source_library: c.source_library || 'custom',
+      has_default_video: false,
+      default_video_uid: null,
+      is_community: true,
+    }));
+    return [...manifest.exercises, ...custom];
+  }, [customExercises]);
+
+  // Group by source_library + category
   const grouped = useMemo(() => {
     const out = {};
-    for (const e of manifest.exercises) {
+    for (const e of allExercises) {
       if (libFilter !== 'all' && e.source_library !== libFilter) continue;
       if (search && !e.name.toLowerCase().includes(search.toLowerCase())) continue;
       const key = `${e.source_library}::${e.category}`;
@@ -108,7 +132,7 @@ export default function MediaLibrary() {
       out[key].items.push(e);
     }
     return Object.values(out).sort((a, b) => (a.source_library + a.category).localeCompare(b.source_library + b.category));
-  }, [search, libFilter, hideHasMine, myByKey]);
+  }, [allExercises, search, libFilter, hideHasMine, myByKey]);
 
   const handleFile = async (exercise, file) => {
     const key = `${exercise.source_library}::${exercise.name}`;
@@ -193,6 +217,12 @@ export default function MediaLibrary() {
           onCancel={() => setShowWaiver(false)}
         />
       )}
+      {showPropose && (
+        <ProposeExerciseModal
+          onClose={() => setShowPropose(false)}
+          onSubmitted={reloadCustom}
+        />
+      )}
       {waiverAccepted === false && !showWaiver && (
         <div style={{ background: '#fef3c7', border: '1px solid #fbbf24', padding: '12px 14px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px', color: '#7c2d12', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <span>📝 Uploads are disabled until you accept the one-time Video Use Agreement.</span>
@@ -245,6 +275,12 @@ export default function MediaLibrary() {
           />
           Hide ones I've uploaded
         </label>
+        <button
+          onClick={() => setShowPropose(true)}
+          style={{ padding: '8px 14px', border: 'none', borderRadius: '8px', background: 'linear-gradient(135deg, #B37602, #8a5b00)', color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}
+        >
+          + Propose Exercise
+        </button>
       </div>
 
       {grouped.length === 0 && (
@@ -280,6 +316,7 @@ export default function MediaLibrary() {
                         {ex.name}
                         {ex.subcategory && <span style={s.rowSub}>{ex.subcategory}</span>}
                         {ex.has_default_video && !mine && <span style={s.defaultBadge}>has default video</span>}
+                        {ex.is_community && <span style={{ ...s.defaultBadge, background: '#e0e7ff', color: '#3730a3' }}>community</span>}
                         {mine && <span style={s.yourBadge}>YOURS</span>}
                       </div>
                       {mine ? (
