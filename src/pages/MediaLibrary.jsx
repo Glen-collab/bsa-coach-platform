@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
 import manifest from '../data/exercise_manifest.json';
+import VideoWaiverModal from '../components/VideoWaiverModal';
 
 const s = {
   page: { maxWidth: '1100px', margin: '0 auto', padding: '24px 20px' },
@@ -78,10 +79,15 @@ export default function MediaLibrary() {
   const [myMedia, setMyMedia] = useState([]);
   const [perRow, setPerRow] = useState({}); // key -> { state: 'idle'|'uploading'|'done'|'error', progress, message, uid }
   const [openVideo, setOpenVideo] = useState(null);
+  const [waiverAccepted, setWaiverAccepted] = useState(null); // null = unknown, true/false once resolved
+  const [showWaiver, setShowWaiver] = useState(false);
 
-  // Fetch existing uploads
+  // Fetch existing uploads + waiver status
   useEffect(() => {
     api.myMedia().then((r) => setMyMedia(r.uploads || [])).catch(() => setMyMedia([]));
+    api.waiverStatus()
+      .then((r) => setWaiverAccepted(!!r.accepted))
+      .catch(() => setWaiverAccepted(false));
   }, []);
 
   const myByKey = useMemo(() => {
@@ -109,6 +115,11 @@ export default function MediaLibrary() {
     if (!file) return;
     if (!file.type.startsWith('video/')) {
       setPerRow((p) => ({ ...p, [key]: { state: 'error', message: 'Not a video file' } }));
+      return;
+    }
+    // Gate on video-use waiver — first upload shows the modal, then never again.
+    if (!waiverAccepted) {
+      setShowWaiver(true);
       return;
     }
     setPerRow((p) => ({ ...p, [key]: { state: 'uploading', progress: 0 } }));
@@ -176,6 +187,20 @@ export default function MediaLibrary() {
 
   return (
     <div style={s.page}>
+      {showWaiver && (
+        <VideoWaiverModal
+          onAccept={() => { setWaiverAccepted(true); setShowWaiver(false); }}
+          onCancel={() => setShowWaiver(false)}
+        />
+      )}
+      {waiverAccepted === false && !showWaiver && (
+        <div style={{ background: '#fef3c7', border: '1px solid #fbbf24', padding: '12px 14px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px', color: '#7c2d12', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <span>📝 Uploads are disabled until you accept the one-time Video Use Agreement.</span>
+          <button onClick={() => setShowWaiver(true)} style={{ padding: '8px 14px', border: 'none', borderRadius: '8px', background: '#B37602', color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+            Review & Accept
+          </button>
+        </div>
+      )}
       <h1 style={s.title}>Your Video Library</h1>
       <p style={s.sub}>
         Upload your own video for any exercise. Your clients (and anyone who signs up under you) will see your version

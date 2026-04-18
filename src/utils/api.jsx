@@ -40,6 +40,8 @@ export const api = {
   rejectVideo: (id) => request(`/admin/videos/${id}/reject`, { method: 'POST' }),
 
   // Media (per-coach video/audio uploads)
+  waiverStatus: () => request('/media/waiver/status'),
+  waiverAccept: () => request('/media/waiver/accept', { method: 'POST' }),
   mediaUploadUrl: (opts = {}) => {
     const body = {
       media_type: opts.mediaType || 'video',

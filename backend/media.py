@@ -38,6 +38,62 @@ def require_admin(f):
     return decorated
 
 
+# ── Video use waiver — version string bumps when terms materially change ─
+VIDEO_WAIVER_VERSION = "2026-04-18-v1"
+
+
+@media_bp.route("/waiver/status", methods=["GET"])
+@require_auth
+def waiver_status():
+    """Returns whether the current user has accepted the current waiver version."""
+    user_id = request.current_user["user_id"]
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT video_waiver_accepted_at, video_waiver_version FROM users WHERE id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone() or {}
+        accepted = bool(row.get("video_waiver_accepted_at")) and row.get("video_waiver_version") == VIDEO_WAIVER_VERSION
+        return jsonify({
+            "accepted": accepted,
+            "accepted_at": row.get("video_waiver_accepted_at"),
+            "accepted_version": row.get("video_waiver_version"),
+            "current_version": VIDEO_WAIVER_VERSION,
+        })
+    finally:
+        db.close()
+
+
+@media_bp.route("/waiver/accept", methods=["POST"])
+@require_auth
+def waiver_accept():
+    """Record that the current user accepted the current waiver version."""
+    user_id = request.current_user["user_id"]
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            UPDATE users
+            SET video_waiver_accepted_at = NOW(),
+                video_waiver_version = %s
+            WHERE id = %s
+            RETURNING video_waiver_accepted_at, video_waiver_version
+        """, (VIDEO_WAIVER_VERSION, user_id))
+        row = cur.fetchone()
+        db.commit()
+        if not row:
+            return jsonify({"error": "User not found"}), 404
+        return jsonify({
+            "accepted": True,
+            "accepted_at": row["video_waiver_accepted_at"],
+            "accepted_version": row["video_waiver_version"],
+        })
+    finally:
+        db.close()
+
+
 # ── 1. Mint Cloudflare Direct Creator Upload URL ───────────────────────
 @media_bp.route("/upload-url", methods=["POST"])
 @require_auth
@@ -61,6 +117,21 @@ def mint_upload_url():
     token = os.environ.get("CLOUDFLARE_API_TOKEN")
     if not account_id or not token:
         return jsonify({"error": "Cloudflare not configured on server"}), 500
+
+    # Server-side waiver enforcement — cannot upload until the current waiver is accepted.
+    user_id = request.current_user["user_id"]
+    db_waiver = get_db()
+    try:
+        cur = db_waiver.cursor()
+        cur.execute(
+            "SELECT video_waiver_version FROM users WHERE id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if not row or row.get("video_waiver_version") != VIDEO_WAIVER_VERSION:
+            return jsonify({"error": "Video use agreement not accepted", "code": "waiver_required"}), 403
+    finally:
+        db_waiver.close()
 
     max_dur = int(data.get("max_duration_seconds", 600))  # 10-min cap
     # Tag the video in Cloudflare with a meaningful name so the Stream dashboard / admin list
