@@ -40,8 +40,15 @@ export const api = {
   rejectVideo: (id) => request(`/admin/videos/${id}/reject`, { method: 'POST' }),
 
   // Media (per-coach video/audio uploads)
-  mediaUploadUrl: (mediaType = 'video', maxDurationSeconds = 600) =>
-    request('/media/upload-url', { method: 'POST', body: JSON.stringify({ media_type: mediaType, max_duration_seconds: maxDurationSeconds }) }),
+  mediaUploadUrl: (opts = {}) => {
+    const body = {
+      media_type: opts.mediaType || 'video',
+      max_duration_seconds: opts.maxDurationSeconds || 600,
+    };
+    if (opts.exerciseName) body.exercise_name = opts.exerciseName;
+    if (opts.coachName) body.coach_name = opts.coachName;
+    return request('/media/upload-url', { method: 'POST', body: JSON.stringify(body) });
+  },
   mediaRegister: (body) => request('/media/register', { method: 'POST', body: JSON.stringify(body) }),
   myMedia: () => request('/media/my-uploads'),
   deleteMedia: (exerciseName, mediaType) =>

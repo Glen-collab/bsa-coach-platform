@@ -113,8 +113,14 @@ export default function MediaLibrary() {
     }
     setPerRow((p) => ({ ...p, [key]: { state: 'uploading', progress: 0 } }));
     try {
-      // 1. Mint upload URL
-      const { uploadURL, uid } = await api.mediaUploadUrl('video');
+      // 1. Mint upload URL — tag with exercise + coach name so Cloudflare stores a
+      //    meaningful label instead of the client's original filename.
+      const coachName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim();
+      const { uploadURL, uid } = await api.mediaUploadUrl({
+        mediaType: 'video',
+        exerciseName: exercise.name,
+        coachName,
+      });
       // 2. Upload bytes (XHR for progress)
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();

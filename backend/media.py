@@ -63,10 +63,27 @@ def mint_upload_url():
         return jsonify({"error": "Cloudflare not configured on server"}), 500
 
     max_dur = int(data.get("max_duration_seconds", 600))  # 10-min cap
+    # Tag the video in Cloudflare with a meaningful name so the Stream dashboard / admin list
+    # shows "Lat Pulldown" instead of the client's original filename (IMG_xxx.mov).
+    exercise_name = (data.get("exercise_name") or "").strip()
+    coach_name = (data.get("coach_name") or "").strip()
+    meta = {}
+    if exercise_name:
+        label = f"{exercise_name} — {coach_name}" if coach_name else exercise_name
+        meta["name"] = label
+    if exercise_name:
+        meta["exercise_name"] = exercise_name
+    if coach_name:
+        meta["coach_name"] = coach_name
+
+    payload = {"maxDurationSeconds": max_dur}
+    if meta:
+        payload["meta"] = meta
+
     cf_resp = requests.post(
         f"https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/direct_upload",
         headers={"Authorization": f"Bearer {token}"},
-        json={"maxDurationSeconds": max_dur},
+        json=payload,
         timeout=15,
     )
     if cf_resp.status_code != 200:
@@ -394,19 +411,54 @@ def admin_cloudflare_list():
     if not data.get("success"):
         return jsonify({"error": "Cloudflare API error", "details": data.get("errors")}), 502
 
+    raw_videos = (data.get("result") or [])[:limit]
+    uids = [v.get("uid") for v in raw_videos if v.get("uid")]
+
+    # Look up trainer_media rows so existing videos named IMG_xxx.mov get a proper
+    # exercise_name + coach attribution.
+    tm_by_uid = {}
+    if uids:
+        db = get_db()
+        try:
+            cur = db.cursor()
+            cur.execute("""
+                SELECT tm.cloudflare_uid, tm.exercise_name, tm.source_library,
+                       tm.status, u.first_name, u.last_name
+                FROM trainer_media tm
+                LEFT JOIN users u ON u.id = tm.trainer_id
+                WHERE tm.cloudflare_uid = ANY(%s)
+            """, (uids,))
+            for row in cur.fetchall():
+                tm_by_uid[row["cloudflare_uid"]] = row
+        finally:
+            db.close()
+
     videos = []
-    for v in (data.get("result") or [])[:limit]:
+    for v in raw_videos:
+        uid = v.get("uid")
         meta = v.get("meta") or {}
+        tm = tm_by_uid.get(uid)
+        # Priority for display name: trainer_media exercise_name > CF meta.name > uid
+        if tm:
+            coach = f"{tm.get('first_name') or ''} {tm.get('last_name') or ''}".strip()
+            display_name = tm["exercise_name"] + (f" — {coach}" if coach else "")
+        else:
+            display_name = meta.get("name") or uid
         videos.append({
-            "uid": v.get("uid"),
-            "name": meta.get("name") or v.get("uid"),
+            "uid": uid,
+            "name": display_name,
+            "cf_meta_name": meta.get("name"),
             "thumbnail": v.get("thumbnail"),
             "duration": v.get("duration"),
             "size": v.get("size"),
             "status_state": (v.get("status") or {}).get("state"),
             "created": v.get("created"),
             "preview": v.get("preview"),
-            "watch_url": f"https://watch.cloudflarestream.com/{v.get('uid')}",
+            "watch_url": f"https://watch.cloudflarestream.com/{uid}",
+            "tracked": bool(tm),
+            "tracked_exercise_name": tm["exercise_name"] if tm else None,
+            "tracked_source_library": tm["source_library"] if tm else None,
+            "tracked_status": tm["status"] if tm else None,
         })
 
     return jsonify({"videos": videos, "count": len(videos)})

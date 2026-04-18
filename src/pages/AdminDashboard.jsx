@@ -39,6 +39,8 @@ const buildStyles = (isMobile) => ({
   appEmail: { fontSize: '13px', color: '#888', marginBottom: '12px', wordBreak: 'break-word' },
   appField: { fontSize: '14px', color: '#444', marginBottom: '8px', lineHeight: '1.5' },
   appLabel: { fontSize: '12px', fontWeight: '600', color: '#B37602', textTransform: 'uppercase', marginBottom: '4px' },
+  toolsRow: { display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginBottom: '18px' },
+  toolBtn: { padding: isMobile ? '14px 10px' : '12px 18px', border: 'none', borderRadius: '10px', color: '#fff', fontSize: isMobile ? '13px' : '14px', fontWeight: '600', cursor: 'pointer', textDecoration: 'none', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '48px', lineHeight: '1.2' },
 });
 
 export default function AdminDashboard() {
@@ -163,17 +165,17 @@ export default function AdminDashboard() {
       <p style={s.sub}>Platform overview and management</p>
 
       {/* Quick Tools */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <a href={`https://workoutbuild.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #B37602, #8a5b00)', color: '#fff', borderRadius: '10px', fontSize: '13px', fontWeight: '600', textDecoration: 'none' }}>
+      <div style={s.toolsRow}>
+        <a href={`https://workoutbuild.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #B37602, #8a5b00)' }}>
           Workout Builder
         </a>
-        <a href={`https://bsa-trainer-dashboard.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', borderRadius: '10px', fontSize: '13px', fontWeight: '600', textDecoration: 'none' }}>
+        <a href={`https://bsa-trainer-dashboard.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
           Trainer Dashboard
         </a>
-        <a href="https://bestrongagain.netlify.app" target="_blank" rel="noreferrer" style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', borderRadius: '10px', fontSize: '13px', fontWeight: '600', textDecoration: 'none' }}>
+        <a href="https://bestrongagain.netlify.app" target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
           Workout Tracker
         </a>
-        <a href="https://bestrongagain.com" target="_blank" rel="noreferrer" style={{ padding: '10px 20px', background: '#1a1a2e', color: '#fff', borderRadius: '10px', fontSize: '13px', fontWeight: '600', textDecoration: 'none' }}>
+        <a href="https://bestrongagain.com" target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: '#1a1a2e' }}>
           Website
         </a>
       </div>
