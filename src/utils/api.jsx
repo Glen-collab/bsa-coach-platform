@@ -27,7 +27,14 @@ export const api = {
 
   // Admin
   overview: () => request('/admin/overview'),
+  membersList: () => request('/admin/members/list'),
   coachesList: () => request('/admin/coaches/list'),
+  coachApplications: () => request('/admin/coach-applications'),
+  approveCoach: (id, notes) => request(`/admin/coach-applications/${id}/approve`, { method: 'POST', body: JSON.stringify({ notes }) }),
+  denyCoach: (id, notes) => request(`/admin/coach-applications/${id}/deny`, { method: 'POST', body: JSON.stringify({ notes }) }),
+  assignMember: (memberId, coachId) => request('/admin/members/assign', { method: 'POST', body: JSON.stringify({ member_id: memberId, coach_id: coachId }) }),
+  deactivateMember: (memberId) => request('/admin/members/deactivate', { method: 'POST', body: JSON.stringify({ member_id: memberId }) }),
+  deleteMember: (memberId) => request('/admin/members/delete', { method: 'POST', body: JSON.stringify({ member_id: memberId }) }),
   pendingVideos: () => request('/admin/videos/pending'),
   approveVideo: (id) => request(`/admin/videos/${id}/approve`, { method: 'POST' }),
   rejectVideo: (id) => request(`/admin/videos/${id}/reject`, { method: 'POST' }),

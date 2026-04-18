@@ -1,6 +1,7 @@
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 const s = {
   page: { maxWidth: '800px', margin: '0 auto', padding: '32px 24px' },
@@ -55,6 +56,17 @@ export default function MemberDashboard() {
         </div>
       </div>
 
+      {/* Apply as Coach */}
+      <div style={{ ...s.card, background: 'linear-gradient(135deg, #faf5ff, #f0f7ff)', border: '1px solid #e8d5f5' }}>
+        <div style={s.cardTitle}>Are You a Coach?</div>
+        <p style={{ fontSize: '14px', color: '#666', marginBottom: '16px', lineHeight: '1.6' }}>
+          If you're a trainer, you can coach clients on this platform. Build programs, track their progress, and keep 80% of every subscription. Apply to get started.
+        </p>
+        <Link to="/apply-coach" style={{ ...s.btn, textDecoration: 'none', display: 'inline-block', textAlign: 'center' }}>
+          Apply as Coach
+        </Link>
+      </div>
+
       {/* Referral */}
       <div style={s.card}>
         <div style={s.cardTitle}>Refer a Friend</div>
@@ -73,7 +85,7 @@ export default function MemberDashboard() {
 
       {/* Quick Links */}
       <div style={s.card}>
-        <div style={s.cardTitle}>Quick Links</div>
+        <div style={s.cardTitle}>Your Training</div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <a href="https://bestrongagain.netlify.app/" target="_blank" rel="noreferrer" style={s.btn}>
             Open Workout Tracker

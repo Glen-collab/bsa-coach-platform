@@ -96,6 +96,22 @@ export default function CoachDashboard() {
         </div>
       </div>
 
+      {/* Quick Tools */}
+      <div style={s.card}>
+        <div style={s.cardTitle}>Your Tools</div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <a href={`https://workoutbuild.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ ...s.btn, textDecoration: 'none', textAlign: 'center', flex: '1 1 140px' }}>
+            Workout Builder
+          </a>
+          <a href={`https://bsa-trainer-dashboard.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ ...s.btn, textDecoration: 'none', textAlign: 'center', flex: '1 1 140px', background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
+            Client Dashboard
+          </a>
+          <a href="https://bestrongagain.netlify.app" target="_blank" rel="noreferrer" style={{ ...s.btn, textDecoration: 'none', textAlign: 'center', flex: '1 1 140px', background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+            Workout Tracker
+          </a>
+        </div>
+      </div>
+
       {/* Referral Link */}
       <div style={s.card}>
         <div style={s.cardTitle}>Your Referral Link</div>

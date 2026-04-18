@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
 
@@ -20,6 +20,8 @@ const s = {
 
 export default function Register() {
   const { referralCode: urlReferral } = useParams();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -44,7 +46,7 @@ export default function Register() {
         referral_code: referralCode || null,
       });
       login(res.user, res.token);
-      navigate('/dashboard');
+      navigate(redirectTo || '/dashboard');
     } catch (err) {
       setError(err.message);
     }

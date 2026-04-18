@@ -7,6 +7,7 @@ import Register from './pages/Register';
 import MemberDashboard from './pages/MemberDashboard';
 import CoachDashboard from './pages/CoachDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import ApplyCoach from './pages/ApplyCoach';
 
 function ProtectedRoute({ children, requiredRole }) {
   const { user, loading } = useAuth();
@@ -34,6 +35,7 @@ function AppRoutes() {
       <Route path="/register/:referralCode" element={<Register />} />
       <Route path="/dashboard" element={<ProtectedRoute>{getDashboard()}</ProtectedRoute>} />
       <Route path="/coach" element={<ProtectedRoute requiredRole="coach"><CoachDashboard /></ProtectedRoute>} />
+      <Route path="/apply-coach" element={<ApplyCoach />} />
       <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
