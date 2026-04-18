@@ -9,50 +9,69 @@ import { api } from '../utils/api';
 import manifest from '../data/exercise_manifest.json';
 import VideoWaiverModal from '../components/VideoWaiverModal';
 import ProposeExerciseModal from '../components/ProposeExerciseModal';
+import useMediaQuery from '../hooks/useMediaQuery';
 
-const s = {
-  page: { maxWidth: '1100px', margin: '0 auto', padding: '24px 20px' },
-  title: { fontSize: '24px', fontWeight: '700', marginBottom: '4px' },
-  sub: { fontSize: '13px', color: '#888', marginBottom: '20px' },
+const buildStyles = (isMobile) => ({
+  page: { maxWidth: '1100px', margin: '0 auto', padding: isMobile ? '16px 12px' : '24px 20px' },
+  title: { fontSize: isMobile ? '20px' : '24px', fontWeight: '700', marginBottom: '4px' },
+  sub: { fontSize: '13px', color: '#888', marginBottom: '16px' },
   toolbar: {
-    display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px',
-    background: '#fff', padding: '12px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+    display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px',
+    background: '#fff', padding: isMobile ? '10px' : '12px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
   },
-  search: { flex: '1 1 240px', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' },
+  search: { flex: '1 1 200px', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', minWidth: 0 },
   select: { padding: '8px 10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', background: '#fff' },
   toggle: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#444' },
-  statRow: { display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' },
+  statRow: { display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(auto-fit, minmax(140px, 1fr))', gap: isMobile ? '8px' : '10px', marginBottom: '16px' },
   stat: {
-    flex: '1 1 140px', background: 'linear-gradient(135deg, #667eea, #764ba2)',
-    borderRadius: '10px', padding: '12px 16px', color: '#fff',
+    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+    borderRadius: '10px', padding: isMobile ? '10px 8px' : '12px 16px',
+    color: '#fff', minWidth: 0, textAlign: 'center',
   },
-  statLabel: { fontSize: '11px', fontWeight: '600', opacity: 0.85 },
-  statValue: { fontSize: '20px', fontWeight: '800' },
-  catSection: { background: '#fff', borderRadius: '12px', padding: '16px', marginBottom: '14px', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' },
-  catHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '6px 4px' },
-  catName: { fontSize: '15px', fontWeight: '700', color: '#1a1a2e' },
-  catMeta: { fontSize: '12px', color: '#888' },
+  statLabel: { fontSize: isMobile ? '10px' : '11px', fontWeight: '600', opacity: 0.85 },
+  statValue: { fontSize: isMobile ? '18px' : '20px', fontWeight: '800' },
+  catSection: { background: '#fff', borderRadius: '12px', padding: isMobile ? '12px' : '16px', marginBottom: '12px', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' },
+  catHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '6px 4px', gap: '8px' },
+  catName: { fontSize: isMobile ? '14px' : '15px', fontWeight: '700', color: '#1a1a2e' },
+  catMeta: { fontSize: '11px', color: '#888', whiteSpace: 'nowrap' },
   row: {
-    display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 6px',
-    borderTop: '1px solid #f3f3f3', minHeight: '50px',
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    alignItems: isMobile ? 'stretch' : 'center',
+    gap: '8px', padding: isMobile ? '10px 4px' : '8px 6px',
+    borderTop: '1px solid #f3f3f3', minHeight: isMobile ? 'auto' : '50px',
   },
-  rowName: { flex: '1 1 200px', fontSize: '14px', color: '#222' },
+  rowName: {
+    flex: isMobile ? '0 0 auto' : '1 1 200px',
+    fontSize: '14px', color: '#222', wordBreak: 'break-word',
+  },
+  rowControls: {
+    display: 'flex', gap: '6px', alignItems: 'center',
+    flex: isMobile ? '0 0 auto' : '0 0 auto',
+    flexWrap: 'wrap',
+  },
   rowSub: { fontSize: '11px', color: '#888', marginLeft: '6px' },
   drop: {
-    flex: '0 0 220px', border: '2px dashed #cfd8e3', borderRadius: '8px',
-    padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: '#666',
+    flex: isMobile ? '1 1 100%' : '0 0 220px',
+    border: '2px dashed #cfd8e3', borderRadius: '8px',
+    padding: isMobile ? '10px 12px' : '8px 12px',
+    textAlign: 'center', fontSize: '12px', color: '#666',
     cursor: 'pointer', background: '#fafbfd', transition: 'background 120ms',
+    minHeight: isMobile ? '44px' : 'auto',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   dropActive: { background: '#eef2ff', borderColor: '#667eea', color: '#3b3b6c' },
   dropUploading: { background: '#fff7ed', borderColor: '#f59e0b', color: '#92400e' },
   dropDone: { background: '#ecfdf5', borderColor: '#10b981', color: '#065f46' },
   dropError: { background: '#fef2f2', borderColor: '#ef4444', color: '#991b1b' },
   thumb: {
-    flex: '0 0 220px', display: 'flex', alignItems: 'center', gap: '8px',
+    flex: isMobile ? '1 1 100%' : '0 0 220px',
+    display: 'flex', alignItems: 'center', gap: '6px',
     background: '#f0fdf4', borderRadius: '8px', padding: '8px 10px', fontSize: '12px',
+    flexWrap: 'wrap',
   },
   smallBtn: {
-    padding: '4px 10px', border: 'none', borderRadius: '6px',
+    padding: '6px 10px', border: 'none', borderRadius: '6px',
     fontSize: '11px', fontWeight: '600', cursor: 'pointer',
   },
   videoBtn: { background: '#667eea', color: '#fff' },
@@ -69,9 +88,11 @@ const s = {
     flex: '0 0 100%', marginTop: '8px', background: '#000', borderRadius: '8px',
     overflow: 'hidden', aspectRatio: '16/9',
   },
-};
+});
 
 export default function MediaLibrary() {
+  const isMobile = useMediaQuery('(max-width: 640px)');
+  const s = buildStyles(isMobile);
   const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [libFilter, setLibFilter] = useState('all');
@@ -333,18 +354,18 @@ export default function MediaLibrary() {
                           </button>
                         </div>
                       ) : (
-                        <>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flex: isMobile ? '1 1 100%' : '0 0 auto', flexWrap: 'wrap' }}>
                           {ex.default_video_uid && (
                             <button
-                              style={{ ...s.smallBtn, background: '#e0e7ff', color: '#3730a3', flex: '0 0 auto', marginRight: '4px' }}
+                              style={{ ...s.smallBtn, background: '#e0e7ff', color: '#3730a3', flex: '0 0 auto' }}
                               onClick={() => setOpenVideo((o) => (o === key + ':default' ? null : key + ':default'))}
                               title="Preview the platform default video for this exercise"
                             >
-                              {openVideo === key + ':default' ? 'Hide default' : '▶ Default'}
+                              {openVideo === key + ':default' ? 'Hide' : '▶ Default'}
                             </button>
                           )}
-                          <DropZone exercise={ex} state={state} onFile={(f) => handleFile(ex, f)} />
-                        </>
+                          <DropZone styles={s} exercise={ex} state={state} onFile={(f) => handleFile(ex, f)} />
+                        </div>
                       )}
                     </div>
                     {openVideo === key + ':mine' && mine && (
@@ -387,7 +408,7 @@ function libLabel(id) {
   }
 }
 
-function DropZone({ exercise, state, onFile }) {
+function DropZone({ styles: s, exercise, state, onFile }) {
   const [hover, setHover] = useState(false);
   const inputRef = useRef(null);
   const onDrop = (e) => {
