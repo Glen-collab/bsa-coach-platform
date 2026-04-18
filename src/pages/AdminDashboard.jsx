@@ -197,7 +197,7 @@ export default function AdminDashboard() {
           <div style={s.statValue}>{applications.length}</div>
         </div>
         <div style={{ ...s.stat, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }} onClick={() => setActiveTab('videos')}>
-          <div style={s.statLabel}>Pending Videos</div>
+          <div style={s.statLabel}>Coach Uploads</div>
           <div style={s.statValue}>{videos.length}</div>
         </div>
       </div>
@@ -477,28 +477,29 @@ export default function AdminDashboard() {
             <p style={{ textAlign: 'center', color: '#888' }}>No videos found.</p>
           )}
           {!cfLoading && cfVideos && cfVideos.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+            <div>
               {cfVideos.map((v) => (
-                <div key={v.uid} style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden', background: '#fafafa' }}>
-                  {v.thumbnail && (
-                    <img src={v.thumbnail} alt={v.name} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', cursor: 'pointer', display: 'block' }} onClick={() => setCfPreview(cfPreview === v.uid ? null : v.uid)} />
-                  )}
+                <div key={v.uid}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f0f0f0', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v.name}>{v.name}</div>
+                      <div style={{ fontSize: '11px', color: '#888' }}>
+                        {v.duration ? `${Math.round(v.duration)}s` : '—'}
+                        {v.size ? ` · ${(v.size / (1024 * 1024)).toFixed(1)}MB` : ''}
+                        {v.status_state ? ` · ${v.status_state}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      <button style={{ ...s.btnSmall, background: '#667eea', color: '#fff' }} onClick={() => setCfPreview(cfPreview === v.uid ? null : v.uid)}>{cfPreview === v.uid ? 'Hide' : '▶ Preview'}</button>
+                      <button style={{ ...s.btnSmall, background: '#e5e7eb', color: '#333' }} onClick={() => navigator.clipboard.writeText(v.uid)}>Copy UID</button>
+                      <a href={v.watch_url} target="_blank" rel="noreferrer" style={{ ...s.btnSmall, background: '#fbbf24', color: '#fff', textDecoration: 'none' }}>Open</a>
+                    </div>
+                  </div>
                   {cfPreview === v.uid && (
-                    <div style={{ aspectRatio: '16/9', background: '#000' }}>
+                    <div style={{ aspectRatio: '16/9', background: '#000', marginBottom: '8px', borderRadius: '8px', overflow: 'hidden' }}>
                       <iframe src={`https://iframe.videodelivery.net/${v.uid}?preload=metadata&autoplay=true`} style={{ width: '100%', height: '100%', border: 'none' }} allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen />
                     </div>
                   )}
-                  <div style={{ padding: '8px 10px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v.name}>{v.name}</div>
-                    <div style={{ fontSize: '11px', color: '#888', marginBottom: '6px' }}>
-                      {v.duration ? `${Math.round(v.duration)}s` : '—'} {v.size ? `· ${(v.size / (1024 * 1024)).toFixed(1)}MB` : ''} {v.status_state ? `· ${v.status_state}` : ''}
-                    </div>
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      <button style={{ ...s.btnSmall, background: '#667eea', color: '#fff', fontSize: '11px', padding: '3px 8px' }} onClick={() => setCfPreview(cfPreview === v.uid ? null : v.uid)}>{cfPreview === v.uid ? 'Hide' : 'Preview'}</button>
-                      <button style={{ ...s.btnSmall, background: '#e5e7eb', color: '#333', fontSize: '11px', padding: '3px 8px' }} onClick={() => { navigator.clipboard.writeText(v.uid); }}>Copy UID</button>
-                      <a href={v.watch_url} target="_blank" rel="noreferrer" style={{ ...s.btnSmall, background: '#fbbf24', color: '#fff', textDecoration: 'none', fontSize: '11px', padding: '3px 8px' }}>Open</a>
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>
