@@ -1,29 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
+import useMediaQuery from '../hooks/useMediaQuery';
 
-const s = {
-  page: { maxWidth: '900px', margin: '0 auto', padding: '32px 24px' },
-  title: { fontSize: '24px', fontWeight: '700', marginBottom: '8px' },
-  sub: { fontSize: '14px', color: '#888', marginBottom: '32px' },
-  card: { background: '#fff', borderRadius: '16px', padding: '24px', marginBottom: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' },
-  cardTitle: { fontSize: '18px', fontWeight: '700', marginBottom: '16px', color: '#1a1a2e' },
-  statRow: { display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' },
-  stat: { flex: '1 1 120px', background: 'linear-gradient(135deg, #667eea, #764ba2)', borderRadius: '10px', padding: '16px', color: '#fff', textAlign: 'center' },
-  statGold: { flex: '1 1 120px', background: 'linear-gradient(135deg, #B37602, #8a5b00)', borderRadius: '10px', padding: '16px', color: '#fff', textAlign: 'center' },
-  statGreen: { flex: '1 1 120px', background: 'linear-gradient(135deg, #16a34a, #15803d)', borderRadius: '10px', padding: '16px', color: '#fff', textAlign: 'center' },
-  statLabel: { fontSize: '11px', fontWeight: '600', opacity: 0.85, marginBottom: '4px' },
-  statValue: { fontSize: '22px', fontWeight: '800' },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  th: { textAlign: 'left', padding: '10px 12px', fontSize: '12px', fontWeight: '600', color: '#888', borderBottom: '2px solid #f0f0f0', textTransform: 'uppercase' },
-  td: { padding: '12px', fontSize: '14px', borderBottom: '1px solid #f5f5f5' },
-  referral: { background: '#f0f7ff', border: '1px solid #d0e3f7', borderRadius: '10px', padding: '16px' },
-  btn: { padding: '10px 20px', border: 'none', borderRadius: '8px', background: 'linear-gradient(135deg, #B37602, #8a5b00)', color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
-  treeNode: { background: '#f8f9fa', borderRadius: '10px', padding: '12px 16px', marginBottom: '8px', marginLeft: '0' },
-  treeChild: { marginLeft: '24px', borderLeft: '2px solid #e0e0e0', paddingLeft: '16px' },
-};
+const buildStyles = (isMobile) => ({
+  page: { maxWidth: '900px', margin: '0 auto', padding: isMobile ? '16px 12px' : '32px 24px' },
+  title: { fontSize: isMobile ? '20px' : '24px', fontWeight: '700', marginBottom: '6px' },
+  sub: { fontSize: '13px', color: '#888', marginBottom: isMobile ? '20px' : '32px' },
+  card: { background: '#fff', borderRadius: '16px', padding: isMobile ? '16px' : '24px', marginBottom: isMobile ? '14px' : '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' },
+  cardTitle: { fontSize: isMobile ? '16px' : '18px', fontWeight: '700', marginBottom: '12px', color: '#1a1a2e' },
+  statRow: { display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(3, 1fr)', gap: isMobile ? '8px' : '12px', marginBottom: '16px' },
+  stat: { background: 'linear-gradient(135deg, #667eea, #764ba2)', borderRadius: '10px', padding: isMobile ? '10px 8px' : '16px', color: '#fff', textAlign: 'center', minWidth: 0 },
+  statGold: { background: 'linear-gradient(135deg, #B37602, #8a5b00)', borderRadius: '10px', padding: isMobile ? '10px 8px' : '16px', color: '#fff', textAlign: 'center', minWidth: 0 },
+  statGreen: { background: 'linear-gradient(135deg, #16a34a, #15803d)', borderRadius: '10px', padding: isMobile ? '10px 8px' : '16px', color: '#fff', textAlign: 'center', minWidth: 0 },
+  statLabel: { fontSize: isMobile ? '10px' : '11px', fontWeight: '600', opacity: 0.85, marginBottom: '4px' },
+  statValue: { fontSize: isMobile ? '18px' : '22px', fontWeight: '800' },
+  tableWrap: { overflowX: 'auto', WebkitOverflowScrolling: 'touch' },
+  table: { width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? '440px' : 'auto' },
+  th: { textAlign: 'left', padding: isMobile ? '8px' : '10px 12px', fontSize: '11px', fontWeight: '600', color: '#888', borderBottom: '2px solid #f0f0f0', textTransform: 'uppercase', whiteSpace: 'nowrap' },
+  td: { padding: isMobile ? '8px' : '12px', fontSize: '13px', borderBottom: '1px solid #f5f5f5', whiteSpace: 'nowrap' },
+  referral: { background: '#f0f7ff', border: '1px solid #d0e3f7', borderRadius: '10px', padding: isMobile ? '12px' : '16px' },
+  btn: { padding: isMobile ? '12px 14px' : '10px 20px', border: 'none', borderRadius: '8px', background: 'linear-gradient(135deg, #B37602, #8a5b00)', color: '#fff', fontSize: isMobile ? '13px' : '13px', fontWeight: '600', cursor: 'pointer' },
+  toolsRow: { display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px' },
+  toolBtn: { padding: isMobile ? '14px 10px' : '12px 18px', border: 'none', borderRadius: '10px', color: '#fff', fontSize: isMobile ? '13px' : '14px', fontWeight: '600', cursor: 'pointer', textDecoration: 'none', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '48px', lineHeight: '1.2' },
+  treeNode: { background: '#f8f9fa', borderRadius: '10px', padding: isMobile ? '10px 12px' : '12px 16px', marginBottom: '8px', marginLeft: '0', wordBreak: 'break-word' },
+  treeChild: { marginLeft: isMobile ? '12px' : '24px', borderLeft: '2px solid #e0e0e0', paddingLeft: isMobile ? '10px' : '16px' },
+});
 
 export default function CoachDashboard() {
+  const isMobile = useMediaQuery('(max-width: 640px)');
+  const s = buildStyles(isMobile);
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [tree, setTree] = useState(null);
@@ -99,17 +105,17 @@ export default function CoachDashboard() {
       {/* Quick Tools */}
       <div style={s.card}>
         <div style={s.cardTitle}>Your Tools</div>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <a href={`https://workoutbuild.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ ...s.btn, textDecoration: 'none', textAlign: 'center', flex: '1 1 140px' }}>
+        <div style={s.toolsRow}>
+          <a href={`https://workoutbuild.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #B37602, #8a5b00)' }}>
             Workout Builder
           </a>
-          <a href={`https://bsa-trainer-dashboard.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ ...s.btn, textDecoration: 'none', textAlign: 'center', flex: '1 1 140px', background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
+          <a href={`https://bsa-trainer-dashboard.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
             Client Dashboard
           </a>
-          <a href="https://bestrongagain.netlify.app" target="_blank" rel="noreferrer" style={{ ...s.btn, textDecoration: 'none', textAlign: 'center', flex: '1 1 140px', background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+          <a href="https://bestrongagain.netlify.app" target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
             Workout Tracker
           </a>
-          <a href="/media-library" style={{ ...s.btn, textDecoration: 'none', textAlign: 'center', flex: '1 1 140px', background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
+          <a href="/media-library" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
             Your Video Library
           </a>
         </div>
@@ -134,6 +140,7 @@ export default function CoachDashboard() {
         {clients.length === 0 ? (
           <p style={{ color: '#999', fontSize: '14px' }}>No clients yet. Share your referral link to get started.</p>
         ) : (
+          <div style={s.tableWrap}>
           <table style={s.table}>
             <thead>
               <tr>
@@ -158,6 +165,7 @@ export default function CoachDashboard() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -190,6 +198,7 @@ export default function CoachDashboard() {
       {earnings?.months?.length > 0 && (
         <div style={s.card}>
           <div style={s.cardTitle}>Earnings History</div>
+          <div style={s.tableWrap}>
           <table style={s.table}>
             <thead>
               <tr>
@@ -210,6 +219,7 @@ export default function CoachDashboard() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

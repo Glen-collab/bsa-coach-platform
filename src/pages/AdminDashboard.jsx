@@ -1,32 +1,50 @@
 import { useState, useEffect } from 'react';
 import { api } from '../utils/api';
+import useMediaQuery from '../hooks/useMediaQuery';
 
-const s = {
-  page: { maxWidth: '960px', margin: '0 auto', padding: '32px 24px' },
-  title: { fontSize: '24px', fontWeight: '700', marginBottom: '8px' },
-  sub: { fontSize: '14px', color: '#888', marginBottom: '24px' },
-  statRow: { display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px' },
-  stat: { flex: '1 1 130px', borderRadius: '12px', padding: '16px', color: '#fff', textAlign: 'center', cursor: 'pointer', transition: 'transform 0.15s' },
+const buildStyles = (isMobile) => ({
+  page: { maxWidth: '960px', margin: '0 auto', padding: isMobile ? '16px 12px' : '32px 24px' },
+  title: { fontSize: isMobile ? '20px' : '24px', fontWeight: '700', marginBottom: '6px' },
+  sub: { fontSize: '13px', color: '#888', marginBottom: '18px' },
+  statRow: { display: 'flex', gap: isMobile ? '8px' : '12px', flexWrap: 'wrap', marginBottom: '18px' },
+  stat: { flex: isMobile ? '1 1 calc(50% - 4px)' : '1 1 130px', minWidth: 0, borderRadius: '12px', padding: isMobile ? '12px' : '16px', color: '#fff', textAlign: 'center', cursor: 'pointer', transition: 'transform 0.15s' },
   statLabel: { fontSize: '10px', fontWeight: '600', opacity: 0.85, marginBottom: '4px', textTransform: 'uppercase' },
-  statValue: { fontSize: '24px', fontWeight: '800' },
-  tabs: { display: 'flex', gap: '4px', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '0' },
-  tab: { padding: '10px 20px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', borderBottom: '3px solid transparent', color: '#888', background: 'none', border: 'none', borderRadius: '0' },
+  statValue: { fontSize: isMobile ? '20px' : '24px', fontWeight: '800' },
+  tabs: {
+    display: 'flex', gap: '4px', marginBottom: '16px',
+    borderBottom: '2px solid #e5e7eb',
+    overflowX: 'auto', whiteSpace: 'nowrap',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'thin',
+  },
+  tab: {
+    padding: isMobile ? '8px 12px' : '10px 20px',
+    fontSize: isMobile ? '12px' : '14px',
+    fontWeight: '600', cursor: 'pointer',
+    borderBottom: '3px solid transparent', color: '#888',
+    background: 'none', border: 'none', borderRadius: '0',
+    flex: '0 0 auto',
+  },
   tabActive: { color: '#B37602', borderBottom: '3px solid #B37602' },
-  card: { background: '#fff', borderRadius: '16px', padding: '24px', marginBottom: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' },
-  cardTitle: { fontSize: '18px', fontWeight: '700', marginBottom: '16px', color: '#1a1a2e' },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  th: { textAlign: 'left', padding: '10px 12px', fontSize: '12px', fontWeight: '600', color: '#888', borderBottom: '2px solid #f0f0f0', textTransform: 'uppercase' },
-  td: { padding: '12px', fontSize: '14px', borderBottom: '1px solid #f5f5f5' },
+  card: { background: '#fff', borderRadius: '16px', padding: isMobile ? '14px' : '24px', marginBottom: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' },
+  cardTitle: { fontSize: isMobile ? '16px' : '18px', fontWeight: '700', marginBottom: '12px', color: '#1a1a2e' },
+  tableWrap: { overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginLeft: isMobile ? '-4px' : 0, marginRight: isMobile ? '-4px' : 0 },
+  table: { width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? '500px' : 'auto' },
+  th: { textAlign: 'left', padding: isMobile ? '8px' : '10px 12px', fontSize: '11px', fontWeight: '600', color: '#888', borderBottom: '2px solid #f0f0f0', textTransform: 'uppercase', whiteSpace: 'nowrap' },
+  td: { padding: isMobile ? '8px' : '12px', fontSize: '13px', borderBottom: '1px solid #f5f5f5', whiteSpace: 'nowrap' },
   badge: { padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', display: 'inline-block' },
-  btnSmall: { padding: '8px 16px', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', marginRight: '6px' },
-  appCard: { background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px', marginBottom: '16px' },
+  btnSmall: { padding: isMobile ? '6px 10px' : '8px 16px', border: 'none', borderRadius: '8px', fontSize: isMobile ? '12px' : '13px', fontWeight: '600', cursor: 'pointer', marginRight: '6px' },
+  appCard: { background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: isMobile ? '14px' : '20px', marginBottom: '12px' },
   appName: { fontSize: '16px', fontWeight: '700', marginBottom: '4px' },
-  appEmail: { fontSize: '13px', color: '#888', marginBottom: '12px' },
+  appEmail: { fontSize: '13px', color: '#888', marginBottom: '12px', wordBreak: 'break-word' },
   appField: { fontSize: '14px', color: '#444', marginBottom: '8px', lineHeight: '1.5' },
   appLabel: { fontSize: '12px', fontWeight: '600', color: '#B37602', textTransform: 'uppercase', marginBottom: '4px' },
-};
+});
 
 export default function AdminDashboard() {
+  const isMobile = useMediaQuery('(max-width: 640px)');
+  const s = buildStyles(isMobile);
+
   const [overview, setOverview] = useState(null);
   const [members, setMembers] = useState([]);
   const [coaches, setCoaches] = useState([]);
@@ -296,6 +314,7 @@ export default function AdminDashboard() {
                     {(!c.clients || c.clients.length === 0) ? (
                       <p style={{ color: '#999', fontSize: '13px', fontStyle: 'italic' }}>No clients yet</p>
                     ) : (
+                      <div style={s.tableWrap}>
                       <table style={{ ...s.table, fontSize: '13px' }}>
                         <thead>
                           <tr>
@@ -331,6 +350,7 @@ export default function AdminDashboard() {
                           ))}
                         </tbody>
                       </table>
+                      </div>
                     )}
                   </div>
                 )}
