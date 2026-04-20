@@ -178,7 +178,7 @@ def tv_config():
                 VALUES (%s, %s, %s, %s)
                 ON CONFLICT (coach_id, device_serial) DO UPDATE
                   SET last_seen_at = NOW()
-                RETURNING id, display_name, active_program_id
+                RETURNING id, display_name, active_program_id, layout
             """, (pi_id, device_serial, default_name, coach["active_kiosk_program_id"]))
             device_row = cur.fetchone()
             db.commit()
@@ -204,6 +204,7 @@ def tv_config():
             "device": {
                 "id": device_row["id"] if device_row else None,
                 "display_name": device_row["display_name"] if device_row else None,
+                "layout": device_row["layout"] if device_row else "two_day",
             } if device_row else None,
             "active": {
                 "program_id": program["id"],
@@ -227,7 +228,7 @@ def my_devices():
         cur = db.cursor()
         cur.execute("""
             SELECT d.id, d.device_serial, d.display_name, d.active_program_id,
-                   d.last_seen_at, d.created_at,
+                   d.layout, d.last_seen_at, d.created_at,
                    wp.access_code, wp.program_name
             FROM coach_devices d
             LEFT JOIN workout_programs wp ON wp.id = d.active_program_id
@@ -306,6 +307,39 @@ def device_set_active():
         """, (program_id, device_id, user_id))
         row = cur.fetchone()
         db.commit()
+        return jsonify({"success": True, "device": row})
+    finally:
+        db.close()
+
+
+# ── Coach: change a device's TV layout ────────────────────────────────
+@kiosk_bp.route("/device/set-layout", methods=["POST"])
+@require_auth
+def device_set_layout():
+    """
+    Body: { device_id, layout: 'two_day' | 'wod' | 'wod_scaled' }
+      - two_day: Day 1 + Day 2 side-by-side (default — personal trainer style)
+      - wod: single fullwidth column — pure CrossFit WOD
+      - wod_scaled: 2 columns rebadged 'Rx / WOD' + 'Scaled' (regression pairing)
+    """
+    user_id = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    layout = (data.get("layout") or "").strip()
+    if not device_id or layout not in ("two_day", "wod", "wod_scaled"):
+        return jsonify({"error": "device_id + valid layout required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            UPDATE coach_devices SET layout = %s
+            WHERE id = %s AND coach_id = %s
+            RETURNING id, layout
+        """, (layout, device_id, user_id))
+        row = cur.fetchone()
+        db.commit()
+        if not row:
+            return jsonify({"error": "Device not found"}), 404
         return jsonify({"success": True, "device": row})
     finally:
         db.close()

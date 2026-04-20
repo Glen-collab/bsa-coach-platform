@@ -85,6 +85,7 @@ export const api = {
   kioskRenameDevice: (deviceId, displayName) => request('/kiosk/device/rename', { method: 'POST', body: JSON.stringify({ device_id: deviceId, display_name: displayName }) }),
   kioskDeviceSetActive: (deviceId, programId) => request('/kiosk/device/set-active', { method: 'POST', body: JSON.stringify({ device_id: deviceId, program_id: programId }) }),
   kioskDeleteDevice: (deviceId) => request('/kiosk/device/delete', { method: 'POST', body: JSON.stringify({ device_id: deviceId }) }),
+  kioskDeviceSetLayout: (deviceId, layout) => request('/kiosk/device/set-layout', { method: 'POST', body: JSON.stringify({ device_id: deviceId, layout }) }),
 
   // Health
   health: () => request('/health'),

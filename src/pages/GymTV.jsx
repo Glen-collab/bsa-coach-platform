@@ -149,6 +149,12 @@ export default function GymTV() {
       load();
     } catch (e) { alert(e.message); }
   };
+  const setDeviceLayout = async (deviceId, layout) => {
+    try {
+      await api.kioskDeviceSetLayout(deviceId, layout);
+      load();
+    } catch (e) { alert(e.message); }
+  };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: '#888' }}>Loading...</div>;
 
@@ -218,6 +224,21 @@ export default function GymTV() {
                 ) : (
                   <div style={s.idleBanner}>Idle — pick a program below.</div>
                 )}
+
+                {/* Layout picker — how the TV arranges the workout on screen */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>View Mode:</span>
+                  <select
+                    value={dev.layout || 'two_day'}
+                    onChange={(e) => setDeviceLayout(dev.id, e.target.value)}
+                    style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '13px', background: '#fff' }}
+                  >
+                    <option value="two_day">Two-Day View (today + tomorrow)</option>
+                    <option value="wod">WOD Only (single day, fullwidth)</option>
+                    <option value="wod_scaled">WOD + Scaled (Rx + regression)</option>
+                  </select>
+                </div>
+
 
                 {kioskLineup.length === 0 ? (
                   <div style={{ fontSize: '13px', color: '#888' }}>No programs in your kiosk lineup yet — scroll down and flip some on.</div>
