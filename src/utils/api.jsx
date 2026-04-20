@@ -74,6 +74,12 @@ export const api = {
     return request(`/media/admin/cloudflare-list?${qs}`);
   },
 
+  // Kiosk (Gym TV)
+  kioskMyPrograms: () => request('/kiosk/my-programs'),
+  kioskToggle: (programId, show) => request('/kiosk/toggle-kiosk', { method: 'POST', body: JSON.stringify({ program_id: programId, show_on_kiosk: show }) }),
+  kioskSetActive: (programId) => request('/kiosk/set-active', { method: 'POST', body: JSON.stringify({ program_id: programId }) }),
+  kioskTvConfig: (pi) => request(`/kiosk/tv-config?pi=${encodeURIComponent(pi)}`),
+
   // Health
   health: () => request('/health'),
 };

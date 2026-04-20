@@ -9,6 +9,7 @@ import CoachDashboard from './pages/CoachDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ApplyCoach from './pages/ApplyCoach';
 import MediaLibrary from './pages/MediaLibrary';
+import GymTV from './pages/GymTV';
 
 function ProtectedRoute({ children, requiredRole }) {
   const { user, loading } = useAuth();
@@ -39,6 +40,7 @@ function AppRoutes() {
       <Route path="/apply-coach" element={<ApplyCoach />} />
       <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
       <Route path="/media-library" element={<ProtectedRoute><MediaLibrary /></ProtectedRoute>} />
+      <Route path="/gym-tv" element={<ProtectedRoute><GymTV /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );

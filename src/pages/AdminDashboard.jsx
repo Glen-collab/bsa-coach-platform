@@ -206,6 +206,9 @@ export default function AdminDashboard() {
         <a href="https://bestrongagain.com" target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: '#1a1a2e' }}>
           Website
         </a>
+        <a href="/gym-tv" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #0891b2, #0e7490)' }}>
+          Gym TV
+        </a>
       </div>
 
       {/* Stats — clickable */}

@@ -118,6 +118,9 @@ export default function CoachDashboard() {
           <a href="/media-library" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
             Your Video Library
           </a>
+          <a href="/gym-tv" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #0891b2, #0e7490)' }}>
+            Gym TV
+          </a>
         </div>
       </div>
 
