@@ -78,7 +78,13 @@ export const api = {
   kioskMyPrograms: () => request('/kiosk/my-programs'),
   kioskToggle: (programId, show) => request('/kiosk/toggle-kiosk', { method: 'POST', body: JSON.stringify({ program_id: programId, show_on_kiosk: show }) }),
   kioskSetActive: (programId) => request('/kiosk/set-active', { method: 'POST', body: JSON.stringify({ program_id: programId }) }),
-  kioskTvConfig: (pi) => request(`/kiosk/tv-config?pi=${encodeURIComponent(pi)}`),
+  kioskTvConfig: (pi, device) => request(`/kiosk/tv-config?pi=${encodeURIComponent(pi)}${device ? '&device=' + encodeURIComponent(device) : ''}`),
+
+  // Per-device kiosk control
+  kioskMyDevices: () => request('/kiosk/my-devices'),
+  kioskRenameDevice: (deviceId, displayName) => request('/kiosk/device/rename', { method: 'POST', body: JSON.stringify({ device_id: deviceId, display_name: displayName }) }),
+  kioskDeviceSetActive: (deviceId, programId) => request('/kiosk/device/set-active', { method: 'POST', body: JSON.stringify({ device_id: deviceId, program_id: programId }) }),
+  kioskDeleteDevice: (deviceId) => request('/kiosk/device/delete', { method: 'POST', body: JSON.stringify({ device_id: deviceId }) }),
 
   // Health
   health: () => request('/health'),

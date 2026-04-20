@@ -138,40 +138,201 @@ def set_active():
 @kiosk_bp.route("/tv-config", methods=["GET"])
 def tv_config():
     """
-    GET /api/kiosk/tv-config?pi=<coach_user_id>
+    GET /api/kiosk/tv-config?pi=<coach_user_id>&device=<cpu_serial>
 
-    Returns the current active program's access_code + metadata for this coach.
+    Returns the current active program's access_code + metadata for this device.
+
+    - If ?device= is provided, the Pi auto-registers itself in coach_devices
+      on first call and returns per-device active_program.
+    - If ?device= is NOT provided (legacy single-TV coaches), falls back to
+      users.active_kiosk_program_id.
+
     Public — no auth needed so the Pi doesn't have to manage JWTs.
     """
     pi_id = (request.args.get("pi") or "").strip()
+    device_serial = (request.args.get("device") or "").strip()
     if not pi_id:
         return jsonify({"error": "pi (coach user id) required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        # Look up coach
+        cur.execute("""
+            SELECT id, first_name, last_name, referral_code, active_kiosk_program_id
+            FROM users WHERE id = %s
+        """, (pi_id,))
+        coach = cur.fetchone()
+        if not coach:
+            return jsonify({"error": "Coach not found"}), 404
+
+        active_program_id = None
+        device_row = None
+
+        if device_serial:
+            # Auto-register or update last_seen
+            short = device_serial[-4:].upper() if len(device_serial) >= 4 else device_serial
+            default_name = f"New device ({short})"
+            cur.execute("""
+                INSERT INTO coach_devices (coach_id, device_serial, display_name, active_program_id)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (coach_id, device_serial) DO UPDATE
+                  SET last_seen_at = NOW()
+                RETURNING id, display_name, active_program_id
+            """, (pi_id, device_serial, default_name, coach["active_kiosk_program_id"]))
+            device_row = cur.fetchone()
+            db.commit()
+            active_program_id = device_row["active_program_id"]
+        else:
+            # Legacy: fall back to coach-level active program
+            active_program_id = coach["active_kiosk_program_id"]
+
+        program = None
+        if active_program_id:
+            cur.execute("""
+                SELECT id, access_code, program_name, program_nickname
+                FROM workout_programs WHERE id = %s
+            """, (active_program_id,))
+            program = cur.fetchone()
+
+        return jsonify({
+            "coach": {
+                "first_name": coach["first_name"],
+                "last_name": coach["last_name"],
+                "referral_code": coach["referral_code"],
+            },
+            "device": {
+                "id": device_row["id"] if device_row else None,
+                "display_name": device_row["display_name"] if device_row else None,
+            } if device_row else None,
+            "active": {
+                "program_id": program["id"],
+                "access_code": program["access_code"],
+                "program_name": program["program_name"],
+                "program_nickname": program["program_nickname"],
+            } if program else None,
+        })
+    finally:
+        db.close()
+
+
+# ── Coach: list registered devices ────────────────────────────────────
+@kiosk_bp.route("/my-devices", methods=["GET"])
+@require_auth
+def my_devices():
+    """Returns all Pi devices registered to this coach."""
+    user_id = request.current_user["user_id"]
     db = get_db()
     try:
         cur = db.cursor()
         cur.execute("""
-            SELECT u.id AS coach_id, u.first_name, u.last_name, u.referral_code,
-                   u.active_kiosk_program_id,
-                   wp.access_code, wp.program_name, wp.program_nickname
-            FROM users u
-            LEFT JOIN workout_programs wp ON wp.id = u.active_kiosk_program_id
-            WHERE u.id = %s
-        """, (pi_id,))
+            SELECT d.id, d.device_serial, d.display_name, d.active_program_id,
+                   d.last_seen_at, d.created_at,
+                   wp.access_code, wp.program_name
+            FROM coach_devices d
+            LEFT JOIN workout_programs wp ON wp.id = d.active_program_id
+            WHERE d.coach_id = %s
+            ORDER BY d.last_seen_at DESC
+        """, (user_id,))
+        devices = cur.fetchall()
+        return jsonify({"devices": devices, "count": len(devices)})
+    finally:
+        db.close()
+
+
+# ── Coach: rename a device ───────────────────────────────────────────
+@kiosk_bp.route("/device/rename", methods=["POST"])
+@require_auth
+def rename_device():
+    """Body: { device_id, display_name }"""
+    user_id = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    new_name = (data.get("display_name") or "").strip()
+    if not device_id or not new_name:
+        return jsonify({"error": "device_id + display_name required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            UPDATE coach_devices SET display_name = %s
+            WHERE id = %s AND coach_id = %s
+            RETURNING id, display_name
+        """, (new_name[:80], device_id, user_id))
         row = cur.fetchone()
+        db.commit()
         if not row:
-            return jsonify({"error": "Coach not found"}), 404
-        return jsonify({
-            "coach": {
-                "first_name": row["first_name"],
-                "last_name": row["last_name"],
-                "referral_code": row["referral_code"],
-            },
-            "active": {
-                "program_id": row["active_kiosk_program_id"],
-                "access_code": row["access_code"],
-                "program_name": row["program_name"],
-                "program_nickname": row["program_nickname"],
-            } if row["access_code"] else None,
-        })
+            return jsonify({"error": "Device not found"}), 404
+        return jsonify({"success": True, "device": row})
+    finally:
+        db.close()
+
+
+# ── Coach: set active program for a specific device ───────────────────
+@kiosk_bp.route("/device/set-active", methods=["POST"])
+@require_auth
+def device_set_active():
+    """Body: { device_id, program_id } — program_id null to clear."""
+    user_id = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    program_id = data.get("program_id")
+    if not device_id:
+        return jsonify({"error": "device_id required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        # Verify device ownership
+        cur.execute("SELECT id FROM coach_devices WHERE id = %s AND coach_id = %s", (device_id, user_id))
+        if not cur.fetchone():
+            return jsonify({"error": "Device not found"}), 404
+        # Verify program ownership if set
+        if program_id is not None:
+            cur.execute("SELECT email FROM users WHERE id = %s", (user_id,))
+            u = cur.fetchone()
+            cur.execute(
+                "SELECT id FROM workout_programs WHERE id = %s AND (optional_trainer_email = %s OR user_email = %s)",
+                (program_id, u["email"], u["email"]),
+            )
+            if not cur.fetchone():
+                return jsonify({"error": "Program not owned by you"}), 404
+
+        cur.execute("""
+            UPDATE coach_devices SET active_program_id = %s
+            WHERE id = %s AND coach_id = %s
+            RETURNING id, active_program_id
+        """, (program_id, device_id, user_id))
+        row = cur.fetchone()
+        db.commit()
+        return jsonify({"success": True, "device": row})
+    finally:
+        db.close()
+
+
+# ── Coach: delete a device (e.g. Pi was retired or moved) ─────────────
+@kiosk_bp.route("/device/delete", methods=["POST"])
+@require_auth
+def delete_device():
+    """Body: { device_id }"""
+    user_id = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    if not device_id:
+        return jsonify({"error": "device_id required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "DELETE FROM coach_devices WHERE id = %s AND coach_id = %s RETURNING id",
+            (device_id, user_id),
+        )
+        row = cur.fetchone()
+        db.commit()
+        if not row:
+            return jsonify({"error": "Device not found"}), 404
+        return jsonify({"success": True, "deleted_id": row["id"]})
     finally:
         db.close()
