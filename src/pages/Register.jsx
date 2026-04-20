@@ -22,9 +22,17 @@ export default function Register() {
   const { referralCode: urlReferral } = useParams();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirect');
+
+  // Query-param-driven sign-up flow (for the /workout-builder walk-in funnel on WP).
+  // Example: /register/COACHCODE?tier=basic&email=foo@bar.com
+  //   - tier=basic|coached|elite  → after register, auto-redirect to Stripe checkout
+  //   - email=X                   → pre-fill email input
+  const presetTier = searchParams.get('tier');      // 'basic' | 'coached' | 'elite' (or null)
+  const presetEmail = searchParams.get('email') || '';
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(presetEmail);
   const [password, setPassword] = useState('');
   const [referralCode, setReferralCode] = useState(urlReferral || '');
   const [error, setError] = useState('');
@@ -46,6 +54,23 @@ export default function Register() {
         referral_code: referralCode || null,
       });
       login(res.user, res.token);
+
+      // If a paid tier was pre-selected (came from the /workout-builder funnel),
+      // jump straight into Stripe checkout — they just signed up meaning to subscribe.
+      if (presetTier && ['basic', 'coached', 'elite'].includes(presetTier)) {
+        try {
+          const co = await api.checkout(presetTier);
+          if (co?.checkout_url) {
+            window.location.href = co.checkout_url;
+            return;
+          }
+        } catch (err) {
+          // If checkout fails (Stripe config issue etc.), fall through to dashboard
+          // with an error so the user can retry manually from MemberDashboard.
+          setError('Account created but checkout failed: ' + err.message + '. Try the tier buttons on your dashboard.');
+        }
+      }
+
       navigate(redirectTo || '/dashboard');
     } catch (err) {
       setError(err.message);
@@ -61,6 +86,17 @@ export default function Register() {
         {urlReferral && (
           <div style={s.referralBox}>
             <p style={s.referralText}>You were referred by a coach! Their code <strong>{urlReferral}</strong> has been applied.</p>
+          </div>
+        )}
+        {presetTier && ['basic', 'coached', 'elite'].includes(presetTier) && (
+          <div style={{ background: '#ecfdf5', border: '1px solid #86efac', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px' }}>
+            <p style={{ fontSize: '13px', color: '#065f46', margin: 0 }}>
+              Subscribing to <strong style={{ textTransform: 'capitalize' }}>{presetTier}</strong> tier
+              {presetTier === 'basic' && ' ($20/mo)'}
+              {presetTier === 'coached' && ' ($200/mo)'}
+              {presetTier === 'elite' && ' ($400/mo)'}
+              . After you create your account, you'll be taken straight to secure payment.
+            </p>
           </div>
         )}
         {error && <div style={s.error}>{error}</div>}
