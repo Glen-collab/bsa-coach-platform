@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-21T18:05:55.606Z",
-  "total": 1922,
+  "generated_at": "2026-04-21T19:07:11.711Z",
+  "total": 1934,
   "exercises": [
     {
       "name": "Barbell Bench Press",
@@ -9977,6 +9977,102 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "bd243bbca5dc12042a276001f154e995"
+    },
+    {
+      "name": "Jump Rope (Single Unders)",
+      "category": "Warm Up",
+      "subcategory": "Cardio",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "99f2c34db01830ea112caf2b8c5bcbe2"
+    },
+    {
+      "name": "Jump Rope (Double Unders)",
+      "category": "Warm Up",
+      "subcategory": "Cardio",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "87446322ea33a456369df6008ca54e66"
+    },
+    {
+      "name": "Jump Rope (High Knees)",
+      "category": "Warm Up",
+      "subcategory": "Cardio",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "2d9695af9fab0252c692ab575b072422"
+    },
+    {
+      "name": "Jump Rope (Single Leg Hop)",
+      "category": "Warm Up",
+      "subcategory": "Cardio",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0455070d06e075fdc7e84d87b7721208"
+    },
+    {
+      "name": "Tire Double Taps",
+      "category": "Warm Up",
+      "subcategory": "Tire Drills",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a671409ac999b06f2bf5e2dead1eded0"
+    },
+    {
+      "name": "Tire Jump Shuffle",
+      "category": "Warm Up",
+      "subcategory": "Tire Drills",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "181fe5bf9c56bb3fbe72594dd98a85fc"
+    },
+    {
+      "name": "Tire Pushup (Feet on Tire)",
+      "category": "Warm Up",
+      "subcategory": "Tire Drills",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0674ed7665948ccc7df37596f86307f6"
+    },
+    {
+      "name": "Tire Pushup (Hands on Tire)",
+      "category": "Warm Up",
+      "subcategory": "Tire Drills",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "d4d6a961d8505d317ee5415fc889c823"
+    },
+    {
+      "name": "Tire Switch Feet",
+      "category": "Warm Up",
+      "subcategory": "Tire Drills",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "11495ec6de2603c624f22b6a0f0d5e65"
+    },
+    {
+      "name": "Tire Switch Hop Flip",
+      "category": "Warm Up",
+      "subcategory": "Tire Drills",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0fcc738b9d76bf8a2cc9fbf7814cdd9d"
+    },
+    {
+      "name": "Tire Switch Hops",
+      "category": "Warm Up",
+      "subcategory": "Tire Drills",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a0807af16e6fe368e90586e6de60b02e"
+    },
+    {
+      "name": "Tire Walk Ups",
+      "category": "Warm Up",
+      "subcategory": "Tire Drills",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "ad3dde8f03cd6a2802232745e4eff658"
     },
     {
       "name": "Ladder Bunny Hops Forward Backward",
