@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-18T14:40:36.033Z",
-  "total": 1872,
+  "generated_at": "2026-04-21T14:22:14.561Z",
+  "total": 1905,
   "exercises": [
     {
       "name": "Barbell Bench Press",
@@ -12153,6 +12153,270 @@
       "source_library": "martialArtsLibrary",
       "has_default_video": true,
       "default_video_uid": "cd3e9eb6c338f32318e6beb92abe34df"
+    },
+    {
+      "name": "Heavy Bag Jab",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Punches",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "f5334f451f7724319931d9bd2898be09"
+    },
+    {
+      "name": "Heavy Bag Cross",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Punches",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "f0d5ecc769996251a27afb79f9cbbb2b"
+    },
+    {
+      "name": "Heavy Bag Hook",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Punches",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "f33c1c68d9984fe31642ad70a427f039"
+    },
+    {
+      "name": "Heavy Bag Uppercut",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Punches",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "146aa7be821a70d7dd824fd825ab95a3"
+    },
+    {
+      "name": "Heavy Bag High-Low Cross",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Punches",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "03230c4b4d056d28cbf15f22670098f6"
+    },
+    {
+      "name": "Heavy Bag Combo 1: Jab-Cross",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "ad2e28e05dd28a48e02d0dc096b84e1e"
+    },
+    {
+      "name": "Heavy Bag Combo 2: Jab-Cross-Hook",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "545596e05071902229cbeb8230bfa2a1"
+    },
+    {
+      "name": "Heavy Bag Combo 3: Jab-Cross-Hook-Uppercut",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "1679524fac763d12a87cfb1e15cfb84e"
+    },
+    {
+      "name": "Heavy Bag Combo 4: Jab-Cross-Hook-Cross",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "00074503fc84ac3bb695b171c46ce253"
+    },
+    {
+      "name": "Heavy Bag Combo 5: Cross-Hook-Cross-Hook",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "1c86638db0263d00669fa161c66ffa7e"
+    },
+    {
+      "name": "Heavy Bag Double Jab Combo",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0845f4376a8f007bec3ed9b08ed995eb"
+    },
+    {
+      "name": "Heavy Bag Jab-Hook Combo",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "1da2e47e33c5c46f6003150af28e3165"
+    },
+    {
+      "name": "Heavy Bag Jab-Hook (Body)",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "ffe2ea61ca74d1e4a77c98cdda9fe453"
+    },
+    {
+      "name": "Heavy Bag Jab-Uppercut Combo",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "7246e72ac9d3eae671ebebef83b99e2c"
+    },
+    {
+      "name": "Heavy Bag High-Low Jab Combo",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a12fc5c618eb15a072a55277e85f28b0"
+    },
+    {
+      "name": "Heavy Bag Cross-Over Combo",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "fe6b99947d8fc52ba3ca771750055182"
+    },
+    {
+      "name": "Heavy Bag Body Hook - Head Hook - Cross",
+      "category": "Boxing",
+      "subcategory": "Heavy Bag Combos (Numbered + Named)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "6aee07ce0d803e8a1466ce555762aca2"
+    },
+    {
+      "name": "Heavy Bag Pivot Left",
+      "category": "Boxing",
+      "subcategory": "Footwork & Pivots",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "5ae853905b5cb0d2bb3b4a60b18761a6"
+    },
+    {
+      "name": "Heavy Bag Pivot Right",
+      "category": "Boxing",
+      "subcategory": "Footwork & Pivots",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "850509eb4b7c264655efcfe0ad1f4771"
+    },
+    {
+      "name": "Heavy Bag Pivot Left + Combo",
+      "category": "Boxing",
+      "subcategory": "Footwork & Pivots",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "26b876bae124c6a4f28e8c0f67ca8aa4"
+    },
+    {
+      "name": "Heavy Bag Step-Through Combo",
+      "category": "Boxing",
+      "subcategory": "Footwork & Pivots",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "4df50795808a665f966f3dc11c159240"
+    },
+    {
+      "name": "Heavy Bag Slip + Combo",
+      "category": "Boxing",
+      "subcategory": "Defense (Slip / Roll)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "d0fbf32ce6417633bd90f4d8ad891594"
+    },
+    {
+      "name": "Heavy Bag Roll + Combo",
+      "category": "Boxing",
+      "subcategory": "Defense (Slip / Roll)",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "1254151eef8ea666dde70f4840466518"
+    },
+    {
+      "name": "Shadow Boxing with 3lb Weights",
+      "category": "Boxing",
+      "subcategory": "Boxing Conditioning",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "89bb831e6a4152bf47325a81183e518c"
+    },
+    {
+      "name": "Heavy Bag Burpee Combo",
+      "category": "Boxing",
+      "subcategory": "Boxing Conditioning",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "e89e249cf819b1e9e1f781c28a0d097f"
+    },
+    {
+      "name": "Heavy Bag Hop-Hop-Squat Combo",
+      "category": "Boxing",
+      "subcategory": "Boxing Conditioning",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "e50488c0ec987a2c612408c9cd1b2861"
+    },
+    {
+      "name": "Heavy Bag Split-Jump Combo",
+      "category": "Boxing",
+      "subcategory": "Boxing Conditioning",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "dc80a55b2f286db4ee2b25a61c268f71"
+    },
+    {
+      "name": "Heavy Bag Ride the Bike",
+      "category": "Boxing",
+      "subcategory": "Boxing Conditioning",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "c4f675af190281c7b54e7f548213134b"
+    },
+    {
+      "name": "Speed Bag (Boxing)",
+      "category": "Boxing",
+      "subcategory": "Speed Bag",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "22c265f6b95239132291a5909cba3172"
+    },
+    {
+      "name": "Speed Bag Paw (Learning)",
+      "category": "Boxing",
+      "subcategory": "Speed Bag",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "d9048f62a5e6154be8ef7f0bd278cf2a"
+    },
+    {
+      "name": "Speed Bag Rapid Fire",
+      "category": "Boxing",
+      "subcategory": "Speed Bag",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "84af3d6a6a288d05203fc314a268ee94"
+    },
+    {
+      "name": "Speed Bag with Back Fist",
+      "category": "Boxing",
+      "subcategory": "Speed Bag",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "24b860fce7c020e041f72e925e95fb1c"
+    },
+    {
+      "name": "Speed Bag with Elbow",
+      "category": "Boxing",
+      "subcategory": "Speed Bag",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0efef15b0bf5293f1721fee25a3fe9c8"
     },
     {
       "name": "Hip Mobility Preset 1 - Hip Flexor Focus",
