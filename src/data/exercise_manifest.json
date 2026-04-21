@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-21T14:22:14.561Z",
-  "total": 1905,
+  "generated_at": "2026-04-21T17:34:32.707Z",
+  "total": 1912,
   "exercises": [
     {
       "name": "Barbell Bench Press",
@@ -7387,6 +7387,14 @@
       "default_video_uid": null
     },
     {
+      "name": "Sandbag Lunge Walks",
+      "category": "Tactical",
+      "subcategory": "Functional Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "be707467d456dfd35c8a238b5110bf27"
+    },
+    {
       "name": "Sandbag Clean and Carry",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
@@ -12441,6 +12449,54 @@
       "source_library": "mobilityExercises",
       "has_default_video": false,
       "default_video_uid": null
+    },
+    {
+      "name": "Hurdle Down Middle (Forward/Backward)",
+      "category": "Hip Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "029e8ea37a7036d0aacc17d74e3c1b57"
+    },
+    {
+      "name": "Hurdle Mobility Lateral Skips",
+      "category": "Hip Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "3b274bf1211e29482ffa76cda5ebbb27"
+    },
+    {
+      "name": "Hurdle Mobility Lateral Straight Leg",
+      "category": "Hip Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "5c3b74b258ce4ca388c57853a94ef2db"
+    },
+    {
+      "name": "Hurdle Mobility Single Leg Walk Over",
+      "category": "Hip Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "99ab365b24027a89d8b543017b938ea8"
+    },
+    {
+      "name": "Hurdle Mobility (Full Circuit)",
+      "category": "Hip Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "93b0c07499d6b40e6e269f072223f473"
+    },
+    {
+      "name": "Single Leg Hurdle Mobility (Forward/Backward)",
+      "category": "Hip Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "a32e917e14f2f15a0137ff429e89cd61"
     },
     {
       "name": "Pigeon Pose",
