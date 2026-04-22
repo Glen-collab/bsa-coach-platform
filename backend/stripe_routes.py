@@ -48,7 +48,10 @@ def create_connect_account():
 
     # Get user from JWT token
     auth = request.headers.get("Authorization", "")
-    data = request.json or {}
+    # silent=True tolerates empty/missing body instead of raising 400 BadRequest,
+    # which Safari/WebKit would otherwise surface as
+    # "The string did not match the expected pattern" (HTML parse fail in res.json()).
+    data = request.get_json(silent=True) or {}
     user_id = data.get("user_id")
     email = data.get("email")
 
