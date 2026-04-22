@@ -121,6 +121,9 @@ export default function CoachDashboard() {
           <a href="/gym-tv" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #0891b2, #0e7490)' }}>
             Gym TV
           </a>
+          <a href="/brand" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #ec4899, #be185d)' }}>
+            Gym Branding
+          </a>
         </div>
       </div>
 

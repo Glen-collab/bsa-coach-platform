@@ -6,8 +6,14 @@ from flask import Blueprint, request, jsonify
 from psycopg2.extras import RealDictCursor
 import psycopg2
 import os
+import re
+
+from auth import require_auth
 
 coaches_bp = Blueprint("coaches", __name__)
+
+HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+MAX_LOGO_SIZE = 400_000  # ~400KB cap on base64 payload — keeps row size sane
 
 
 def get_db():
@@ -282,5 +288,90 @@ def earnings_history(coach_id):
             ]
         })
 
+    finally:
+        db.close()
+
+
+
+# ── Coach Branding ──────────────────────────────────────────────────────────
+# GET/POST the authenticated coach's brand: gym_name, logo_data (base64 PNG/JPG/SVG),
+# primary + accent hex colors. All fields nullable — NULL means fall back to BSA default
+# on the TV kiosk. Read back on /tv-config poll so every assigned Pi picks up changes.
+
+@coaches_bp.route("/brand", methods=["GET"])
+@require_auth
+def get_brand():
+    user_id = request.current_user["user_id"]
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            SELECT brand_logo_data, brand_primary, brand_accent, brand_gym_name
+            FROM users WHERE id = %s
+        """, (user_id,))
+        row = cur.fetchone()
+        return jsonify({
+            "logo_data": (row["brand_logo_data"] if row else None),
+            "primary":   (row["brand_primary"]   if row else None),
+            "accent":    (row["brand_accent"]    if row else None),
+            "gym_name":  (row["brand_gym_name"]  if row else None),
+        })
+    finally:
+        db.close()
+
+
+@coaches_bp.route("/brand", methods=["POST"])
+@require_auth
+def set_brand():
+    user_id = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+
+    logo_data = data.get("logo_data")
+    primary   = data.get("primary")
+    accent    = data.get("accent")
+    gym_name  = data.get("gym_name")
+
+    # Empty string is treated as explicit clear (NULL in DB).
+    def norm(v):
+        if v is None: return None
+        v = str(v).strip()
+        return v if v else None
+
+    logo_data = norm(logo_data)
+    primary   = norm(primary)
+    accent    = norm(accent)
+    gym_name  = norm(gym_name)
+
+    # Validate hex colors
+    for label, val in [("primary", primary), ("accent", accent)]:
+        if val is not None and not HEX_COLOR_RE.match(val):
+            return jsonify({"error": f"{label} must be #RRGGBB hex"}), 400
+
+    # Size cap on logo data (~400KB base64 = ~300KB raw — plenty for logos)
+    if logo_data is not None and len(logo_data) > MAX_LOGO_SIZE:
+        return jsonify({"error": f"logo exceeds {MAX_LOGO_SIZE} chars"}), 400
+
+    # Gym name length sanity
+    if gym_name is not None and len(gym_name) > 120:
+        return jsonify({"error": "gym_name too long (max 120)"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            UPDATE users SET
+              brand_logo_data = %s,
+              brand_primary   = %s,
+              brand_accent    = %s,
+              brand_gym_name  = %s
+            WHERE id = %s
+        """, (logo_data, primary, accent, gym_name, user_id))
+        db.commit()
+        return jsonify({
+            "logo_data": logo_data,
+            "primary":   primary,
+            "accent":    accent,
+            "gym_name":  gym_name,
+        })
     finally:
         db.close()

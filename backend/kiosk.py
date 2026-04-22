@@ -157,9 +157,10 @@ def tv_config():
     db = get_db()
     try:
         cur = db.cursor()
-        # Look up coach
+        # Look up coach (includes branding fields — Pi applies them if non-null)
         cur.execute("""
-            SELECT id, first_name, last_name, referral_code, active_kiosk_program_id
+            SELECT id, first_name, last_name, referral_code, active_kiosk_program_id,
+                   brand_logo_data, brand_primary, brand_accent, brand_gym_name
             FROM users WHERE id = %s
         """, (pi_id,))
         coach = cur.fetchone()
@@ -200,6 +201,12 @@ def tv_config():
                 "first_name": coach["first_name"],
                 "last_name": coach["last_name"],
                 "referral_code": coach["referral_code"],
+            },
+            "brand": {
+                "logo_data": coach["brand_logo_data"],
+                "primary":   coach["brand_primary"],
+                "accent":    coach["brand_accent"],
+                "gym_name":  coach["brand_gym_name"],
             },
             "device": {
                 "id": device_row["id"] if device_row else None,

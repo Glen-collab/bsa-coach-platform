@@ -24,6 +24,8 @@ export const api = {
   dashboard: (id) => request(`/coaches/dashboard/${id}`),
   tree: (id) => request(`/coaches/tree/${id}`),
   earnings: (id) => request(`/coaches/earnings/history/${id}`),
+  getBrand: () => request('/coaches/brand'),
+  setBrand: (body) => request('/coaches/brand', { method: 'POST', body: JSON.stringify(body) }),
 
   // Admin
   overview: () => request('/admin/overview'),
