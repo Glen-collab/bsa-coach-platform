@@ -19,6 +19,7 @@ export const api = {
   // Stripe
   checkout: (tier) => request('/stripe/checkout', { method: 'POST', body: JSON.stringify({ tier }) }),
   connectOnboard: () => request('/stripe/connect/onboard', { method: 'POST' }),
+  connectStatus: (userId) => request(`/stripe/connect/status/${userId}`),
 
   // Coach
   dashboard: (id) => request(`/coaches/dashboard/${id}`),
