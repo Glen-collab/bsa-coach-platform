@@ -36,9 +36,6 @@ export default function CoachDashboard() {
   const [earnings, setEarnings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectLoading, setConnectLoading] = useState(false);
-  // Authoritative onboarded status refetched on every mount — user.stripe_onboarded
-  // from the JWT is stale after a coach completes the Stripe Express flow.
-  const [stripeOnboarded, setStripeOnboarded] = useState(!!user?.stripe_onboarded);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -46,12 +43,10 @@ export default function CoachDashboard() {
       api.dashboard(user.id).catch(() => null),
       api.tree(user.id).catch(() => null),
       api.earnings(user.id).catch(() => null),
-      api.connectStatus(user.id).catch(() => null),
-    ]).then(([d, t, e, cs]) => {
+    ]).then(([d, t, e]) => {
       setData(d);
       setTree(t);
       setEarnings(e);
-      if (cs && typeof cs.onboarded === 'boolean') setStripeOnboarded(cs.onboarded);
       setLoading(false);
     });
   }, [user?.id]);
@@ -78,8 +73,8 @@ export default function CoachDashboard() {
       <h1 style={s.title}>Coach Dashboard</h1>
       <p style={s.sub}>Manage your clients, track earnings, and grow your team.</p>
 
-      {/* Stripe Connect — only shown until Stripe confirms details_submitted */}
-      {!stripeOnboarded && (
+      {/* Stripe Connect */}
+      {!user?.stripe_onboarded && (
         <div style={{ ...s.card, background: '#fffbeb', border: '1px solid #f59e0b' }}>
           <div style={s.cardTitle}>Set Up Payouts</div>
           <p style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>
@@ -88,14 +83,6 @@ export default function CoachDashboard() {
           <button style={s.btn} onClick={handleConnect} disabled={connectLoading}>
             {connectLoading ? 'Redirecting...' : 'Connect Stripe Account'}
           </button>
-        </div>
-      )}
-      {stripeOnboarded && (
-        <div style={{ ...s.card, background: '#ecfdf5', border: '1px solid #10b981' }}>
-          <div style={{ ...s.cardTitle, color: '#065f46' }}>Payouts Active</div>
-          <p style={{ fontSize: '13px', color: '#065f46', margin: 0 }}>
-            Your Stripe account is connected. Commissions will pay out on your Stripe schedule.
-          </p>
         </div>
       )}
 
