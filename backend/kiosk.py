@@ -150,22 +150,33 @@ def tv_config():
     Public — no auth needed so the Pi doesn't have to manage JWTs.
     """
     pi_id = (request.args.get("pi") or "").strip()
+    coach_code = (request.args.get("coach") or request.args.get("code") or "").strip().upper()
     device_serial = (request.args.get("device") or "").strip()
-    if not pi_id:
-        return jsonify({"error": "pi (coach user id) required"}), 400
+    if not pi_id and not coach_code:
+        return jsonify({"error": "pi (user id) or coach (referral code) required"}), 400
 
     db = get_db()
     try:
         cur = db.cursor()
-        # Look up coach (includes branding fields — Pi applies them if non-null)
-        cur.execute("""
-            SELECT id, first_name, last_name, referral_code, active_kiosk_program_id,
-                   brand_logo_data, brand_primary, brand_accent, brand_gym_name
-            FROM users WHERE id = %s
-        """, (pi_id,))
+        # Resolve coach by UUID (legacy) or referral_code (universal SD).
+        # Referral code lookup takes priority for the new captive-portal flow.
+        if coach_code:
+            cur.execute("""
+                SELECT id, first_name, last_name, referral_code, active_kiosk_program_id,
+                       brand_logo_data, brand_primary, brand_accent, brand_gym_name
+                FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin')
+            """, (coach_code,))
+        else:
+            cur.execute("""
+                SELECT id, first_name, last_name, referral_code, active_kiosk_program_id,
+                       brand_logo_data, brand_primary, brand_accent, brand_gym_name
+                FROM users WHERE id = %s
+            """, (pi_id,))
         coach = cur.fetchone()
         if not coach:
             return jsonify({"error": "Coach not found"}), 404
+        # Use the authoritative UUID going forward (device registration uses it)
+        pi_id = str(coach["id"])
 
         active_program_id = None
         device_row = None
@@ -375,5 +386,140 @@ def delete_device():
         if not row:
             return jsonify({"error": "Device not found"}), 404
         return jsonify({"success": True, "deleted_id": row["id"]})
+    finally:
+        db.close()
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phone-to-Pi command queue
+#
+# Lets the coach (from their phone/dashboard) send "shutdown" or
+# "reboot" to their Pi without SSH. Pi runs bsa-kiosk-agent.py which
+# polls GET /commands every ~10s and executes pending commands,
+# then POSTs /commands/<id>/ack so the same command isn't re-run.
+#
+# Each command auto-expires after 5 minutes — a Pi that was offline
+# won't wake up and halt itself from an hours-old request.
+# ─────────────────────────────────────────────────────────────────────
+
+_ALLOWED_COMMANDS = {"shutdown", "reboot", "reload"}
+
+
+def _coach_code_for(user):
+    """Coach's referral_code is the Pi-side shared secret stored in
+    /home/pi/bsa-config by the captive-portal setup. We look it up in
+    the DB (JWT payload only carries user_id + role + exp)."""
+    user_id = user.get("user_id")
+    if not user_id:
+        return None
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT referral_code FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+    finally:
+        db.close()
+    if not row or not row.get("referral_code"):
+        return None
+    return row["referral_code"].strip().upper()
+
+
+@kiosk_bp.route("/shutdown", methods=["POST", "OPTIONS"])
+@require_auth
+def queue_shutdown():
+    """Coach queues a graceful shutdown for their own Pi kiosk(s)."""
+    if request.method == "OPTIONS":
+        return "", 200
+    code = _coach_code_for(request.current_user)
+    if not code:
+        return jsonify({"success": False, "message": "No coach code on your account"}), 400
+    return _queue_kiosk_command(code, "shutdown")
+
+
+@kiosk_bp.route("/pi-reboot", methods=["POST", "OPTIONS"])
+@require_auth
+def queue_pi_reboot():
+    """Coach reboots their Pi kiosk remotely.
+    Named pi-reboot to avoid collision with any future /reboot endpoint
+    meant for something else."""
+    if request.method == "OPTIONS":
+        return "", 200
+    code = _coach_code_for(request.current_user)
+    if not code:
+        return jsonify({"success": False, "message": "No coach code on your account"}), 400
+    return _queue_kiosk_command(code, "reboot")
+
+
+def _queue_kiosk_command(coach_code, command):
+    if command not in _ALLOWED_COMMANDS:
+        return jsonify({"success": False, "message": "unknown command"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            """INSERT INTO kiosk_commands (coach_code, command)
+               VALUES (%s, %s) RETURNING id, created_at, expires_at""",
+            (coach_code, command),
+        )
+        row = cur.fetchone()
+        db.commit()
+        return jsonify({
+            "success": True,
+            "id": row["id"],
+            "command": command,
+            "expires_at": str(row["expires_at"]),
+        })
+    finally:
+        db.close()
+
+
+@kiosk_bp.route("/commands", methods=["GET"])
+def poll_commands():
+    """Pi polls here with ?coach_code=<its referral_code>. Returns
+    pending (unacked, unexpired) commands.
+
+    Unauthenticated on purpose — the Pi has no user session and would
+    be painful to bootstrap JWTs onto. The coach_code acts as a shared
+    secret: it was placed in /home/pi/bsa-config at captive-portal
+    onboarding and only the Pi and the coach know it. Worst case a
+    leaked code would let an attacker send 'shutdown' / 'reboot' to
+    *that coach's* Pi — disruptive but not catastrophic."""
+    coach_code = (request.args.get("coach_code") or "").strip().upper()
+    if not coach_code:
+        return jsonify({"commands": []})
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            """SELECT id, command
+               FROM kiosk_commands
+               WHERE coach_code = %s
+                 AND executed_at IS NULL
+                 AND expires_at > NOW()
+               ORDER BY created_at ASC
+               LIMIT 5""",
+            (coach_code,),
+        )
+        rows = cur.fetchall()
+        return jsonify({"commands": [dict(r) for r in rows]})
+    finally:
+        db.close()
+
+
+@kiosk_bp.route("/commands/<int:cmd_id>/ack", methods=["POST", "OPTIONS"])
+def ack_command(cmd_id):
+    """Pi calls this once it's started executing the command so the
+    queue doesn't keep re-serving it."""
+    if request.method == "OPTIONS":
+        return "", 200
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "UPDATE kiosk_commands SET executed_at = NOW() WHERE id = %s AND executed_at IS NULL",
+            (cmd_id,),
+        )
+        db.commit()
+        return jsonify({"success": cur.rowcount > 0})
     finally:
         db.close()

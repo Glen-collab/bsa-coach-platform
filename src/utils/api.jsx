@@ -27,6 +27,16 @@ export const api = {
   getBrand: () => request('/coaches/brand'),
   setBrand: (body) => request('/coaches/brand', { method: 'POST', body: JSON.stringify(body) }),
 
+  // Template library
+  listTemplates: () => request('/workout/templates.php'),
+  cloneTemplate: (body) => request('/workout/clone-template.php', { method: 'POST', body: JSON.stringify(body) }),
+  adminToggleTemplate: (body) => request('/workout/admin/toggle-template.php', { method: 'POST', body: JSON.stringify(body) }),
+  myPrograms: (email) => request('/workout/list-programs.php', { method: 'POST', body: JSON.stringify({ email }) }),
+
+  // Coach broadcast
+  broadcastAudience: () => request('/social/broadcast/audience'),
+  broadcastSend: (body) => request('/social/broadcast', { method: 'POST', body: JSON.stringify({ body }) }),
+
   // Admin
   overview: () => request('/admin/overview'),
   membersList: () => request('/admin/members/list'),
@@ -88,6 +98,10 @@ export const api = {
   kioskDeviceSetActive: (deviceId, programId) => request('/kiosk/device/set-active', { method: 'POST', body: JSON.stringify({ device_id: deviceId, program_id: programId }) }),
   kioskDeleteDevice: (deviceId) => request('/kiosk/device/delete', { method: 'POST', body: JSON.stringify({ device_id: deviceId }) }),
   kioskDeviceSetLayout: (deviceId, layout) => request('/kiosk/device/set-layout', { method: 'POST', body: JSON.stringify({ device_id: deviceId, layout }) }),
+
+  // Remote power — queue a command for the Pi to pick up on next poll.
+  kioskShutdown: () => request('/kiosk/shutdown', { method: 'POST' }),
+  kioskPiReboot: () => request('/kiosk/pi-reboot', { method: 'POST' }),
 
   // Health
   health: () => request('/health'),

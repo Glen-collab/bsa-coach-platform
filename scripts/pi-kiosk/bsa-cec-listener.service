@@ -1,0 +1,17 @@
+[Unit]
+Description=BSA CEC Listener — graceful shutdown when TV powers off
+After=network.target
+# Only start after graphical session has the HDMI connection settled
+After=graphical.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/usr/bin/python3 /usr/local/sbin/bsa-cec-listener.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

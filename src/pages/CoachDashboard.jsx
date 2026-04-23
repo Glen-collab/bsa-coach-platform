@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
 import useMediaQuery from '../hooks/useMediaQuery';
+import BroadcastCard from '../components/BroadcastCard';
 
 const buildStyles = (isMobile) => ({
   page: { maxWidth: '900px', margin: '0 auto', padding: isMobile ? '16px 12px' : '32px 24px' },
@@ -34,6 +35,10 @@ export default function CoachDashboard() {
   const [data, setData] = useState(null);
   const [tree, setTree] = useState(null);
   const [earnings, setEarnings] = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [cloningId, setCloningId] = useState(null);
+  const [cloneMsg, setCloneMsg] = useState('');
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [connectLoading, setConnectLoading] = useState(false);
 
@@ -43,13 +48,36 @@ export default function CoachDashboard() {
       api.dashboard(user.id).catch(() => null),
       api.tree(user.id).catch(() => null),
       api.earnings(user.id).catch(() => null),
-    ]).then(([d, t, e]) => {
+      api.listTemplates().catch(() => null),
+    ]).then(([d, t, e, tpl]) => {
       setData(d);
       setTree(t);
       setEarnings(e);
+      if (tpl?.templates) setTemplates(tpl.templates);
       setLoading(false);
     });
   }, [user?.id]);
+
+  const handleClone = async (tpl) => {
+    if (!user?.email) return;
+    setCloningId(tpl.id);
+    setCloneMsg('');
+    try {
+      const res = await api.cloneTemplate({
+        templateId: tpl.id,
+        targetEmail: user.email,
+      });
+      if (res?.success) {
+        setCloneMsg(`Cloned "${tpl.program_name}" → your access code: ${res.accessCode}`);
+      } else {
+        setCloneMsg(res?.message || 'Clone failed');
+      }
+    } catch (e) {
+      setCloneMsg('Clone failed: ' + (e.message || 'error'));
+    } finally {
+      setCloningId(null);
+    }
+  };
 
   const handleConnect = async () => {
     setConnectLoading(true);
@@ -126,6 +154,67 @@ export default function CoachDashboard() {
           </a>
         </div>
       </div>
+
+      {/* Remote Pi power — lets you gracefully shut down the gym TV
+          from your phone before you leave for the night. No more yanking
+          the cord and risking SD-card corruption. */}
+      <GymTvPowerCard isMobile={isMobile} s={s} />
+
+      {/* Coach broadcast — mass-message all clients */}
+      <BroadcastCard isMobile={isMobile} />
+
+      {/* Template Library — starter programs built by Glen, coaches can clone */}
+      {templates.length > 0 && (
+        <div style={s.card}>
+          <button
+            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            onClick={() => setTemplatesOpen((v) => !v)}
+          >
+            <div>
+              <div style={s.cardTitle}>
+                📚 Template Library
+                <span style={{ fontSize: '12px', background: '#667eea', color: '#fff', padding: '3px 10px', borderRadius: '999px', marginLeft: '10px', fontWeight: '700' }}>
+                  {templates.length}
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>
+                Starter programs — tap to {templatesOpen ? 'collapse' : 'expand'}
+              </div>
+            </div>
+            <span style={{ fontSize: '20px', color: '#888', transform: templatesOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
+          </button>
+          {templatesOpen && (
+            <div style={{ marginTop: '14px' }}>
+              <p style={{ fontSize: '13px', color: '#666', margin: '0 0 12px' }}>
+                Click Clone — a copy lands in your account with a new access code you can send to a client or edit in the builder.
+              </p>
+              {cloneMsg && (
+                <div style={{ padding: '10px 12px', borderRadius: '8px', background: cloneMsg.startsWith('Cloned') ? '#ecfdf5' : '#fef2f2', color: cloneMsg.startsWith('Cloned') ? '#065f46' : '#b91c1c', fontSize: '13px', marginBottom: '12px' }}>
+                  {cloneMsg}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {templates.map((t) => (
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', padding: '12px 14px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '10px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '180px' }}>
+                      <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a2e' }}>{t.program_name}</div>
+                      {t.program_nickname && <div style={{ fontSize: '12px', color: '#888' }}>{t.program_nickname}</div>}
+                      <div style={{ fontSize: '11px', color: '#aaa', marginTop: '2px' }}>{t.total_weeks} wk • {t.day_count} days/wk</div>
+                    </div>
+                    <button
+                      style={{ padding: '10px 18px', border: 'none', borderRadius: '8px', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', fontSize: '13px', fontWeight: '700', cursor: cloningId === t.id ? 'wait' : 'pointer', opacity: cloningId === t.id ? 0.7 : 1 }}
+                      onClick={() => handleClone(t)}
+                      disabled={cloningId === t.id}
+                    >
+                      {cloningId === t.id ? 'Cloning…' : 'Clone'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Referral Link */}
       <div style={s.card}>
@@ -228,6 +317,71 @@ export default function CoachDashboard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Remote Pi power controls — Shutdown (safe nightly close) and Reboot (quick
+// recovery if the kiosk hung). Both queue commands the Pi picks up within
+// ~10 seconds via bsa-kiosk-agent.service.
+function GymTvPowerCard({ isMobile, s }) {
+  const [busy, setBusy] = useState(null); // 'shutdown' | 'reboot' | null
+  const [msg, setMsg] = useState(null);
+
+  const send = async (kind) => {
+    const confirmText = kind === 'shutdown'
+      ? 'Shut down the gym TV now? The Pi will halt within ~10 seconds.'
+      : 'Reboot the gym TV now? The Pi will come back up on its own.';
+    if (!window.confirm(confirmText)) return;
+    setBusy(kind);
+    setMsg(null);
+    try {
+      const res = kind === 'shutdown'
+        ? await api.kioskShutdown()
+        : await api.kioskPiReboot();
+      if (res?.success) {
+        setMsg(kind === 'shutdown'
+          ? 'Shutdown queued. Give it 10–15 seconds, then unplug.'
+          : 'Reboot queued. TV will come back up in about a minute.');
+      } else {
+        setMsg(res?.message || 'Command failed.');
+      }
+    } catch (e) {
+      setMsg(e.message || 'Network error.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div style={s.card}>
+      <div style={s.cardTitle}>Gym TV Power</div>
+      <div style={{ fontSize: 13, color: '#666', marginBottom: 12, lineHeight: 1.4 }}>
+        Graceful remote control for your Pi-powered gym TV. Use Shutdown before
+        you leave for the night so the Pi halts cleanly instead of getting its
+        power yanked.
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'auto auto 1fr', gap: 10, alignItems: 'center' }}>
+        <button
+          onClick={() => send('shutdown')}
+          disabled={busy !== null}
+          style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #1a1a2e, #2d2d4a)', opacity: busy ? 0.6 : 1 }}
+        >
+          {busy === 'shutdown' ? 'Sending…' : 'Shutdown TV'}
+        </button>
+        <button
+          onClick={() => send('reboot')}
+          disabled={busy !== null}
+          style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #667eea, #764ba2)', opacity: busy ? 0.6 : 1 }}
+        >
+          {busy === 'reboot' ? 'Sending…' : 'Reboot TV'}
+        </button>
+        {msg && (
+          <div style={{ fontSize: 12, color: '#065f46', background: '#ecfdf5', padding: '8px 12px', borderRadius: 8, gridColumn: isMobile ? '1 / -1' : 'auto' }}>
+            {msg}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
