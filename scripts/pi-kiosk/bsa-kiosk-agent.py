@@ -41,20 +41,40 @@ log = logging.getLogger("bsa-kiosk-agent")
 
 
 def read_coach_code():
-    """bsa-config is a simple KEY=VALUE file. Grabs COACH_CODE=..."""
+    """bsa-config can be either:
+      • JSON:        {"coach_code": "GLENM7NUS"}
+      • KEY=VALUE:   COACH_CODE=GLENM7NUS
+    The Pi's labwc-autostart writes JSON; older deployments wrote
+    KEY=VALUE. Accept both so the agent works regardless of which
+    onboarding flow created the file."""
     try:
         with open(CONFIG_PATH, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                m = re.match(r'^\s*COACH_CODE\s*=\s*["\']?([^"\'\n]+)["\']?\s*$', line)
-                if m:
-                    return m.group(1).strip()
+            text = f.read()
     except FileNotFoundError:
         log.error("Config file not found: %s", CONFIG_PATH)
+        return None
     except Exception as e:
         log.exception("Failed to read %s: %s", CONFIG_PATH, e)
+        return None
+
+    # Try JSON first.
+    try:
+        import json
+        data = json.loads(text)
+        code = (data.get("coach_code") or data.get("COACH_CODE") or "").strip()
+        if code:
+            return code
+    except Exception:
+        pass
+
+    # Fall back to KEY=VALUE.
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = re.match(r'^\s*COACH_CODE\s*=\s*["\']?([^"\'\n]+)["\']?\s*$', line)
+        if m:
+            return m.group(1).strip()
     return None
 
 
