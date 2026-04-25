@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../utils/api';
 import useMediaQuery from '../hooks/useMediaQuery';
+import BroadcastCard from '../components/BroadcastCard';
+import GymTvPowerCard from '../components/GymTvPowerCard';
 
 const buildStyles = (isMobile) => ({
   page: { maxWidth: '960px', margin: '0 auto', padding: isMobile ? '16px 12px' : '32px 24px' },
@@ -61,6 +63,9 @@ export default function AdminDashboard() {
   const [proposalsFilter, setProposalsFilter] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [myPrograms, setMyPrograms] = useState([]);
+  const [togglingId, setTogglingId] = useState(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   const loadCloudflare = async (search = '') => {
     setCfLoading(true);
@@ -104,14 +109,34 @@ export default function AdminDashboard() {
       api.coachesList().catch(() => ({ coaches: [] })),
       api.coachApplications().catch(() => ({ applications: [] })),
       api.adminAllMedia().catch(() => ({ uploads: [] })),
-    ]).then(([o, m, c, a, v]) => {
+      api.myPrograms('wisco.barbell@gmail.com').catch(() => null),
+    ]).then(([o, m, c, a, v, progs]) => {
       setOverview(o);
       setMembers(m?.members || []);
       setCoaches(c?.coaches || []);
       setApplications(a?.applications || []);
       setVideos(v?.uploads || []);
+      setMyPrograms(progs?.data?.programs || progs?.programs || []);
       setLoading(false);
     });
+  };
+
+  const toggleTemplate = async (p) => {
+    setTogglingId(p.id);
+    try {
+      await api.adminToggleTemplate({
+        programId: p.id,
+        isTemplate: !p.isTemplate,
+        adminEmail: 'wisco.barbell@gmail.com',
+      });
+      setMyPrograms((list) =>
+        list.map((x) => (x.id === p.id ? { ...x, isTemplate: !p.isTemplate } : x))
+      );
+    } catch (e) {
+      alert('Toggle failed: ' + (e.message || 'error'));
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   useEffect(() => { loadData(); }, []);
@@ -209,6 +234,71 @@ export default function AdminDashboard() {
         <a href="/gym-tv" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #0891b2, #0e7490)' }}>
           Gym TV
         </a>
+        <a href="/coach" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+          Coach Dashboard
+        </a>
+        <a href="/brand" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #ec4899, #be185d)' }}>
+          Gym Branding
+        </a>
+      </div>
+
+      {/* Remote Pi power for the gym TV — same card the Coach Dashboard has */}
+      <GymTvPowerCard isMobile={isMobile} s={s} />
+
+      {/* Admin broadcast — mass-message all your clients */}
+      <BroadcastCard isMobile={isMobile} />
+
+      {/* Template Library admin — flag programs that every coach can clone */}
+      <div style={s.card}>
+        <button
+          style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+          onClick={() => setTemplatesOpen((v) => !v)}
+        >
+          <div>
+            <div style={s.cardTitle}>
+              📚 Template Library (Admin)
+              {myPrograms.filter((p) => p.isTemplate).length > 0 && (
+                <span style={{ fontSize: '12px', background: '#10b981', color: '#fff', padding: '3px 10px', borderRadius: '999px', marginLeft: '10px', fontWeight: '700' }}>
+                  {myPrograms.filter((p) => p.isTemplate).length} active
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
+              {myPrograms.length} program{myPrograms.length === 1 ? '' : 's'} — tap to {templatesOpen ? 'collapse' : 'expand'}
+            </div>
+          </div>
+          <span style={{ fontSize: '20px', color: '#888', transform: templatesOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
+        </button>
+        {templatesOpen && (
+          <div style={{ marginTop: '14px' }}>
+            <p style={{ fontSize: '12px', color: '#666', margin: '0 0 12px' }}>
+              Flag programs as public templates. Flagged ones appear on every coach's dashboard with a "Clone" button — they get a copy under their own access code.
+            </p>
+            {myPrograms.length === 0 ? (
+              <div style={{ fontSize: '13px', color: '#888', fontStyle: 'italic' }}>No programs yet.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {myPrograms.map((p) => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: p.isTemplate ? '#ecfdf5' : '#f9fafb', border: '1px solid ' + (p.isTemplate ? '#86efac' : '#e5e7eb'), borderRadius: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '160px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a2e' }}>
+                        {p.name} {p.isTemplate && <span style={{ fontSize: '11px', background: '#10b981', color: '#fff', padding: '2px 8px', borderRadius: '999px', marginLeft: '6px' }}>TEMPLATE</span>}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#888' }}>Code: {p.accessCode}</div>
+                    </div>
+                    <button
+                      style={{ padding: '7px 14px', border: 'none', borderRadius: '6px', background: p.isTemplate ? '#b91c1c' : '#10b981', color: '#fff', fontSize: '12px', fontWeight: '700', cursor: togglingId === p.id ? 'wait' : 'pointer', opacity: togglingId === p.id ? 0.6 : 1 }}
+                      onClick={() => toggleTemplate(p)}
+                      disabled={togglingId === p.id}
+                    >
+                      {togglingId === p.id ? '…' : p.isTemplate ? 'Remove from Templates' : 'Make Template'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Stats — clickable */}

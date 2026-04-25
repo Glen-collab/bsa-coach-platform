@@ -286,3 +286,116 @@ def application_status():
 
     finally:
         db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAGIC LINK LOGIN — passwordless sign-in for tracker users
+# ═══════════════════════════════════════════════════════════════════════════════
+import secrets as _secrets
+
+TRACKER_URL = os.environ.get("TRACKER_URL", "https://bestrongagain.netlify.app")
+
+@auth_bp.route("/magic-link/request", methods=["POST", "OPTIONS"])
+def magic_link_request():
+    """Accept { email }, find or auto-create user, email them a 10-minute sign-in link."""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email or "@" not in email or len(email) > 200:
+        return jsonify({"error": "Valid email required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT id, first_name FROM users WHERE LOWER(email) = %s", (email,))
+        row = cur.fetchone()
+        if row:
+            user_id, first_name = row[0], (row[1] or email.split("@")[0])
+        else:
+            # Auto-create minimal member — no password. They can set one later via register.
+            first_name = email.split("@")[0][:40]
+            referral_code = generate_referral_code(first_name)
+            # Ensure referral code unique
+            for _ in range(10):
+                cur.execute("SELECT 1 FROM users WHERE referral_code = %s", (referral_code,))
+                if not cur.fetchone():
+                    break
+                referral_code = generate_referral_code(first_name)
+            # Blank password hash — user can set via reset/register flow later
+            cur.execute("""
+                INSERT INTO users (email, first_name, role, referral_code, password_hash, is_active)
+                VALUES (%s, %s, 'member', %s, '', TRUE)
+                RETURNING id
+            """, (email, first_name, referral_code))
+            user_id = cur.fetchone()[0]
+
+        token = _secrets.token_urlsafe(32)
+        expires = datetime.utcnow() + timedelta(minutes=10)
+        cur.execute(
+            "UPDATE users SET magic_token = %s, magic_expires_at = %s WHERE id = %s",
+            (token, expires, user_id),
+        )
+        db.commit()
+
+        link = f"{TRACKER_URL}/magic?token={token}"
+        html = f"""
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+            <h2 style="color:#1a1a2e;margin:0 0 16px;">Sign in to Be Strong Again</h2>
+            <p style="color:#444;line-height:1.5;font-size:15px;">Hi {first_name}, tap the button below to sign in to the tracker and message your friends. The link expires in <strong>10 minutes</strong>.</p>
+            <p style="margin:24px 0;"><a href="{link}" style="background:linear-gradient(135deg,#ff9a3c,#ffd200);color:#1a1a2e;padding:14px 28px;border-radius:10px;font-weight:800;font-size:16px;text-decoration:none;display:inline-block;">Sign in</a></p>
+            <p style="color:#888;font-size:12px;line-height:1.5;">Or paste this into your browser:<br><a href="{link}" style="color:#667eea;word-break:break-all;">{link}</a></p>
+            <p style="color:#aaa;font-size:11px;margin-top:32px;">If you didn't request this, you can ignore the email.</p>
+          </div>
+        """
+        try:
+            send_email(email, "Sign in to Be Strong Again", html)
+        except Exception as e:
+            # Don't leak SMTP errors — but return a warning hint for debugging
+            return jsonify({"success": False, "error": f"Couldn't send email ({e})"}), 500
+
+        return jsonify({"success": True, "message": f"Check {email} for a sign-in link."})
+    finally:
+        db.close()
+
+
+@auth_bp.route("/magic-link/consume", methods=["POST", "OPTIONS"])
+def magic_link_consume():
+    """Exchange a magic token for a JWT. One-shot — token invalidates on use."""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    if not token or len(token) < 20:
+        return jsonify({"error": "Invalid token"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            SELECT id, email, role, first_name, last_name, referral_code
+            FROM users
+            WHERE magic_token = %s AND magic_expires_at > NOW() AND is_active = TRUE
+        """, (token,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Sign-in link expired or already used. Request a new one."}), 401
+        user_id = str(row[0])
+        # Invalidate token immediately (one-shot)
+        cur.execute("UPDATE users SET magic_token = NULL, magic_expires_at = NULL WHERE id = %s", (row[0],))
+        db.commit()
+        jwt_token = make_token(user_id, row[2])
+        return jsonify({
+            "success": True,
+            "token": jwt_token,
+            "user": {
+                "id": user_id,
+                "email": row[1],
+                "role": row[2],
+                "first_name": row[3],
+                "last_name": row[4],
+                "referral_code": row[5],
+            },
+        })
+    finally:
+        db.close()

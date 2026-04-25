@@ -396,3 +396,129 @@ def admin_recent_messages():
         return jsonify({"messages": rows, "count": len(rows)})
     finally:
         db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COACH BROADCAST — send one message to all of a coach's clients at once.
+# Audience = union of (referred members) + (tracker users on coach's programs
+# who have an account). Each recipient gets an auto-accepted friendship with
+# the coach so they can reply in-thread.
+# ═══════════════════════════════════════════════════════════════════════════════
+import uuid as _uuid
+
+
+def _coach_client_ids(cur, coach_id, coach_email):
+    """Return a set of user UUIDs that count as this coach's clients.
+    Includes every direct referral (members + coaches in their immediate
+    downline) + tracker users on the coach's programs."""
+    ids = set()
+    # 1. Direct referrals — members AND coaches (immediate downline)
+    cur.execute(
+        "SELECT id FROM users WHERE referred_by_id = %s AND is_active = TRUE AND role IN ('member','coach')",
+        (coach_id,),
+    )
+    for r in cur.fetchall():
+        ids.add(str(r["id"]))
+
+    # 2. Workout tracker users on this coach's programs (by user_email)
+    if coach_email:
+        cur.execute(
+            """
+            SELECT DISTINCT u.id
+            FROM users u
+            WHERE u.is_active = TRUE AND u.id != %s
+              AND LOWER(u.email) IN (
+                SELECT DISTINCT LOWER(up.user_email)
+                FROM workout_user_position up
+                JOIN workout_programs p ON up.access_code = p.access_code
+                WHERE LOWER(p.user_email) = LOWER(%s)
+                   OR LOWER(p.optional_trainer_email) = LOWER(%s)
+            )
+            """,
+            (coach_id, coach_email, coach_email),
+        )
+        for r in cur.fetchall():
+            ids.add(str(r["id"]))
+    return ids
+
+
+@social_bp.route("/broadcast/audience", methods=["GET"])
+@require_auth
+def broadcast_audience():
+    """Preview: how many clients would this coach reach right now?"""
+    me = request.current_user["user_id"]
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT email, role FROM users WHERE id = %s", (me,))
+        row = cur.fetchone()
+        if not row or row["role"] not in ("coach", "admin"):
+            return jsonify({"count": 0, "error": "Coaches only"}), 403
+        ids = _coach_client_ids(cur, me, row["email"])
+        return jsonify({"count": len(ids)})
+    finally:
+        db.close()
+
+
+@social_bp.route("/broadcast", methods=["POST"])
+@require_auth
+def broadcast_send():
+    """Body: { body: "message text" }
+    Delivers to every client the coach has; auto-accepts friendship so they can reply."""
+    me = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+    body = (data.get("body") or "").strip()
+    if not body:
+        return jsonify({"error": "Message body required"}), 400
+    if len(body) > 2000:
+        return jsonify({"error": "Message too long (max 2000 chars)"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT email, role FROM users WHERE id = %s", (me,))
+        row = cur.fetchone()
+        if not row or row["role"] not in ("coach", "admin"):
+            return jsonify({"error": "Coaches only"}), 403
+
+        recipient_ids = _coach_client_ids(cur, me, row["email"])
+        if not recipient_ids:
+            return jsonify({"success": True, "sent": 0, "message": "No clients with accounts yet."})
+
+        batch_id = str(_uuid.uuid4())
+        sent = 0
+        for rid in recipient_ids:
+            # Auto-accepted friendship so the recipient can reply later
+            cur.execute(
+                """
+                INSERT INTO user_friendships (requester_id, recipient_id, status, accepted_at)
+                VALUES (%s, %s, 'accepted', NOW())
+                ON CONFLICT (requester_id, recipient_id) DO UPDATE SET
+                    status = CASE WHEN user_friendships.status IN ('declined','blocked') THEN user_friendships.status ELSE 'accepted' END,
+                    accepted_at = COALESCE(user_friendships.accepted_at, NOW()),
+                    updated_at = NOW()
+                """,
+                (me, rid),
+            )
+            # Also handle the reverse direction so either party lists the other
+            cur.execute(
+                """
+                INSERT INTO user_friendships (requester_id, recipient_id, status, accepted_at)
+                VALUES (%s, %s, 'accepted', NOW())
+                ON CONFLICT (requester_id, recipient_id) DO NOTHING
+                """,
+                (rid, me),
+            )
+            # Insert the message itself
+            cur.execute(
+                """
+                INSERT INTO user_messages (from_user_id, to_user_id, body, is_broadcast, broadcast_batch_id)
+                VALUES (%s, %s, %s, TRUE, %s)
+                """,
+                (me, rid, body, batch_id),
+            )
+            sent += 1
+        db.commit()
+        return jsonify({"success": True, "sent": sent, "batch_id": batch_id})
+    finally:
+        db.close()

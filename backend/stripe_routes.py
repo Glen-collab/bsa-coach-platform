@@ -152,7 +152,10 @@ def create_checkout():
     """Create a Stripe checkout session for a member subscribing."""
     import jwt as pyjwt
 
-    data = request.json or {}
+    # silent=True tolerates empty/missing body and guarantees we return JSON,
+    # not HTML (Safari renders HTML errors as "The string did not match the
+    # expected pattern" via res.json() — prevent leaking those).
+    data = request.get_json(silent=True) or {}
     tier = data.get("tier", "basic")
     user_id = data.get("user_id")
     coach_id = data.get("coach_id")
@@ -163,7 +166,7 @@ def create_checkout():
         try:
             payload = pyjwt.decode(auth[7:], os.environ.get("SECRET_KEY"), algorithms=["HS256"])
             user_id = payload.get("user_id")
-        except:
+        except Exception:
             pass
 
     if not user_id:
@@ -171,6 +174,8 @@ def create_checkout():
 
     if tier not in PRICE_IDS:
         return jsonify({"error": "Invalid tier"}), 400
+    if not PRICE_IDS[tier]:
+        return jsonify({"error": f"{tier} price not configured on server (STRIPE_PRICE_{tier.upper()} missing)"}), 500
 
     # If no coach_id, check who referred this user
     db = get_db()
@@ -181,27 +186,30 @@ def create_checkout():
                 row = cur.fetchone()
                 if row and row[0]:
                     coach_id = str(row[0])
-        except:
+        except Exception:
             pass
     db.close()
 
     app_url = os.environ.get('APP_URL', 'https://app.bestrongagain.com')
 
-    session = stripe.checkout.Session.create(
-        payment_method_types=["card"],
-        mode="subscription",
-        line_items=[{
-            "price": PRICE_IDS[tier],
-            "quantity": 1
-        }],
-        success_url=f"{app_url}/dashboard?subscribed=true",
-        cancel_url=f"{app_url}/dashboard",
-        metadata={
-            "user_id": user_id,
-            "coach_id": coach_id or "",
-            "tier": tier
-        }
-    )
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            mode="subscription",
+            line_items=[{
+                "price": PRICE_IDS[tier],
+                "quantity": 1
+            }],
+            success_url=f"{app_url}/dashboard?subscribed=true",
+            cancel_url=f"{app_url}/dashboard",
+            metadata={
+                "user_id": user_id,
+                "coach_id": coach_id or "",
+                "tier": tier
+            }
+        )
+    except stripe.error.StripeError as e:
+        return jsonify({"error": f"Stripe: {str(e)}"}), 400
 
     return jsonify({"checkout_url": session.url})
 

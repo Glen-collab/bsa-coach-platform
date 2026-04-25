@@ -167,6 +167,11 @@ def load_program():
         """, (code, email, current_week, current_day))
         saved = cur.fetchone()
 
+        # Include the whole allWorkouts map so clients that need other days
+        # (e.g. the two-day whiteboard cast view) don't need a second fetch.
+        # It's cheap — typically <50KB even for a 12-week program.
+        all_workouts = program_data.get("allWorkouts") or {}
+
         return jsonify({
             "success": True,
             "data": {
@@ -176,6 +181,7 @@ def load_program():
                     "daysPerWeek": days_per_week,
                     "totalWeeks": total_weeks,
                     "blocks": blocks,
+                    "allWorkouts": all_workouts,
                 },
                 "userPosition": {
                     "currentWeek": current_week,
@@ -777,7 +783,7 @@ def list_programs():
     try:
         cur = db.cursor()
         cur.execute("""
-            SELECT id, access_code, program_name, program_nickname, program_data, created_at, updated_at
+            SELECT id, access_code, program_name, program_nickname, program_data, created_at, updated_at, is_template
             FROM workout_programs
             WHERE (LOWER(user_email) = %s OR LOWER(optional_trainer_email) = %s) AND is_active = TRUE
             ORDER BY updated_at DESC
@@ -794,6 +800,7 @@ def list_programs():
                 "accessCode": r["access_code"],
                 "name": r["program_name"],
                 "nickname": r.get("program_nickname"),
+                "isTemplate": r.get("is_template", False),
                 "daysPerWeek": pd.get("daysPerWeek", 3),
                 "totalWeeks": pd.get("totalWeeks", 4),
                 "programData": pd,
@@ -1295,5 +1302,128 @@ def update_client_maxes():
         """, (bench, squat, deadlift, clean, code, email))
         db.commit()
         return jsonify({"success": True, "message": "Maxes updated"})
+    finally:
+        db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEMPLATE LIBRARY — admin-flagged programs coaches can clone into their accounts
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@workout_bp.route("/templates.php", methods=["GET", "OPTIONS"])
+def list_templates():
+    """Public list of template programs (no auth — coaches browse them)."""
+    if request.method == "OPTIONS":
+        return "", 200
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            SELECT id, access_code, program_name, program_nickname,
+                   user_email, created_at, program_data
+            FROM workout_programs
+            WHERE is_template = TRUE
+            ORDER BY created_at DESC
+        """)
+        rows = cur.fetchall()
+        out = []
+        for r in rows:
+            pd = r["program_data"]
+            if isinstance(pd, str):
+                try: pd = json.loads(pd)
+                except Exception: pd = {}
+            all_workouts = (pd or {}).get("allWorkouts") or {}
+            out.append({
+                "id": r["id"],
+                "access_code": r["access_code"],
+                "program_name": r["program_name"],
+                "program_nickname": r["program_nickname"],
+                "author_email": r["user_email"],
+                "created_at": str(r["created_at"]),
+                "day_count": len(all_workouts),
+                "total_weeks": (pd or {}).get("totalWeeks") or 1,
+            })
+        return jsonify({"success": True, "templates": out})
+    finally:
+        db.close()
+
+
+@workout_bp.route("/clone-template.php", methods=["POST", "OPTIONS"])
+def clone_template():
+    """Clone a template program into the caller's account.
+    Body: { templateId: int, targetEmail: string, newName?: string }
+    Returns: { success, programId, accessCode }
+    """
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.get_json(silent=True) or {}
+    template_id = data.get("templateId")
+    target_email = (data.get("targetEmail") or "").lower().strip()
+    new_name = data.get("newName")
+
+    if not template_id or not target_email:
+        return jsonify({"success": False, "message": "templateId and targetEmail required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        # Load the template
+        cur.execute("""
+            SELECT program_name, program_nickname, program_data
+            FROM workout_programs
+            WHERE id = %s AND is_template = TRUE
+        """, (template_id,))
+        tpl = cur.fetchone()
+        if not tpl:
+            return jsonify({"success": False, "message": "Template not found"}), 404
+
+        # Generate a fresh access code
+        code = gen_access_code()
+        for _ in range(10):
+            cur.execute("SELECT id FROM workout_programs WHERE access_code = %s", (code,))
+            if not cur.fetchone():
+                break
+            code = gen_access_code()
+
+        final_name = new_name or tpl["program_name"]
+        cur.execute("""
+            INSERT INTO workout_programs (access_code, user_email, program_name, program_nickname, program_data, created_by, is_template)
+            VALUES (%s, %s, %s, %s, %s, %s, FALSE)
+            RETURNING id
+        """, (code, target_email, final_name, tpl["program_nickname"], json.dumps(tpl["program_data"]), target_email))
+        row = cur.fetchone()
+        db.commit()
+        return jsonify({"success": True, "programId": row["id"], "accessCode": code})
+    finally:
+        db.close()
+
+
+@workout_bp.route("/admin/toggle-template.php", methods=["POST", "OPTIONS"])
+def admin_toggle_template():
+    """Admin toggles is_template on a program. Body: { programId, isTemplate }"""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.get_json(silent=True) or {}
+    program_id = data.get("programId")
+    is_template = bool(data.get("isTemplate"))
+    admin_email = (data.get("adminEmail") or "").lower().strip()
+
+    if not program_id:
+        return jsonify({"success": False, "message": "programId required"}), 400
+
+    # Light guard: only wisco.barbell@gmail.com (Glen/admin) can toggle for now.
+    # When JWT/require_admin is wired into this blueprint, swap to that.
+    if admin_email != "wisco.barbell@gmail.com":
+        return jsonify({"success": False, "message": "Admin only"}), 403
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("UPDATE workout_programs SET is_template = %s WHERE id = %s RETURNING id, program_name, is_template", (is_template, program_id))
+        row = cur.fetchone()
+        db.commit()
+        if not row:
+            return jsonify({"success": False, "message": "Program not found"}), 404
+        return jsonify({"success": True, "id": row["id"], "program_name": row["program_name"], "is_template": row["is_template"]})
     finally:
         db.close()
