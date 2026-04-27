@@ -203,4 +203,71 @@ Edit `--force-device-scale-factor=2` in `Desktop/pi_labwc_autostart` (around lin
 | "Reboot TV" button does nothing | Kiosk agent not installed, OR sudo password prompt blocking | Install agent + sudoers drop-in |
 | Brand-flash never appears | Pi Zero 2 W disable flags still active, OR coach has no logo configured | Set `FLASH_ENABLED = true`, ensure `/api/kiosk/tv-config` returns `logo_data` |
 | `BSA-Kiosk-Setup` AP doesn't appear on phone | Portal service crashed, OR Pi already auto-connected to known WiFi | Check `journalctl -u wifi-connect`. If known WiFi is the issue, `nmcli connection delete` it and reboot. |
+| `BSA-Kiosk-Setup` AP appears but **prompts for a password** | Portal's `bring_up_ap()` used `nmcli device wifi hotspot` shortcut which always defaults to WPA2 + random PSK; the after-the-fact `connection modify ... key-mgmt none` doesn't fully clear all security fields on Trixie's NM | **Fix below** — replace bring_up_ap() with explicit `nmcli connection add` that never sets a password in the first place |
 | New deploy not showing | Wrong git remote URL (case-sensitive — `WorkoutTracker` not `workouttracker`) so Netlify webhook didn't fire | `git remote set-url origin https://github.com/Glen-collab/WorkoutTracker.git` and re-push |
+
+---
+
+## Apr 27, 2026 — Captive Portal AP Came Up Password-Protected
+
+**Symptom**: Glen took the Pi to the gym. AP `BSA-Kiosk-Setup` broadcast correctly, but iPhone WiFi prompted for a password instead of joining open. No way to recover the random password without SSH access (and the Pi is stranded — no internet).
+
+**Root cause**: `bsa-setup-portal.py`'s `bring_up_ap()` uses the `nmcli device wifi hotspot` *shortcut*. That command **always creates a WPA2-PSK AP with a random password** and immediately activates it. The after-create `nmcli connection modify <name> 802-11-wireless-security.key-mgmt none` plus `-802-11-wireless-security.psk` calls don't fully clear all security fields on NetworkManager 1.46+ (Trixie's default), so the AP stays password-protected.
+
+**Fix to apply tonight** — rewrite `bring_up_ap()` in `Desktop/pi_bsa_setup_portal.py` (and the deployed `/usr/local/sbin/bsa-setup-portal.py`) to use the explicit `nmcli connection add` pattern. Set the connection up as open from the start; no password phase.
+
+```python
+def bring_up_ap():
+    log(f"bringing up AP {AP_SSID}")
+    run(f"nmcli connection delete {AP_CON_NAME}")
+    rc, _, err = run(
+        f"nmcli connection add type wifi ifname {WIFI_IFACE} con-name {AP_CON_NAME} "
+        f"autoconnect no ssid {shlex.quote(AP_SSID)} "
+        f"802-11-wireless.mode ap 802-11-wireless.band bg "
+        f"802-11-wireless-security.key-mgmt none "
+        f"ipv4.method shared ipv4.addresses 192.168.42.1/24",
+        timeout=20,
+    )
+    if rc != 0:
+        log(f"AP create failed rc={rc}: {err}")
+        return False
+    rc, _, err = run(f"nmcli connection up {AP_CON_NAME}", timeout=20)
+    if rc != 0:
+        log(f"AP up failed rc={rc}: {err}")
+        return False
+    log(f"AP {AP_SSID} ready at 192.168.42.1 (open)")
+    return True
+```
+
+**Then**: SCP the updated portal to the Pi, `sudo install -m 0755 -o root -g root /tmp/bsa-setup-portal.py /usr/local/sbin/bsa-setup-portal.py`, and reboot. Verify the AP comes up open by joining from a phone — no password prompt.
+
+**Test plan before redeploying to gym**:
+1. SSH into home Pi
+2. Stop the kiosk: `sudo nmcli connection delete <home WiFi>` then `sudo rm /home/pi/bsa-config && sudo reboot`
+3. Wait 90s — portal should fire
+4. iPhone WiFi list → tap `BSA-Kiosk-Setup` → must connect WITHOUT a password prompt
+5. Setup form should auto-pop or open via `192.168.42.1`
+6. Fill in home WiFi + `GLENM7NUS` → submit
+7. Pi should reconnect to home WiFi within 10s, kiosk loads
+
+---
+
+## Recovering a Stranded Pi (no internet, portal won't open)
+
+If a Pi is stuck somewhere (gym, customer site) without the captive portal working — no SSH path, no way to add WiFi:
+
+**Option A: Take it home / back to base.** Fix locally, redeploy. Slowest but safest.
+
+**Option B: iPhone hotspot SSID-spoof trick.** Pi auto-connects to phone, you SSH from phone. ~10 minutes if you have the home WiFi password handy.
+
+1. iPhone Settings → General → About → Name → set to **the exact SSID of any WiFi already saved on the Pi** (e.g. `SpectrumSetup-73`)
+2. iPhone Personal Hotspot → Wi-Fi Password → set to that same network's password (the one stored in the Pi's NetworkManager keyfile)
+3. Enable Personal Hotspot
+4. Wait 60–90 seconds — Pi NetworkManager auto-connects to "home WiFi" (which is now your phone)
+5. Install Termius (or any SSH app) on the iPhone
+6. SSH `pi@172.20.10.2` (default iOS hotspot subnet IP for the first client) — password `pi`
+7. Run `sudo nmcli device wifi connect "<gym SSID>" password "<gym password>"` — Pi joins the real gym WiFi
+8. Kiosk loads, dashboard remote works, etc.
+9. Disable hotspot, restore phone name
+
+**Option C: Pull the SD card, mount on a Mac/Linux machine, edit the NetworkManager keyfile.** Add a new `.nmconnection` file at `/etc/NetworkManager/system-connections/` with the gym SSID + password, mode 0600 root:root, then put SD back. Windows can't write ext4 cleanly so this is Mac/Linux only.
