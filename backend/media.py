@@ -564,11 +564,30 @@ def tracker_overrides():
                 user_id = row["id"]
                 coach_id = row["referred_by_id"]
 
-        # Layer 2: their coach's videos (overwrites featured)
+        # Layer 2 (gym pool): if the client's coach belongs to a gym,
+        # layer in every other gym partner's videos first, then the
+        # primary coach last so their version wins on shared exercises.
+        gym_partner_ids = []
+        gym_id = None
+        if coach_id:
+            cur.execute("SELECT gym_id FROM users WHERE id = %s", (coach_id,))
+            grow = cur.fetchone()
+            if grow and grow["gym_id"]:
+                gym_id = grow["gym_id"]
+                cur.execute(
+                    "SELECT id FROM users WHERE gym_id = %s AND id <> %s",
+                    (gym_id, coach_id),
+                )
+                gym_partner_ids = [r["id"] for r in cur.fetchall()]
+
+        for partner_id in gym_partner_ids:
+            add_rows_for_trainer(partner_id)
+
+        # Layer 3: the client's primary coach (overrides gym partners on conflict)
         if coach_id:
             add_rows_for_trainer(coach_id)
 
-        # Layer 3 (highest priority): the user's OWN uploads.
+        # Layer 4 (highest priority): the user's OWN uploads.
         # Handles the case where the viewer is themselves a coach/admin —
         # they see their own library when using the tracker.
         if user_id:
@@ -578,6 +597,8 @@ def tracker_overrides():
             "overrides": overrides,
             "count": len(overrides),
             "has_coach": bool(coach_id),
+            "has_gym": bool(gym_id),
+            "gym_partner_count": len(gym_partner_ids),
             "user_has_own_uploads": bool(user_id),
         })
     finally:

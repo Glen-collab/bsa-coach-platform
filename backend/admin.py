@@ -461,3 +461,169 @@ def reject_video(video_id):
         return jsonify({"success": True})
     finally:
         db.close()
+
+
+# ── Gyms (multi-coach video pool + business continuity) ────────────────
+#
+# Two coaches share a `gym_id` → their tracker_media uploads are pooled
+# for any client referred by either of them. If a partner quits/dies,
+# /coaches/<from>/transfer-to/<to> reassigns clients + programs in one shot.
+
+@admin_bp.route("/gyms", methods=["GET"])
+def list_gyms():
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("""
+                SELECT g.id, g.name, g.owner_id, g.created_at,
+                       COALESCE((SELECT COUNT(*) FROM users u WHERE u.gym_id = g.id), 0) AS coach_count
+                FROM gyms g
+                ORDER BY g.created_at DESC
+            """)
+            rows = cur.fetchall()
+        gyms = [{
+            "id": str(r[0]), "name": r[1],
+            "owner_id": str(r[2]) if r[2] else None,
+            "created_at": r[3].isoformat() if r[3] else None,
+            "coach_count": r[4],
+        } for r in rows]
+        return jsonify({"gyms": gyms})
+    finally:
+        db.close()
+
+
+@admin_bp.route("/gyms", methods=["POST"])
+def create_gym():
+    data = request.json or {}
+    name = (data.get("name") or "").strip()
+    owner_id = data.get("owner_id")
+    if not name:
+        return jsonify({"error": "Gym name required"}), 400
+
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO gyms (name, owner_id) VALUES (%s, %s) RETURNING id",
+                (name, owner_id),
+            )
+            gym_id = cur.fetchone()[0]
+            if owner_id:
+                cur.execute("UPDATE users SET gym_id = %s WHERE id = %s", (gym_id, owner_id))
+            db.commit()
+        return jsonify({"success": True, "id": str(gym_id), "name": name})
+    finally:
+        db.close()
+
+
+@admin_bp.route("/gyms/<gym_id>/coaches", methods=["GET"])
+def list_gym_coaches(gym_id):
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("""
+                SELECT id, email, first_name, last_name, role
+                FROM users WHERE gym_id = %s
+                ORDER BY first_name, last_name
+            """, (gym_id,))
+            rows = cur.fetchall()
+        coaches = [{
+            "id": str(r[0]), "email": r[1],
+            "first_name": r[2], "last_name": r[3], "role": r[4],
+        } for r in rows]
+        return jsonify({"coaches": coaches})
+    finally:
+        db.close()
+
+
+@admin_bp.route("/gyms/<gym_id>/coaches", methods=["POST"])
+def add_coach_to_gym(gym_id):
+    """Body: { coach_id: <uuid> }   — adds an existing coach to the gym."""
+    data = request.json or {}
+    coach_id = data.get("coach_id")
+    if not coach_id:
+        return jsonify({"error": "coach_id required"}), 400
+
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT id FROM gyms WHERE id = %s", (gym_id,))
+            if not cur.fetchone():
+                return jsonify({"error": "Gym not found"}), 404
+            cur.execute("UPDATE users SET gym_id = %s WHERE id = %s RETURNING id", (gym_id, coach_id))
+            if not cur.fetchone():
+                return jsonify({"error": "Coach not found"}), 404
+            db.commit()
+        return jsonify({"success": True, "gym_id": gym_id, "coach_id": coach_id})
+    finally:
+        db.close()
+
+
+@admin_bp.route("/gyms/<gym_id>/coaches/<coach_id>", methods=["DELETE"])
+def remove_coach_from_gym(gym_id, coach_id):
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET gym_id = NULL WHERE id = %s AND gym_id = %s RETURNING id",
+                (coach_id, gym_id),
+            )
+            if not cur.fetchone():
+                return jsonify({"error": "Coach is not in that gym"}), 404
+            db.commit()
+        return jsonify({"success": True})
+    finally:
+        db.close()
+
+
+@admin_bp.route("/coaches/<from_coach_id>/transfer-to/<to_coach_id>", methods=["POST"])
+def transfer_coach(from_coach_id, to_coach_id):
+    """
+    Bulk reassign every client + program from one coach to another.
+    Use case: a gym partner quits or dies — their clients keep training
+    under the surviving partner without losing access codes or history.
+
+    Effects:
+      - users.referred_by_id flips from <from> to <to>  (clients move)
+      - workout_programs.created_by flips (matches both UUID and email forms)
+      - kept programs keep the same access_code so clients don't have to relog
+    """
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT id, email FROM users WHERE id = %s", (from_coach_id,))
+            f = cur.fetchone()
+            if not f:
+                return jsonify({"error": "Source coach not found"}), 404
+            from_email = f[1]
+
+            cur.execute("SELECT id, email FROM users WHERE id = %s", (to_coach_id,))
+            t = cur.fetchone()
+            if not t:
+                return jsonify({"error": "Destination coach not found"}), 404
+            to_email = t[1]
+
+            cur.execute(
+                "UPDATE users SET referred_by_id = %s WHERE referred_by_id = %s",
+                (to_coach_id, from_coach_id),
+            )
+            clients_moved = cur.rowcount
+
+            cur.execute(
+                "UPDATE workout_programs SET created_by = %s "
+                "WHERE created_by = %s OR created_by = %s",
+                (str(to_coach_id), str(from_coach_id), from_email),
+            )
+            programs_moved = cur.rowcount
+
+            db.commit()
+
+        return jsonify({
+            "success": True,
+            "clients_moved": clients_moved,
+            "programs_moved": programs_moved,
+            "from_email": from_email,
+            "to_email": to_email,
+        })
+    finally:
+        db.close()
