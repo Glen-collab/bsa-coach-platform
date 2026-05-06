@@ -153,6 +153,9 @@ export default function CoachDashboard() {
           <a href="/brand" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #ec4899, #be185d)' }}>
             Gym Branding
           </a>
+          <a href="/chatbot-voice" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>
+            Chatbot Voice
+          </a>
         </div>
       </div>
 

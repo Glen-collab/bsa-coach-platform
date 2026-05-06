@@ -7,6 +7,7 @@ from psycopg2.extras import RealDictCursor
 import psycopg2
 import os
 import re
+import json
 
 from auth import require_auth
 
@@ -375,3 +376,99 @@ def set_brand():
         })
     finally:
         db.close()
+
+
+# ── Coach Chatbot Voice (white-label persona) ───────────────────────────────
+# Each coach can configure how the BSA chatbot speaks for their clients —
+# their own name + gym + business link, single vs dual coach mode, optional
+# AdvoCare PC pitch toggle. NULL config = fall back to default Glen voice.
+
+def _config_defaults(first_name):
+    return {
+        "coach_voice_name":     first_name or "Coach",
+        "gym_name":             "",
+        "single_coach":         True,
+        "secondary_coach_name": "",
+        "secondary_coach_role": "",
+        "business_url":         "",
+        "business_pitch":       "",
+        "coach_philosophy":     "",
+        "advocare_enabled":     False,
+    }
+
+
+def _read_config_for(user_id):
+    """Returns (first_name, config_dict_with_defaults). user_id may also be a coach access_code-derived id."""
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT chatbot_config, first_name, role FROM users WHERE id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None, None
+        merged = _config_defaults(row["first_name"])
+        if row["chatbot_config"]:
+            merged.update(row["chatbot_config"])
+        return row["first_name"], merged
+    finally:
+        db.close()
+
+
+@coaches_bp.route("/chatbot-config", methods=["GET"])
+@require_auth
+def get_my_chatbot_config():
+    user_id = request.current_user["user_id"]
+    _, config = _read_config_for(user_id)
+    if config is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(config)
+
+
+@coaches_bp.route("/chatbot-config", methods=["POST"])
+@require_auth
+def set_my_chatbot_config():
+    user_id = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+
+    config = {
+        "coach_voice_name":     str(data.get("coach_voice_name") or "")[:60].strip(),
+        "gym_name":             str(data.get("gym_name") or "")[:120].strip(),
+        "single_coach":         bool(data.get("single_coach")),
+        "secondary_coach_name": str(data.get("secondary_coach_name") or "")[:60].strip(),
+        "secondary_coach_role": str(data.get("secondary_coach_role") or "")[:120].strip(),
+        "business_url":         str(data.get("business_url") or "")[:300].strip(),
+        "business_pitch":       str(data.get("business_pitch") or "")[:300].strip(),
+        "coach_philosophy":     str(data.get("coach_philosophy") or "")[:2000].strip(),
+        "advocare_enabled":     bool(data.get("advocare_enabled")),
+    }
+    if not config["coach_voice_name"]:
+        return jsonify({"error": "coach_voice_name is required"}), 400
+    if config["business_url"] and not re.match(r"^https?://", config["business_url"]):
+        return jsonify({"error": "business_url must start with http:// or https://"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "UPDATE users SET chatbot_config = %s::jsonb WHERE id = %s",
+            (json.dumps(config), user_id),
+        )
+        db.commit()
+        return jsonify(config)
+    finally:
+        db.close()
+
+
+@coaches_bp.route("/chatbot-config/<int:coach_id>", methods=["GET"])
+def get_chatbot_config_public(coach_id):
+    """Public read of a coach's chatbot persona — used by external apps
+    (Workout Tracker, Trainer Dashboard) to render the bot in the coach's voice
+    for their clients. The data is intentionally non-sensitive: it's persona
+    info that's about to be shown to the client anyway."""
+    _, config = _read_config_for(coach_id)
+    if config is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(config)

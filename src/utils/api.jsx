@@ -26,6 +26,8 @@ export const api = {
   earnings: (id) => request(`/coaches/earnings/history/${id}`),
   getBrand: () => request('/coaches/brand'),
   setBrand: (body) => request('/coaches/brand', { method: 'POST', body: JSON.stringify(body) }),
+  getChatbotConfig: () => request('/coaches/chatbot-config'),
+  setChatbotConfig: (body) => request('/coaches/chatbot-config', { method: 'POST', body: JSON.stringify(body) }),
 
   // Template library
   listTemplates: () => request('/workout/templates.php'),
