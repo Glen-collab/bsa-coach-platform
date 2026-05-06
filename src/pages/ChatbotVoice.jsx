@@ -53,6 +53,8 @@ export default function ChatbotVoice() {
   const [bizUrl, setBizUrl]       = useState('');
   const [bizPitch, setBizPitch]   = useState('');
   const [philosophy, setPhilosophy] = useState('');
+  const [specialty, setSpecialty]   = useState('');
+  const [focusKw, setFocusKw]       = useState('');
   const [advocare, setAdvocare]   = useState(false);
 
   const [loading, setLoading] = useState(true);
@@ -71,6 +73,8 @@ export default function ChatbotVoice() {
         setBizUrl(c.business_url || '');
         setBizPitch(c.business_pitch || '');
         setPhilosophy(c.coach_philosophy || '');
+        setSpecialty(c.specialty || '');
+        setFocusKw(c.focus_keywords || '');
         setAdvocare(!!c.advocare_enabled);
       } catch (e) {
         setMsg({ kind: 'err', text: e.message || 'Could not load config.' });
@@ -93,6 +97,8 @@ export default function ChatbotVoice() {
         business_url: bizUrl,
         business_pitch: bizPitch,
         coach_philosophy: philosophy,
+        specialty: specialty,
+        focus_keywords: focusKw,
         advocare_enabled: advocare,
       });
       setMsg({ kind: 'ok', text: 'Saved. Your clients will see this voice on their next chat.' });
@@ -228,6 +234,37 @@ export default function ChatbotVoice() {
               Leave off if AdvoCare isn't part of your business.
             </div>
           </div>
+        </div>
+      </div>
+
+      <div style={s.section}>
+        <div style={s.sectionTitle}>Your specialty</div>
+        <div style={s.sectionHelp}>
+          What kind of training do you mostly do? The bot uses this to frame
+          answers in your methodology instead of giving generic advice.
+        </div>
+
+        <div style={s.field}>
+          <label style={s.label}>Specialty <span style={{ fontWeight: 400, color: '#888' }}>(optional)</span></label>
+          <input
+            style={s.input}
+            value={specialty}
+            onChange={(e) => setSpecialty(e.target.value)}
+            placeholder='e.g. "CrossFit / metcon", "Olympic weightlifting", "golf-specific training", "youth athletic development"'
+            maxLength={200}
+          />
+        </div>
+
+        <div style={s.field}>
+          <label style={s.label}>Focus keywords <span style={{ fontWeight: 400, color: '#888' }}>(optional)</span></label>
+          <input
+            style={s.input}
+            value={focusKw}
+            onChange={(e) => setFocusKw(e.target.value)}
+            placeholder="e.g. snatch, clean & jerk, EMOM, AMRAP, hypertrophy, mobility"
+            maxLength={300}
+          />
+          <div style={s.hint}>Comma-separated. The bot leans on these when relevant.</div>
         </div>
       </div>
 

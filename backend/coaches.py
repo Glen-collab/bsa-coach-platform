@@ -393,6 +393,8 @@ def _config_defaults(first_name):
         "business_url":         "",
         "business_pitch":       "",
         "coach_philosophy":     "",
+        "specialty":            "",        # CrossFit, Olympic lifts, golf-specific, etc.
+        "focus_keywords":       "",        # comma-separated tags for quick framing
         "advocare_enabled":     False,
     }
 
@@ -442,6 +444,8 @@ def set_my_chatbot_config():
         "business_url":         str(data.get("business_url") or "")[:300].strip(),
         "business_pitch":       str(data.get("business_pitch") or "")[:300].strip(),
         "coach_philosophy":     str(data.get("coach_philosophy") or "")[:2000].strip(),
+        "specialty":            str(data.get("specialty") or "")[:200].strip(),
+        "focus_keywords":       str(data.get("focus_keywords") or "")[:300].strip(),
         "advocare_enabled":     bool(data.get("advocare_enabled")),
     }
     if not config["coach_voice_name"]:
