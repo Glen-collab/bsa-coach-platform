@@ -42,6 +42,26 @@ def _lookup_name(email, cur):
         return ""
 
 
+def _resolve_coach_uuid(cur, created_by):
+    """workout_programs.created_by is varchar — historically stores either an
+    email or a UUID string depending on which path created the row. The
+    Workout Tracker chatbot needs a real UUID to look up coach chatbot config.
+    Resolve either form to a clean UUID string, or None if not found."""
+    if not created_by:
+        return None
+    s = str(created_by).strip()
+    try:
+        if "@" in s:
+            cur.execute("SELECT id FROM users WHERE email = %s LIMIT 1", (s,))
+        else:
+            # Already looks like a UUID — verify it exists
+            cur.execute("SELECT id FROM users WHERE id::text = %s LIMIT 1", (s,))
+        row = cur.fetchone()
+        return str(row["id"]) if row else None
+    except Exception:
+        return None
+
+
 def send_email(to, subject, html_body, reply_to=None):
     """Send email via SMTP. Falls back silently on failure."""
     try:
@@ -182,7 +202,7 @@ def load_program():
                     "totalWeeks": total_weeks,
                     "blocks": blocks,
                     "allWorkouts": all_workouts,
-                    "coachId": str(program["created_by"]) if program.get("created_by") else None,
+                    "coachId": _resolve_coach_uuid(cur, program.get("created_by")),
                 },
                 "userPosition": {
                     "currentWeek": current_week,

@@ -5,7 +5,20 @@ admin.py - Master admin routes (Glen only)
 from flask import Blueprint, request, jsonify
 import psycopg2
 import os
+import json
+import random
 from email_helper import notify_coach_approved, notify_coach_denied
+
+
+def _gen_unique_access_code(cur):
+    """Generate a 4-digit code that isn't already in workout_programs."""
+    for _ in range(20):
+        code = f"{random.randint(1000, 9999)}"
+        cur.execute("SELECT 1 FROM workout_programs WHERE access_code = %s", (code,))
+        if not cur.fetchone():
+            return code
+    # 4-digit space exhausted in worst case — fall back to 5 digits.
+    return f"{random.randint(10000, 99999)}"
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -145,16 +158,47 @@ def approve_coach(app_id):
             cur.execute("SELECT email, first_name, referral_code FROM users WHERE id = %s", (user_id,))
             user_info = cur.fetchone()
 
+            # Auto-clone Glen's coaching-stack templates into the new coach's
+            # account so they have starter programs to try / adapt on day one.
+            cloned = []
+            if user_info:
+                new_coach_email = user_info[0]
+                new_coach_uid   = str(user_id)
+                cur.execute("""
+                    SELECT id, program_name, program_nickname, program_data
+                    FROM workout_programs
+                    WHERE is_template = TRUE AND is_active = TRUE
+                """)
+                templates = cur.fetchall()
+                for tpl in templates:
+                    code = _gen_unique_access_code(cur)
+                    cur.execute("""
+                        INSERT INTO workout_programs
+                          (access_code, user_email, program_name, program_nickname,
+                           program_data, created_by, is_template)
+                        VALUES (%s, %s, %s, %s, %s, %s, FALSE)
+                        RETURNING id
+                    """, (
+                        code, new_coach_email, tpl[1], tpl[2],
+                        json.dumps(tpl[3]) if not isinstance(tpl[3], str) else tpl[3],
+                        new_coach_uid,
+                    ))
+                    cloned.append(tpl[1])
+
             db.commit()
 
         # Send approval email
         if user_info:
             try:
                 notify_coach_approved(user_info[0], user_info[1], user_info[2])
-            except:
+            except Exception:
                 pass
 
-        return jsonify({"success": True, "message": "Coach approved and promoted."})
+        return jsonify({
+            "success": True,
+            "message": "Coach approved and promoted.",
+            "cloned_programs": cloned if user_info else []
+        })
     finally:
         db.close()
 
