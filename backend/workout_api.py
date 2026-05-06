@@ -182,6 +182,7 @@ def load_program():
                     "totalWeeks": total_weeks,
                     "blocks": blocks,
                     "allWorkouts": all_workouts,
+                    "coachId": str(program["created_by"]) if program.get("created_by") else None,
                 },
                 "userPosition": {
                     "currentWeek": current_week,

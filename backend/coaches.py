@@ -462,7 +462,7 @@ def set_my_chatbot_config():
         db.close()
 
 
-@coaches_bp.route("/chatbot-config/<int:coach_id>", methods=["GET"])
+@coaches_bp.route("/chatbot-config/<coach_id>", methods=["GET"])
 def get_chatbot_config_public(coach_id):
     """Public read of a coach's chatbot persona — used by external apps
     (Workout Tracker, Trainer Dashboard) to render the bot in the coach's voice
