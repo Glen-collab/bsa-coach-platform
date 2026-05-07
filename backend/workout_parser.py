@@ -71,6 +71,17 @@ SYSTEM_PROMPT = """You are a workout-import parser for the Be Strong Again coach
 
 A coach has pasted raw text describing a workout (one or more days). Your job is to convert that text into the platform's structured block schema, mapping every exercise to a name from the provided EXERCISE LIBRARY.
 
+## Mode (top of the user message specifies which one)
+
+- **single** — text describes ONE day. Return exactly one entry in `"days"`.
+- **multi-day** — text describes 2+ days separated by "Day 1 / Day 2 / Monday / Tuesday / Push Day / Pull Day" headers. Split into one entry per day. Use the day header text as the `"name"`.
+- **expand** — text describes ONE template day. Use it as Day 1 and DESIGN additional complementary days to fill the requested count. Match the template's intensity / equipment vibe / length / format. Use the requested split style:
+  - `ppl`: Push → Pull → Legs → Push → Pull → Legs → Rest
+  - `upper-lower`: Upper → Lower → Upper → Lower → Upper → Lower → Rest
+  - `body-part`: Chest → Back → Legs → Shoulders → Arms → Conditioning → Rest (truncate to requested days)
+  - `auto`: read the template day, infer what kind of program fits, design accordingly
+  Each generated day should have its own warmup → main work → cooldown structure mirroring the template's style. Reuse percentages and rep schemes that match the template's training emphasis.
+
 ## Block types (use the exact `type` string)
 - "theme"         — coach's notes / message for the day (text only, no exercises)
 - "warmup"        — warm-up exercises (low load)
@@ -123,10 +134,15 @@ A coach has pasted raw text describing a workout (one or more days). Your job is
 ## Output
 Return ONLY a JSON object — no prose, no code fences. Shape:
 {
-  "blocks": [ ...block objects in order... ],
+  "days": [
+    { "name": "Day 1 - Push", "blocks": [ ...block objects in order... ] },
+    { "name": "Day 2 - Pull", "blocks": [ ... ] }
+  ],
   "unmapped": [ {"user_text":"...", "guesses":[...]} ],
   "warnings": [ "free-text notes about anything ambiguous" ]
 }
+
+For mode=single ALWAYS return exactly one day. For multi-day use the user's header text as `"name"`. For expand, name them descriptively ("Day 2 - Pull", "Day 3 - Legs", etc).
 
 Below is the EXERCISE LIBRARY you must map names against. Use exact spelling.
 
@@ -134,7 +150,8 @@ EXERCISE LIBRARY:
 """
 
 
-def _call_claude(raw_text, current_maxes=None):
+def _call_claude(raw_text, current_maxes=None, mode="single",
+                 expand_to_days=1, split_style="auto"):
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
@@ -142,10 +159,18 @@ def _call_claude(raw_text, current_maxes=None):
     catalog = _exercise_catalog_for_prompt()
     sys_prompt = SYSTEM_PROMPT + catalog
 
-    user_msg = "Coach pasted:\n\n" + raw_text.strip()
+    header = f"Mode: {mode}"
+    if mode == "expand":
+        header += f"\nExpand to: {expand_to_days} total days"
+        header += f"\nSplit style: {split_style}"
+
+    user_msg = f"{header}\n\nCoach pasted:\n\n{raw_text.strip()}"
     if current_maxes:
         user_msg += f"\n\nCoach's 1RMs (use for percentage sanity): {json.dumps(current_maxes)}"
     user_msg += "\n\nReturn the JSON now."
+
+    # Multi-day generation needs more output budget
+    max_tokens = 8000 if mode == "single" else 16000
 
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
@@ -156,11 +181,11 @@ def _call_claude(raw_text, current_maxes=None):
         },
         json={
             "model": "claude-sonnet-4-5",
-            "max_tokens": 8000,
+            "max_tokens": max_tokens,
             "system": sys_prompt,
             "messages": [{"role": "user", "content": user_msg}],
         },
-        timeout=90,
+        timeout=180,
     )
     r.raise_for_status()
     data = r.json()
@@ -214,19 +239,32 @@ def _enrich_blocks(blocks):
     return blocks
 
 
+_VALID_MODES = {"single", "multi-day", "expand"}
+_VALID_SPLITS = {"auto", "ppl", "upper-lower", "body-part"}
+
+
 @parser_bp.route("/parse-import", methods=["POST"])
 def parse_import():
     body = request.get_json(silent=True) or {}
     raw = (body.get("raw_text") or "").strip()
     maxes = body.get("current_maxes") or None
+    mode = (body.get("mode") or "single").strip()
+    expand_to_days = int(body.get("expand_to_days") or 1)
+    split_style = (body.get("split_style") or "auto").strip()
 
     if not raw:
         return jsonify({"error": "raw_text required"}), 400
     if len(raw) > 20000:
         return jsonify({"error": "raw_text too long (20000 char limit)"}), 400
+    if mode not in _VALID_MODES:
+        return jsonify({"error": f"mode must be one of {sorted(_VALID_MODES)}"}), 400
+    if split_style not in _VALID_SPLITS:
+        return jsonify({"error": f"split_style must be one of {sorted(_VALID_SPLITS)}"}), 400
+    if mode == "expand":
+        expand_to_days = max(2, min(7, expand_to_days))
 
     try:
-        text, usage = _call_claude(raw, maxes)
+        text, usage = _call_claude(raw, maxes, mode, expand_to_days, split_style)
     except requests.HTTPError as e:
         return jsonify({"error": f"LLM call failed: {e.response.text[:300]}"}), 502
     except Exception as e:
@@ -241,17 +279,26 @@ def parse_import():
             "detail": str(e),
         }), 500
 
-    blocks = parsed.get("blocks") or []
+    days = parsed.get("days")
+    # Backwards compat: if older shape with top-level "blocks", wrap into one day
+    if not days and parsed.get("blocks"):
+        days = [{"name": "Day 1", "blocks": parsed["blocks"]}]
+    days = days or []
+
+    for d in days:
+        d["blocks"] = _enrich_blocks(d.get("blocks") or [])
+        d.setdefault("name", "Day")
+
     unmapped = parsed.get("unmapped") or []
     warnings = parsed.get("warnings") or []
 
-    blocks = _enrich_blocks(blocks)
-
     return jsonify({
         "success": True,
-        "blocks": blocks,
+        "days": days,
+        "blocks": days[0]["blocks"] if days else [],   # legacy field for old clients
         "unmapped": unmapped,
         "warnings": warnings,
+        "mode": mode,
         "tokens_used": {
             "input": usage.get("input_tokens"),
             "output": usage.get("output_tokens"),
