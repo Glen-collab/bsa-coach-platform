@@ -82,6 +82,32 @@ const buildStyles = (isMobile) => ({
   },
   toggleOn: { background: '#16a34a', color: '#fff' },
   toggleOff: { background: '#e5e7eb', color: '#444' },
+  // Phone-as-remote scrollers (Week / Day under the active banner)
+  remoteRow: {
+    display: 'flex', gap: '14px', flexWrap: 'wrap',
+    background: '#f8fafc', border: '1px solid #e2e8f0',
+    borderRadius: '10px', padding: '10px 12px', marginBottom: '12px',
+  },
+  remoteGroup: { display: 'flex', alignItems: 'center', gap: '8px' },
+  remoteLabel: {
+    fontSize: '11px', fontWeight: '700', color: '#475569',
+    textTransform: 'uppercase', letterSpacing: '0.5px',
+  },
+  remoteVal: {
+    fontSize: '14px', fontWeight: '700', color: '#0f172a',
+    minWidth: '40px', textAlign: 'center',
+  },
+  remoteBtn: {
+    width: '32px', height: '32px', borderRadius: '8px',
+    border: '1px solid #cbd5e1', background: '#fff',
+    fontSize: '14px', fontWeight: '700', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  remoteBtnDisabled: { opacity: 0.4, cursor: 'not-allowed' },
+  remoteHint: {
+    fontSize: '11px', color: '#64748b', alignSelf: 'center',
+    marginLeft: 'auto',
+  },
   smallBtn: { padding: '4px 10px', borderRadius: '6px', border: 'none', fontSize: '11px', fontWeight: '600', cursor: 'pointer' },
   btnGhost: { background: '#f3f4f6', color: '#666' },
   btnDanger: { background: '#fee2e2', color: '#991b1b' },
@@ -155,6 +181,24 @@ export default function GymTV() {
       load();
     } catch (e) { alert(e.message); }
   };
+  // Phone-as-remote: bump the TV's view by ±1 week or ±1 starting day. Pi
+  // adopts the new view on its next /tv-config poll (~60s). Optimistic
+  // update of the local devices list so the scroller feels responsive
+  // before the round-trip lands.
+  const setDeviceView = async (deviceId, nextWeek, nextStartDay) => {
+    const week = Math.max(1, nextWeek);
+    const start_day = Math.max(1, nextStartDay);
+    setDevices((prev) => prev.map((d) => d.id === deviceId
+      ? { ...d, view_week: week, view_start_day: start_day }
+      : d
+    ));
+    try {
+      await api.kioskDeviceSetView(deviceId, week, start_day);
+    } catch (e) {
+      alert(e.message);
+      load(); // resync on failure
+    }
+  };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: '#888' }}>Loading...</div>;
 
@@ -224,6 +268,50 @@ export default function GymTV() {
                 ) : (
                   <div style={s.idleBanner}>Idle — pick a program below.</div>
                 )}
+
+                {/* Phone-as-remote scrollers — only when there's a program on the TV */}
+                {dev.access_code && (() => {
+                  const w = dev.view_week || 1;
+                  const sd = dev.view_start_day || 1;
+                  const layoutStep = dev.layout === 'two_day' ? 2 : 1;
+                  return (
+                    <div style={s.remoteRow}>
+                      <div style={s.remoteGroup}>
+                        <span style={s.remoteLabel}>Week</span>
+                        <button
+                          style={{ ...s.remoteBtn, ...(w <= 1 ? s.remoteBtnDisabled : {}) }}
+                          disabled={w <= 1}
+                          onClick={() => setDeviceView(dev.id, w - 1, 1)}
+                          aria-label="Previous week"
+                        >{'◀'}</button>
+                        <span style={s.remoteVal}>{w}</span>
+                        <button
+                          style={s.remoteBtn}
+                          onClick={() => setDeviceView(dev.id, w + 1, 1)}
+                          aria-label="Next week"
+                        >{'▶'}</button>
+                      </div>
+                      <div style={s.remoteGroup}>
+                        <span style={s.remoteLabel}>{dev.layout === 'two_day' ? 'Days' : 'Day'}</span>
+                        <button
+                          style={{ ...s.remoteBtn, ...(sd <= 1 ? s.remoteBtnDisabled : {}) }}
+                          disabled={sd <= 1}
+                          onClick={() => setDeviceView(dev.id, w, sd - layoutStep)}
+                          aria-label="Previous day"
+                        >{'◀'}</button>
+                        <span style={s.remoteVal}>
+                          {dev.layout === 'two_day' ? `${sd}-${sd + 1}` : sd}
+                        </span>
+                        <button
+                          style={s.remoteBtn}
+                          onClick={() => setDeviceView(dev.id, w, sd + layoutStep)}
+                          aria-label="Next day"
+                        >{'▶'}</button>
+                      </div>
+                      <span style={s.remoteHint}>TV updates within ~60s</span>
+                    </div>
+                  );
+                })()}
 
                 {/* Layout picker — how the TV arranges the workout on screen */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>

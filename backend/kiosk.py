@@ -190,7 +190,8 @@ def tv_config():
                 VALUES (%s, %s, %s, %s)
                 ON CONFLICT (coach_id, device_serial) DO UPDATE
                   SET last_seen_at = NOW()
-                RETURNING id, display_name, active_program_id, layout
+                RETURNING id, display_name, active_program_id, layout,
+                          view_week, view_start_day
             """, (pi_id, device_serial, default_name, coach["active_kiosk_program_id"]))
             device_row = cur.fetchone()
             db.commit()
@@ -223,6 +224,12 @@ def tv_config():
                 "id": device_row["id"] if device_row else None,
                 "display_name": device_row["display_name"] if device_row else None,
                 "layout": device_row["layout"] if device_row else "two_day",
+                # Phone-as-remote view state. TV reads these every poll and
+                # adopts whatever the coach set from the GymTV dashboard page.
+                "view": {
+                    "week":      device_row["view_week"]      if device_row else 1,
+                    "start_day": device_row["view_start_day"] if device_row else 1,
+                },
             } if device_row else None,
             "active": {
                 "program_id": program["id"],
@@ -246,7 +253,8 @@ def my_devices():
         cur = db.cursor()
         cur.execute("""
             SELECT d.id, d.device_serial, d.display_name, d.active_program_id,
-                   d.layout, d.last_seen_at, d.created_at,
+                   d.layout, d.view_week, d.view_start_day,
+                   d.last_seen_at, d.created_at,
                    wp.access_code, wp.program_name
             FROM coach_devices d
             LEFT JOIN workout_programs wp ON wp.id = d.active_program_id
@@ -354,6 +362,48 @@ def device_set_layout():
             WHERE id = %s AND coach_id = %s
             RETURNING id, layout
         """, (layout, device_id, user_id))
+        row = cur.fetchone()
+        db.commit()
+        if not row:
+            return jsonify({"error": "Device not found"}), 404
+        return jsonify({"success": True, "device": row})
+    finally:
+        db.close()
+
+
+# ── Coach: drive what's on the TV (phone-as-remote) ───────────────────
+@kiosk_bp.route("/device/set-view", methods=["POST"])
+@require_auth
+def device_set_view():
+    """
+    Body: { device_id, week, start_day }
+      - week:      1-based program week index
+      - start_day: 1-based starting day index (the layout decides how many
+                   days are visible from there — two_day shows day & day+1)
+
+    The Pi's TV view (TVStatic.jsx) polls /tv-config every 60s and adopts
+    whatever the dashboard set. Lets a coach pick a workout from their
+    phone instead of using a Flirc remote / gamepad on the TV.
+    """
+    user_id = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    try:
+        week = int(data.get("week"))
+        start_day = int(data.get("start_day"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "week + start_day must be integers"}), 400
+    if not device_id or week < 1 or start_day < 1:
+        return jsonify({"error": "device_id + valid week (>=1) + start_day (>=1) required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            UPDATE coach_devices
+            SET view_week = %s, view_start_day = %s
+            WHERE id = %s AND coach_id = %s
+            RETURNING id, view_week, view_start_day
+        """, (week, start_day, device_id, user_id))
         row = cur.fetchone()
         db.commit()
         if not row:

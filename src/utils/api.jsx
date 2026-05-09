@@ -100,6 +100,7 @@ export const api = {
   kioskDeviceSetActive: (deviceId, programId) => request('/kiosk/device/set-active', { method: 'POST', body: JSON.stringify({ device_id: deviceId, program_id: programId }) }),
   kioskDeleteDevice: (deviceId) => request('/kiosk/device/delete', { method: 'POST', body: JSON.stringify({ device_id: deviceId }) }),
   kioskDeviceSetLayout: (deviceId, layout) => request('/kiosk/device/set-layout', { method: 'POST', body: JSON.stringify({ device_id: deviceId, layout }) }),
+  kioskDeviceSetView:   (deviceId, week, startDay) => request('/kiosk/device/set-view',   { method: 'POST', body: JSON.stringify({ device_id: deviceId, week, start_day: startDay }) }),
 
   // Remote power — queue a command for the Pi to pick up on next poll.
   kioskShutdown: () => request('/kiosk/shutdown', { method: 'POST' }),
