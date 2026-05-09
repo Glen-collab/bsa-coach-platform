@@ -191,7 +191,9 @@ def tv_config():
                 ON CONFLICT (coach_id, device_serial) DO UPDATE
                   SET last_seen_at = NOW()
                 RETURNING id, display_name, active_program_id, layout,
-                          view_week, view_start_day
+                          view_week, view_start_day,
+                          display_mode, display_metric_id,
+                          display_gender, display_group
             """, (pi_id, device_serial, default_name, coach["active_kiosk_program_id"]))
             device_row = cur.fetchone()
             db.commit()
@@ -230,6 +232,17 @@ def tv_config():
                     "week":      device_row["view_week"]      if device_row else 1,
                     "start_day": device_row["view_start_day"] if device_row else 1,
                 },
+                # Display-mode toggle so any one Pi can swap between the
+                # workout TV view and the youth-leaderboard scoreboard
+                # without affecting other TVs in the gym. TV side renders
+                # an iframe of leaderboard.bestrongagain.com/tv?... when
+                # mode == 'leaderboard'.
+                "display": {
+                    "mode":      device_row["display_mode"]      if device_row else "workout",
+                    "metric_id": device_row["display_metric_id"] if device_row else None,
+                    "gender":    device_row["display_gender"]    if device_row else None,
+                    "group":     device_row["display_group"]     if device_row else None,
+                },
             } if device_row else None,
             "active": {
                 "program_id": program["id"],
@@ -254,6 +267,8 @@ def my_devices():
         cur.execute("""
             SELECT d.id, d.device_serial, d.display_name, d.active_program_id,
                    d.layout, d.view_week, d.view_start_day,
+                   d.display_mode, d.display_metric_id,
+                   d.display_gender, d.display_group,
                    d.last_seen_at, d.created_at,
                    wp.access_code, wp.program_name
             FROM coach_devices d
@@ -472,6 +487,62 @@ def device_set_view():
             WHERE id = %s AND coach_id = %s
             RETURNING id, view_week, view_start_day
         """, (week, start_day, device_id, user_id))
+        row = cur.fetchone()
+        db.commit()
+        if not row:
+            return jsonify({"error": "Device not found"}), 404
+        return jsonify({"success": True, "device": row})
+    finally:
+        db.close()
+
+
+# ── Coach: flip a device between workout view and leaderboard view ────
+@kiosk_bp.route("/device/set-display", methods=["POST"])
+@require_auth
+def device_set_display():
+    """
+    Body: {
+      device_id,
+      mode:      'workout' | 'leaderboard',
+      metric_id: int | null,   (only meaningful when mode='leaderboard')
+      gender:    'M' | 'F' | null,
+      group:     str | null
+    }
+
+    The Pi's TVStatic polls /tv-config every 60s and on the next tick
+    after a flip, it either renders the workout (mode='workout') or
+    drops in a fullscreen iframe of leaderboard.bestrongagain.com/tv
+    pre-locked to the chosen metric/gender/group (mode='leaderboard').
+    """
+    user_id = request.current_user["user_id"]
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    mode = (data.get("mode") or "").strip()
+    if not device_id or mode not in ("workout", "leaderboard"):
+        return jsonify({"error": "device_id + valid mode required"}), 400
+
+    metric_id = data.get("metric_id")
+    if metric_id is not None:
+        try: metric_id = int(metric_id)
+        except (TypeError, ValueError): metric_id = None
+    gender = data.get("gender")
+    if gender not in (None, "M", "F"):
+        return jsonify({"error": "gender must be M, F, or null"}), 400
+    group = data.get("group") or None
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            UPDATE coach_devices
+            SET display_mode      = %s,
+                display_metric_id = %s,
+                display_gender    = %s,
+                display_group     = %s
+            WHERE id = %s AND coach_id = %s
+            RETURNING id, display_mode, display_metric_id,
+                      display_gender, display_group
+        """, (mode, metric_id, gender, group, device_id, user_id))
         row = cur.fetchone()
         db.commit()
         if not row:

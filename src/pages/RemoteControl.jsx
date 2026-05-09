@@ -93,6 +93,40 @@ const buildStyles = (isMobile) => ({
     textAlign: 'center', fontSize: '12px',
     color: 'rgba(255,255,255,0.4)', marginTop: '14px',
   },
+
+  // Leaderboard sub-flow
+  divider: {
+    height: '1px', background: 'rgba(255,255,255,0.08)',
+    margin: '24px 0 18px',
+  },
+  sectionHead: {
+    fontSize: '12px', textTransform: 'uppercase', letterSpacing: '2px',
+    color: 'rgba(255,255,255,0.55)', fontWeight: 700, marginBottom: '10px',
+  },
+  modeToggleRow: {
+    display: 'flex', background: 'rgba(0,0,0,0.25)',
+    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px',
+    padding: '4px', marginBottom: '14px', gap: '4px',
+  },
+  modeBtn: {
+    flex: 1, padding: '12px 8px',
+    background: 'transparent', color: 'rgba(255,255,255,0.6)',
+    border: 'none', borderRadius: '10px',
+    fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+    transition: 'all 120ms',
+  },
+  modeBtnActive: {
+    background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+    color: '#1a1a2e',
+    boxShadow: '0 2px 6px rgba(217, 119, 6, 0.35)',
+  },
+  secondaryBtn: {
+    display: 'block', width: '100%',
+    background: 'rgba(255,255,255,0.08)', color: '#fff',
+    border: '1px solid rgba(255,255,255,0.18)',
+    borderRadius: '12px', padding: '14px',
+    fontSize: '15px', fontWeight: 700, cursor: 'pointer',
+  },
   loading: { textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.5)' },
   errorBox: {
     background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.4)',
@@ -101,7 +135,8 @@ const buildStyles = (isMobile) => ({
   },
 });
 
-const TRACKER_BASE = 'https://bestrongagain.netlify.app';
+const TRACKER_BASE     = 'https://bestrongagain.netlify.app';
+const LEADERBOARD_BASE = 'https://leaderboard.bestrongagain.com';
 
 export default function RemoteControl() {
   const { deviceId } = useParams();
@@ -173,6 +208,28 @@ export default function RemoteControl() {
     if (coachCode) params.set('coach', coachCode);
     const url = `${TRACKER_BASE}/?${params.toString()}`;
     window.open(url, '_blank', 'noopener');
+  };
+
+  // Display-mode toggles (workout vs youth-leaderboard scoreboard). Each
+  // Pi is independent — coach can flip one TV to the leaderboard during a
+  // test day while the other gym TVs keep showing workouts.
+  const isLeaderboardMode = device?.display_mode === 'leaderboard';
+  const setDisplayMode = async (mode) => {
+    setDevice((prev) => prev ? { ...prev, display_mode: mode } : prev);
+    try {
+      await api.kioskDeviceSetDisplay(deviceId, {
+        mode,
+        metric_id: device?.display_metric_id || null,
+        gender:    device?.display_gender || null,
+        group:     device?.display_group || null,
+      });
+    } catch (e) {
+      setErr(e.message || 'Failed to update display mode.');
+      load();
+    }
+  };
+  const openTestStation = () => {
+    window.open(`${LEADERBOARD_BASE}/test-station`, '_blank', 'noopener');
   };
 
   if (loading) {
@@ -258,7 +315,35 @@ export default function RemoteControl() {
         ▶ View Workout (with videos)
       </button>
 
-      <div style={s.hint}>TV updates within ~60 seconds of each tap.</div>
+      <div style={s.divider} />
+      <div style={s.sectionHead}>📊 Leaderboard</div>
+
+      <div style={s.modeToggleRow}>
+        <button
+          type="button"
+          onClick={() => setDisplayMode('workout')}
+          style={{ ...s.modeBtn, ...(!isLeaderboardMode ? s.modeBtnActive : {}) }}
+        >
+          Workouts
+        </button>
+        <button
+          type="button"
+          onClick={() => setDisplayMode('leaderboard')}
+          style={{ ...s.modeBtn, ...(isLeaderboardMode ? s.modeBtnActive : {}) }}
+        >
+          Leaderboard
+        </button>
+      </div>
+
+      <button type="button" onClick={openTestStation} style={s.secondaryBtn}>
+        🎯 Open Test Station (data entry)
+      </button>
+
+      <div style={s.hint}>
+        {isLeaderboardMode
+          ? 'TV is showing the leaderboard scoreboard, auto-rotating through every metric.'
+          : 'TV updates within ~60 seconds of each tap.'}
+      </div>
     </div>
   );
 }
