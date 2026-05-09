@@ -326,10 +326,17 @@ def device_set_active():
             if not cur.fetchone():
                 return jsonify({"error": "Program not owned by you"}), 404
 
+        # Reset the phone-as-remote view state on every program switch.
+        # Week/day are per-program — leaving them at the previous program's
+        # last position would point to weeks that may not exist in the new
+        # program, and the GymTV remote-control page would render stale
+        # values (week 3 day 5-6 of hyrox even though the TV just loaded
+        # 5K Comeback at day 1-2).
         cur.execute("""
-            UPDATE coach_devices SET active_program_id = %s
+            UPDATE coach_devices
+            SET active_program_id = %s, view_week = 1, view_start_day = 1
             WHERE id = %s AND coach_id = %s
-            RETURNING id, active_program_id
+            RETURNING id, active_program_id, view_week, view_start_day
         """, (program_id, device_id, user_id))
         row = cur.fetchone()
         db.commit()
