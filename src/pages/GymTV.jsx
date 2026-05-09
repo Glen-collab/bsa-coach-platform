@@ -3,6 +3,7 @@
 // registered Pi device. Pis self-register on first boot via CPU serial.
 
 import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
 import useMediaQuery from '../hooks/useMediaQuery';
@@ -82,32 +83,28 @@ const buildStyles = (isMobile) => ({
   },
   toggleOn: { background: '#16a34a', color: '#fff' },
   toggleOff: { background: '#e5e7eb', color: '#444' },
-  // Phone-as-remote scrollers (Week / Day under the active banner)
-  remoteRow: {
-    display: 'flex', gap: '14px', flexWrap: 'wrap',
-    background: '#f8fafc', border: '1px solid #e2e8f0',
-    borderRadius: '10px', padding: '10px 12px', marginBottom: '12px',
+  // Big phone-friendly button that opens the dedicated remote page.
+  remoteCta: {
+    display: 'block', width: '100%',
+    padding: '14px', marginBottom: '14px',
+    background: 'linear-gradient(135deg, #1e293b, #334155)',
+    color: '#fff', border: 'none', borderRadius: '12px',
+    fontSize: '16px', fontWeight: '700', cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.15)',
+    letterSpacing: '0.3px',
   },
-  remoteGroup: { display: 'flex', alignItems: 'center', gap: '8px' },
-  remoteLabel: {
-    fontSize: '11px', fontWeight: '700', color: '#475569',
-    textTransform: 'uppercase', letterSpacing: '0.5px',
+  // Bottom setup-info box (Pi URL, registration help). Collapsed by
+  // default so it doesn't dominate the page on every visit.
+  setupSummary: {
+    cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+    color: '#475569', padding: '4px 0',
   },
-  remoteVal: {
-    fontSize: '14px', fontWeight: '700', color: '#0f172a',
-    minWidth: '40px', textAlign: 'center',
+  setupBody: {
+    background: '#f0f7ff', border: '1px solid #d0e3f7', borderRadius: '10px',
+    padding: '12px 16px', marginTop: '8px',
   },
-  remoteBtn: {
-    width: '32px', height: '32px', borderRadius: '8px',
-    border: '1px solid #cbd5e1', background: '#fff',
-    fontSize: '14px', fontWeight: '700', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  remoteBtnDisabled: { opacity: 0.4, cursor: 'not-allowed' },
-  remoteHint: {
-    fontSize: '11px', color: '#64748b', alignSelf: 'center',
-    marginLeft: 'auto',
-  },
+  setupValue: { fontSize: '12px', color: '#0d3a6b', wordBreak: 'break-all', fontFamily: 'ui-monospace,Consolas,monospace', marginTop: '6px' },
+  setupNote: { fontSize: '12px', color: '#666', margin: '6px 0 0' },
   smallBtn: { padding: '4px 10px', borderRadius: '6px', border: 'none', fontSize: '11px', fontWeight: '600', cursor: 'pointer' },
   btnGhost: { background: '#f3f4f6', color: '#666' },
   btnDanger: { background: '#fee2e2', color: '#991b1b' },
@@ -127,6 +124,7 @@ export default function GymTV() {
   const isMobile = useMediaQuery('(max-width: 640px)');
   const s = buildStyles(isMobile);
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [programs, setPrograms] = useState([]);
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -181,24 +179,6 @@ export default function GymTV() {
       load();
     } catch (e) { alert(e.message); }
   };
-  // Phone-as-remote: bump the TV's view by ±1 week or ±1 starting day. Pi
-  // adopts the new view on its next /tv-config poll (~60s). Optimistic
-  // update of the local devices list so the scroller feels responsive
-  // before the round-trip lands.
-  const setDeviceView = async (deviceId, nextWeek, nextStartDay) => {
-    const week = Math.max(1, nextWeek);
-    const start_day = Math.max(1, nextStartDay);
-    setDevices((prev) => prev.map((d) => d.id === deviceId
-      ? { ...d, view_week: week, view_start_day: start_day }
-      : d
-    ));
-    try {
-      await api.kioskDeviceSetView(deviceId, week, start_day);
-    } catch (e) {
-      alert(e.message);
-      load(); // resync on failure
-    }
-  };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: '#888' }}>Loading...</div>;
 
@@ -207,18 +187,7 @@ export default function GymTV() {
   return (
     <div style={s.page}>
       <h1 style={s.title}>Gym TV</h1>
-      <p style={s.sub}>
-        Every Pi self-registers by its CPU serial. Name each device, flip programs into your kiosk lineup, then pick an active program per TV.
-      </p>
-
-      {/* Pi configuration URL */}
-      <div style={s.piUrlBox}>
-        <div style={s.piUrlLabel}>Pi Kiosk URL (${'$'}SERIAL is auto-filled by Pi's startup script)</div>
-        <div style={s.piUrlValue}>{piUrl}</div>
-        <p style={{ fontSize: '12px', color: '#666', margin: '6px 0 0' }}>
-          Pi's startup reads <code>/proc/cpuinfo</code> and substitutes its serial. First boot auto-registers below.
-        </p>
-      </div>
+      <p style={s.sub}>Pick what plays on each gym TV. Tap Remote Control to drive week & day from your phone.</p>
 
       {/* DEVICES */}
       <div style={s.section}>
@@ -269,49 +238,18 @@ export default function GymTV() {
                   <div style={s.idleBanner}>Idle — pick a program below.</div>
                 )}
 
-                {/* Phone-as-remote scrollers — only when there's a program on the TV */}
-                {dev.access_code && (() => {
-                  const w = dev.view_week || 1;
-                  const sd = dev.view_start_day || 1;
-                  const layoutStep = dev.layout === 'two_day' ? 2 : 1;
-                  return (
-                    <div style={s.remoteRow}>
-                      <div style={s.remoteGroup}>
-                        <span style={s.remoteLabel}>Week</span>
-                        <button
-                          style={{ ...s.remoteBtn, ...(w <= 1 ? s.remoteBtnDisabled : {}) }}
-                          disabled={w <= 1}
-                          onClick={() => setDeviceView(dev.id, w - 1, 1)}
-                          aria-label="Previous week"
-                        >{'◀'}</button>
-                        <span style={s.remoteVal}>{w}</span>
-                        <button
-                          style={s.remoteBtn}
-                          onClick={() => setDeviceView(dev.id, w + 1, 1)}
-                          aria-label="Next week"
-                        >{'▶'}</button>
-                      </div>
-                      <div style={s.remoteGroup}>
-                        <span style={s.remoteLabel}>{dev.layout === 'two_day' ? 'Days' : 'Day'}</span>
-                        <button
-                          style={{ ...s.remoteBtn, ...(sd <= 1 ? s.remoteBtnDisabled : {}) }}
-                          disabled={sd <= 1}
-                          onClick={() => setDeviceView(dev.id, w, sd - layoutStep)}
-                          aria-label="Previous day"
-                        >{'◀'}</button>
-                        <span style={s.remoteVal}>
-                          {dev.layout === 'two_day' ? `${sd}-${sd + 1}` : sd}
-                        </span>
-                        <button
-                          style={s.remoteBtn}
-                          onClick={() => setDeviceView(dev.id, w, sd + layoutStep)}
-                          aria-label="Next day"
-                        >{'▶'}</button>
-                      </div>
-                      <span style={s.remoteHint}>TV updates within ~60s</span>
-                    </div>
-                  );
-                })()}
+                {/* Big phone-friendly Remote Control button — opens the
+                    dedicated remote page where the coach can drive the TV
+                    week/day from their phone, no IR remote needed. */}
+                {dev.access_code && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/gym-tv/remote/${dev.id}`)}
+                    style={s.remoteCta}
+                  >
+                    📱 Remote Control
+                  </button>
+                )}
 
                 {/* Layout picker — how the TV arranges the workout on screen */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
@@ -355,7 +293,7 @@ export default function GymTV() {
       </div>
 
       {/* Full programs list */}
-      <div style={s.section}>
+      <div style={s.section} id="programs-list">
         <div style={s.sectionTitle}>All Your Programs ({programs.length})</div>
         <p style={{ fontSize: '13px', color: '#666', marginBottom: '10px' }}>
           Flip the toggle to add a program to your kiosk lineup (shared across all your TVs).
@@ -379,6 +317,29 @@ export default function GymTV() {
           ))
         )}
       </div>
+
+      {/* Setup info — collapsed by default; only useful when first installing
+          a new Pi. Lives at the bottom of the page so it doesn't clutter the
+          daily-use surface. */}
+      <details style={{ marginTop: '8px' }}>
+        <summary style={s.setupSummary}>⚙️ Pi setup info (only needed when installing a new TV)</summary>
+        <div style={s.setupBody}>
+          <p style={{ fontSize: '13px', color: '#444', margin: 0 }}>
+            Every Pi self-registers by its CPU serial when it first boots. The
+            startup script substitutes <code>$&#123;SERIAL&#125;</code> from{' '}
+            <code>/proc/cpuinfo</code> below, then the new device shows up at
+            the top of the page.
+          </p>
+          <div style={s.setupValue}>{piUrl}</div>
+          <p style={s.setupNote}>
+            Need a fresh Pi? See the{' '}
+            <a href="https://github.com/Glen-collab/bsa-tv-kiosk" target="_blank" rel="noreferrer">
+              bsa-tv-kiosk
+            </a>{' '}
+            repo for the install script.
+          </p>
+        </div>
+      </details>
     </div>
   );
 }
