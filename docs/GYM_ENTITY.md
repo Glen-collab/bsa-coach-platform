@@ -106,3 +106,13 @@ Bulk reassigns every client + program from one coach to another in a single tran
 ## Memory hook
 
 Project memory entry: `project_coach_platform.md` includes the gym entity in the platform overview. The transfer endpoint is the answer to Glen's "if someone dies or quits, how can we only have one person then?" question.
+
+---
+
+## Related docs
+
+- **[`./VIDEO_OVERRIDE_SYSTEM.md`](./VIDEO_OVERRIDE_SYSTEM.md)** — full deep-dive on the per-coach video upload pipeline; this doc layered the gym pool on top of that.
+- **[`./SMART_IMPORT.md`](./SMART_IMPORT.md)** — Smart-Imported programs land with `created_by = coach UUID`. When a coach is later transferred, those programs follow them.
+- **[`workouttracker/docs/CHATBOT_VOICE_AND_FREE_STARTER.md`](../../workouttracker/docs/CHATBOT_VOICE_AND_FREE_STARTER.md)** — coach transfer also flips the chatbot voice for affected clients (their next program load resolves to the new coach's `chatbot_config`).
+- **[`react-trainer-dashboard/docs/AI_COACH_SUMMARY.md`](../../react-trainer-dashboard/docs/AI_COACH_SUMMARY.md)** — same flip happens for AI summaries: after transfer, weekly/monthly messages sign as the new coach.
+- **[`./ARCHITECTURE.md`](./ARCHITECTURE.md)** — full BSA ecosystem map.

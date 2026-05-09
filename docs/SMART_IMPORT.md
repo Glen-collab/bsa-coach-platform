@@ -160,3 +160,12 @@ Default gunicorn worker timeout is 30s and default nginx proxy_read_timeout is 6
 `GET /api/workout/parse-import/health` (unauthenticated)
 
 Returns `{ ok, exercises_loaded, categories: [...], anthropic_key_set }`. Useful for verifying the manifest loaded and the API key is wired after a deploy.
+
+---
+
+## Related docs
+
+- **[`workoutbuilder/docs/SMART_IMPORT_UI.md`](../../workoutbuilder/docs/SMART_IMPORT_UI.md)** — frontend modal, mode picker, day-tab preview, and the `useWorkoutState.importBlocks` / `importMultiDay` hook actions that consume the response from this endpoint.
+- **[`./GYM_ENTITY.md`](./GYM_ENTITY.md)** — the gym entity affects who owns the imported program (and therefore which coach voice the WorkoutTracker chatbot picks when a client loads it).
+- **[`workouttracker/docs/CHATBOT_VOICE_AND_FREE_STARTER.md`](../../workouttracker/docs/CHATBOT_VOICE_AND_FREE_STARTER.md)** — explains how `coachConfig` is resolved on program load, which is the next step in the chain after a coach saves a Smart-Imported program.
+- **[`./ARCHITECTURE.md`](./ARCHITECTURE.md)** — full BSA ecosystem map (which repo talks to which API).
