@@ -6,6 +6,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
+import { useAuth } from '../hooks/useAuth';
 import useMediaQuery from '../hooks/useMediaQuery';
 
 const buildStyles = (isMobile) => ({
@@ -106,6 +107,7 @@ export default function RemoteControl() {
   const { deviceId } = useParams();
   const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 640px)');
+  const { user } = useAuth();
   const s = buildStyles(isMobile);
 
   const [device, setDevice] = useState(null);
@@ -153,12 +155,23 @@ export default function RemoteControl() {
     }
   };
 
-  // "View Workout" → opens the tracker pre-jumped to this week/day so the
-  // coach can browse exercise videos without scanning the TV's QR. New tab
-  // so the remote stays put.
+  // "View Workout" → opens the tracker in kiosk-station mode pre-jumped to
+  // this week/day. The tracker shows a member-picker dropdown of everyone
+  // signed up under this coach; member taps their name, logs their workout,
+  // returns to picker. Same tab so the coach's remote view bounces forward.
+  // ?kiosk=1 enables multi-member mode; ?coach=<referral_code> drives the
+  // member-list lookup.
   const openWorkout = () => {
     if (!device?.access_code) return;
-    const url = `${TRACKER_BASE}/?code=${encodeURIComponent(device.access_code)}&week=${week}&day=${startDay}`;
+    const coachCode = (user?.referral_code || '').trim().toUpperCase();
+    const params = new URLSearchParams({
+      kiosk: '1',
+      code:  device.access_code,
+      week:  String(week),
+      day:   String(startDay),
+    });
+    if (coachCode) params.set('coach', coachCode);
+    const url = `${TRACKER_BASE}/?${params.toString()}`;
     window.open(url, '_blank', 'noopener');
   };
 

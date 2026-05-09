@@ -378,6 +378,67 @@ def device_set_layout():
         db.close()
 
 
+# ── Public: list members under a coach (gym tablet kiosk picker) ──────
+@kiosk_bp.route("/members", methods=["GET"])
+def kiosk_members():
+    """
+    GET /api/kiosk/members?coach=<referral_code>
+
+    Returns the list of members signed up under this coach so a gym
+    tablet (kiosk mode in the workout tracker) can render a member-picker
+    dropdown. Each member then logs their workout against their own data
+    row without needing to type credentials.
+
+    Public (no auth) — gated by coach referral code. The list contains:
+      - id           : numeric user id
+      - display_name : "LastName, F." for somewhat-private gym display
+      - email        : the email the member uses to log workouts
+      - first_name   : raw, in case the tracker wants a fuller fallback
+
+    Acceptable trust model for V1: the tablet is supervised by the coach
+    at the gym; anyone with the (semi-public) referral code learns names
+    of members under that coach but not workout history or credentials.
+    """
+    coach_code = (request.args.get("coach") or "").strip().upper()
+    if not coach_code:
+        return jsonify({"error": "coach (referral_code) required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT id FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin')",
+            (coach_code,),
+        )
+        coach = cur.fetchone()
+        if not coach:
+            return jsonify({"error": "Coach not found"}), 404
+        cur.execute("""
+            SELECT id, first_name, last_name, email
+            FROM users
+            WHERE referred_by_id = %s
+              AND role = 'member'
+              AND is_active = TRUE
+              AND email IS NOT NULL
+            ORDER BY LOWER(COALESCE(last_name, '')), LOWER(COALESCE(first_name, ''))
+        """, (coach["id"],))
+        rows = cur.fetchall()
+        members = []
+        for r in rows:
+            ln = (r["last_name"] or "").strip()
+            fn = (r["first_name"] or "").strip()
+            initial = (fn[:1] + ".") if fn else ""
+            display = f"{ln}, {initial}".strip(", ").strip() if ln else (fn or r["email"])
+            members.append({
+                "id":           r["id"],
+                "display_name": display,
+                "email":        r["email"],
+                "first_name":   fn,
+            })
+        return jsonify({"members": members, "count": len(members)})
+    finally:
+        db.close()
+
+
 # ── Coach: drive what's on the TV (phone-as-remote) ───────────────────
 @kiosk_bp.route("/device/set-view", methods=["POST"])
 @require_auth
