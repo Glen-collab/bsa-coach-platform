@@ -251,12 +251,16 @@ export default function RemoteControl() {
 
   // Update display state — flip mode, lock to a metric, etc. Optimistic
   // local update so the UI feels snappy; rollback on failure.
+  // IMPORTANT: use `'key' in patch` (not `patch.key ?? fallback`) for every
+  // field so an explicit null in the patch actually clears the value.
+  // Otherwise tapping "Auto" (which sends { gender: null }) silently kept
+  // the previous gender — same trap for group/metric_id.
   const setDisplay = async (patch) => {
     const next = {
-      mode:      patch.mode      ?? device?.display_mode      ?? 'workout',
+      mode:      'mode'      in patch ? patch.mode      : (device?.display_mode      ?? 'workout'),
       metric_id: 'metric_id' in patch ? patch.metric_id : (device?.display_metric_id ?? null),
-      gender:    patch.gender    ?? device?.display_gender    ?? null,
-      group:     patch.group     ?? device?.display_group     ?? null,
+      gender:    'gender'    in patch ? patch.gender    : (device?.display_gender    ?? null),
+      group:     'group'     in patch ? patch.group     : (device?.display_group     ?? null),
     };
     setDevice((prev) => prev ? {
       ...prev,
