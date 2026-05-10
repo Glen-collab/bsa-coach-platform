@@ -156,7 +156,7 @@ export default function CoachDashboard() {
           <a href="/chatbot-voice" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>
             Chatbot Voice
           </a>
-          <a href="https://leaderboard.bestrongagain.com" target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #fbbf24, #d97706)' }}>
+          <a href={`https://leaderboard.bestrongagain.com?from=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #fbbf24, #d97706)' }}>
             Leaderboard
           </a>
         </div>

@@ -240,7 +240,7 @@ export default function AdminDashboard() {
         <a href="/brand" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #ec4899, #be185d)' }}>
           Gym Branding
         </a>
-        <a href="https://leaderboard.bestrongagain.com" target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #fbbf24, #d97706)' }}>
+        <a href={`https://leaderboard.bestrongagain.com?from=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #fbbf24, #d97706)' }}>
           Leaderboard
         </a>
       </div>
