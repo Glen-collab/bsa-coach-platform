@@ -127,6 +127,28 @@ const buildStyles = (isMobile) => ({
     borderRadius: '12px', padding: '14px',
     fontSize: '15px', fontWeight: 700, cursor: 'pointer',
   },
+
+  metricBlock: { marginBottom: '14px' },
+  metricLabel: {
+    fontSize: '11px', textTransform: 'uppercase', letterSpacing: '2px',
+    color: 'rgba(255,255,255,0.55)', fontWeight: 700, marginBottom: '8px',
+  },
+  metricChipRow: { display: 'flex', flexWrap: 'wrap', gap: '6px' },
+  metricChip: {
+    padding: '8px 12px', borderRadius: '999px',
+    background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)',
+    border: '1px solid rgba(255,255,255,0.18)',
+    fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+    letterSpacing: '0.3px',
+  },
+  metricChipActive: {
+    background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+    color: '#1a1a2e',
+    border: '1px solid rgba(0,0,0,0)',
+  },
+  metricEmpty: {
+    fontSize: '12px', color: 'rgba(255,255,255,0.4)', padding: '6px 0',
+  },
   loading: { textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.5)' },
   errorBox: {
     background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.4)',
@@ -148,6 +170,13 @@ export default function RemoteControl() {
   const [device, setDevice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  // Available leaderboard metrics — fetched directly from the leaderboard
+  // backend (CORS-allow-listed for this origin). Used in Leaderboard mode
+  // to let the coach lock the TV to a single metric.
+  const [metrics, setMetrics] = useState([]);
+  useEffect(() => {
+    fetch(`${LEADERBOARD_BASE}/api/metrics`).then(r => r.json()).then(setMetrics).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -214,26 +243,41 @@ export default function RemoteControl() {
   // Pi is independent — coach can flip one TV to the leaderboard during a
   // test day while the other gym TVs keep showing workouts.
   const isLeaderboardMode = device?.display_mode === 'leaderboard';
-  const setDisplayMode = async (mode) => {
-    setDevice((prev) => prev ? { ...prev, display_mode: mode } : prev);
+  const lockedMetricId = device?.display_metric_id || null;
+
+  // Update display state — flip mode, lock to a metric, etc. Optimistic
+  // local update so the UI feels snappy; rollback on failure.
+  const setDisplay = async (patch) => {
+    const next = {
+      mode:      patch.mode      ?? device?.display_mode      ?? 'workout',
+      metric_id: 'metric_id' in patch ? patch.metric_id : (device?.display_metric_id ?? null),
+      gender:    patch.gender    ?? device?.display_gender    ?? null,
+      group:     patch.group     ?? device?.display_group     ?? null,
+    };
+    setDevice((prev) => prev ? {
+      ...prev,
+      display_mode:      next.mode,
+      display_metric_id: next.metric_id,
+      display_gender:    next.gender,
+      display_group:     next.group,
+    } : prev);
     try {
-      await api.kioskDeviceSetDisplay(deviceId, {
-        mode,
-        metric_id: device?.display_metric_id || null,
-        gender:    device?.display_gender || null,
-        group:     device?.display_group || null,
-      });
+      await api.kioskDeviceSetDisplay(deviceId, next);
     } catch (e) {
-      setErr(e.message || 'Failed to update display mode.');
+      setErr(e.message || 'Failed to update display.');
       load();
     }
   };
+
   const openTestStation = () => {
     // Pass the current remote-control URL so the test station's "Back"
-    // button can return here instead of dropping the coach onto the
-    // public leaderboard home.
+    // button can return here. Also pre-fill the metric if the TV is
+    // currently locked to one — killer flow: lock TV to 40yd, open test
+    // station, it's already on 40yd, athletes log → live updates on TV.
     const from = encodeURIComponent(window.location.href);
-    window.open(`${LEADERBOARD_BASE}/test-station?from=${from}`, '_blank', 'noopener');
+    const params = new URLSearchParams({ from: window.location.href });
+    if (lockedMetricId) params.set('metric_id', lockedMetricId);
+    window.open(`${LEADERBOARD_BASE}/test-station?${params.toString()}`, '_blank', 'noopener');
   };
 
   if (loading) {
@@ -325,19 +369,52 @@ export default function RemoteControl() {
       <div style={s.modeToggleRow}>
         <button
           type="button"
-          onClick={() => setDisplayMode('workout')}
+          onClick={() => setDisplay({ mode: 'workout' })}
           style={{ ...s.modeBtn, ...(!isLeaderboardMode ? s.modeBtnActive : {}) }}
         >
           Workouts
         </button>
         <button
           type="button"
-          onClick={() => setDisplayMode('leaderboard')}
+          onClick={() => setDisplay({ mode: 'leaderboard' })}
           style={{ ...s.modeBtn, ...(isLeaderboardMode ? s.modeBtnActive : {}) }}
         >
           Leaderboard
         </button>
       </div>
+
+      {/* Metric picker — only shown in Leaderboard mode. Auto-rotate (null
+          metric_id) is the default; tap a specific metric to lock the TV
+          to it for a test day. The same metric also pre-fills the test
+          station so live updates land on the same scoreboard the TV is
+          showing. */}
+      {isLeaderboardMode && (
+        <div style={s.metricBlock}>
+          <div style={s.metricLabel}>What's on the TV</div>
+          <div style={s.metricChipRow}>
+            <button
+              type="button"
+              onClick={() => setDisplay({ metric_id: null })}
+              style={{ ...s.metricChip, ...(!lockedMetricId ? s.metricChipActive : {}) }}
+            >
+              ⟳ Auto-rotate
+            </button>
+            {metrics.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setDisplay({ metric_id: m.id })}
+                style={{ ...s.metricChip, ...(String(lockedMetricId) === String(m.id) ? s.metricChipActive : {}) }}
+              >
+                {m.label}
+              </button>
+            ))}
+            {metrics.length === 0 && (
+              <span style={s.metricEmpty}>(loading metrics from leaderboard…)</span>
+            )}
+          </div>
+        </div>
+      )}
 
       <button type="button" onClick={openTestStation} style={s.secondaryBtn}>
         🎯 Open Test Station (data entry)
@@ -345,7 +422,9 @@ export default function RemoteControl() {
 
       <div style={s.hint}>
         {isLeaderboardMode
-          ? 'TV is showing the leaderboard scoreboard, auto-rotating through every metric.'
+          ? lockedMetricId
+            ? 'TV is locked to one metric — live updates as the test station saves.'
+            : 'TV is auto-rotating through every metric.'
           : 'TV updates within ~60 seconds of each tap.'}
       </div>
     </div>
