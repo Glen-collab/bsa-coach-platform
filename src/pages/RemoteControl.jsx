@@ -229,7 +229,11 @@ export default function RemoteControl() {
     }
   };
   const openTestStation = () => {
-    window.open(`${LEADERBOARD_BASE}/test-station`, '_blank', 'noopener');
+    // Pass the current remote-control URL so the test station's "Back"
+    // button can return here instead of dropping the coach onto the
+    // public leaderboard home.
+    const from = encodeURIComponent(window.location.href);
+    window.open(`${LEADERBOARD_BASE}/test-station?from=${from}`, '_blank', 'noopener');
   };
 
   if (loading) {
