@@ -170,12 +170,14 @@ export default function RemoteControl() {
   const [device, setDevice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
-  // Available leaderboard metrics — fetched directly from the leaderboard
-  // backend (CORS-allow-listed for this origin). Used in Leaderboard mode
-  // to let the coach lock the TV to a single metric.
+  // Available leaderboard metrics + groups — fetched directly from the
+  // leaderboard backend (CORS-allow-listed). Lets the coach lock the TV
+  // to a single metric, gender, or training group.
   const [metrics, setMetrics] = useState([]);
+  const [groups,  setGroups]  = useState([]);
   useEffect(() => {
     fetch(`${LEADERBOARD_BASE}/api/metrics`).then(r => r.json()).then(setMetrics).catch(() => {});
+    fetch(`${LEADERBOARD_BASE}/api/leaderboard/groups`).then(r => r.json()).then(setGroups).catch(() => {});
   }, []);
 
   const load = useCallback(async () => {
@@ -244,6 +246,8 @@ export default function RemoteControl() {
   // test day while the other gym TVs keep showing workouts.
   const isLeaderboardMode = device?.display_mode === 'leaderboard';
   const lockedMetricId = device?.display_metric_id || null;
+  const lockedGender   = device?.display_gender   || null;  // 'M' | 'F' | 'A' | null
+  const lockedGroup    = device?.display_group    || null;
 
   // Update display state — flip mode, lock to a metric, etc. Optimistic
   // local update so the UI feels snappy; rollback on failure.
@@ -413,6 +417,66 @@ export default function RemoteControl() {
               <span style={s.metricEmpty}>(loading metrics from leaderboard…)</span>
             )}
           </div>
+
+          {/* Gender filter — Auto-rotate (default, flips Boys↔Girls each
+              cycle), All (everyone in one ranked list), Boys, Girls. */}
+          <div style={{ ...s.metricLabel, marginTop: '12px' }}>Who's on the TV</div>
+          <div style={s.metricChipRow}>
+            <button
+              type="button"
+              onClick={() => setDisplay({ gender: null })}
+              style={{ ...s.metricChip, ...(!lockedGender ? s.metricChipActive : {}) }}
+            >
+              ⟳ Auto (B↔G)
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplay({ gender: 'A' })}
+              style={{ ...s.metricChip, ...(lockedGender === 'A' ? s.metricChipActive : {}) }}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplay({ gender: 'M' })}
+              style={{ ...s.metricChip, ...(lockedGender === 'M' ? s.metricChipActive : {}) }}
+            >
+              Boys
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplay({ gender: 'F' })}
+              style={{ ...s.metricChip, ...(lockedGender === 'F' ? s.metricChipActive : {}) }}
+            >
+              Girls
+            </button>
+          </div>
+
+          {/* Group filter — only renders when training groups exist. */}
+          {groups.length > 0 && (
+            <>
+              <div style={{ ...s.metricLabel, marginTop: '12px' }}>Group</div>
+              <div style={s.metricChipRow}>
+                <button
+                  type="button"
+                  onClick={() => setDisplay({ group: null })}
+                  style={{ ...s.metricChip, ...(!lockedGroup ? s.metricChipActive : {}) }}
+                >
+                  All groups
+                </button>
+                {groups.map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setDisplay({ group: g })}
+                    style={{ ...s.metricChip, ...(lockedGroup === g ? s.metricChipActive : {}) }}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 

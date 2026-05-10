@@ -530,8 +530,10 @@ def device_set_display():
         try: metric_id = int(metric_id)
         except (TypeError, ValueError): metric_id = None
     gender = data.get("gender")
-    if gender not in (None, "M", "F"):
-        return jsonify({"error": "gender must be M, F, or null"}), 400
+    # 'A' = "all" — show everyone in one combined list on the TV. NULL =
+    # auto-rotate between Boys and Girls (the default).
+    if gender not in (None, "M", "F", "A"):
+        return jsonify({"error": "gender must be M, F, A, or null"}), 400
     group = data.get("group") or None
 
     db = get_db()
