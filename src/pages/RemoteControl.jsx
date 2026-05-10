@@ -223,23 +223,25 @@ export default function RemoteControl() {
     }
   };
 
-  // "View Workout" → opens the tracker in kiosk-station mode pre-jumped to
-  // this week/day. The tracker shows a member-picker dropdown of everyone
-  // signed up under this coach; member taps their name, logs their workout,
-  // returns to picker. Same tab so the coach's remote view bounces forward.
-  // ?kiosk=1 enables multi-member mode; ?coach=<referral_code> drives the
-  // member-list lookup.
+  // "View Workout" → opens the workout-browse view at /tv/static?tablet=1
+  // pre-jumped to the same week/day the gym TV is showing. Same two-day
+  // workout layout, plus tappable play buttons on every exercise that has
+  // a demo video (fullscreen overlay), plus a "← Back to Remote" button
+  // that returns to this page. No member identity, no input boxes — pure
+  // browse + watch surface for the gym tablet. Members log on their own
+  // phone via QR; that drives app adoption.
   const openWorkout = () => {
     if (!device?.access_code) return;
     const coachCode = (user?.referral_code || '').trim().toUpperCase();
     const params = new URLSearchParams({
-      kiosk: '1',
-      code:  device.access_code,
-      week:  String(week),
-      day:   String(startDay),
+      tablet: '1',
+      code:   device.access_code,
+      week:   String(week),
+      day:    String(startDay),
+      from:   window.location.href,
     });
     if (coachCode) params.set('coach', coachCode);
-    const url = `${TRACKER_BASE}/?${params.toString()}`;
+    const url = `${TRACKER_BASE}/tv/static?${params.toString()}`;
     window.open(url, '_blank', 'noopener');
   };
 
