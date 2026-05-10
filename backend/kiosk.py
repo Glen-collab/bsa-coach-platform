@@ -193,7 +193,7 @@ def tv_config():
                 RETURNING id, display_name, active_program_id, layout,
                           view_week, view_start_day,
                           display_mode, display_metric_id,
-                          display_gender, display_group
+                          display_gender, display_group, display_year
             """, (pi_id, device_serial, default_name, coach["active_kiosk_program_id"]))
             device_row = cur.fetchone()
             db.commit()
@@ -242,6 +242,7 @@ def tv_config():
                     "metric_id": device_row["display_metric_id"] if device_row else None,
                     "gender":    device_row["display_gender"]    if device_row else None,
                     "group":     device_row["display_group"]     if device_row else None,
+                    "year":      device_row["display_year"]      if device_row else None,
                 },
             } if device_row else None,
             "active": {
@@ -268,7 +269,7 @@ def my_devices():
             SELECT d.id, d.device_serial, d.display_name, d.active_program_id,
                    d.layout, d.view_week, d.view_start_day,
                    d.display_mode, d.display_metric_id,
-                   d.display_gender, d.display_group,
+                   d.display_gender, d.display_group, d.display_year,
                    d.last_seen_at, d.created_at,
                    wp.access_code, wp.program_name
             FROM coach_devices d
@@ -535,6 +536,13 @@ def device_set_display():
     if gender not in (None, "M", "F", "A"):
         return jsonify({"error": "gender must be M, F, A, or null"}), 400
     group = data.get("group") or None
+    # Year filter: 4-digit string ('2026') or NULL for all-time. Lets the
+    # TV switch between current-year-only records and all-time best.
+    year = data.get("year") or None
+    if year is not None:
+        year = str(year).strip()
+        if not (len(year) == 4 and year.isdigit()):
+            return jsonify({"error": "year must be a 4-digit string or null"}), 400
 
     db = get_db()
     try:
@@ -544,11 +552,12 @@ def device_set_display():
             SET display_mode      = %s,
                 display_metric_id = %s,
                 display_gender    = %s,
-                display_group     = %s
+                display_group     = %s,
+                display_year      = %s
             WHERE id = %s AND coach_id = %s
             RETURNING id, display_mode, display_metric_id,
-                      display_gender, display_group
-        """, (mode, metric_id, gender, group, device_id, user_id))
+                      display_gender, display_group, display_year
+        """, (mode, metric_id, gender, group, year, device_id, user_id))
         row = cur.fetchone()
         db.commit()
         if not row:

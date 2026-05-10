@@ -170,14 +170,16 @@ export default function RemoteControl() {
   const [device, setDevice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
-  // Available leaderboard metrics + groups — fetched directly from the
-  // leaderboard backend (CORS-allow-listed). Lets the coach lock the TV
-  // to a single metric, gender, or training group.
+  // Available leaderboard metrics + groups + years — fetched directly
+  // from the leaderboard backend (CORS-allow-listed). Lets the coach
+  // lock the TV to a single metric, gender, group, or recording year.
   const [metrics, setMetrics] = useState([]);
   const [groups,  setGroups]  = useState([]);
+  const [years,   setYears]   = useState([]);
   useEffect(() => {
     fetch(`${LEADERBOARD_BASE}/api/metrics`).then(r => r.json()).then(setMetrics).catch(() => {});
     fetch(`${LEADERBOARD_BASE}/api/leaderboard/groups`).then(r => r.json()).then(setGroups).catch(() => {});
+    fetch(`${LEADERBOARD_BASE}/api/leaderboard/years`).then(r => r.json()).then(setYears).catch(() => {});
   }, []);
 
   const load = useCallback(async () => {
@@ -248,6 +250,7 @@ export default function RemoteControl() {
   const lockedMetricId = device?.display_metric_id || null;
   const lockedGender   = device?.display_gender   || null;  // 'M' | 'F' | 'A' | null
   const lockedGroup    = device?.display_group    || null;
+  const lockedYear     = device?.display_year     || null;  // '2026' | null (= all-time)
 
   // Update display state — flip mode, lock to a metric, etc. Optimistic
   // local update so the UI feels snappy; rollback on failure.
@@ -261,6 +264,7 @@ export default function RemoteControl() {
       metric_id: 'metric_id' in patch ? patch.metric_id : (device?.display_metric_id ?? null),
       gender:    'gender'    in patch ? patch.gender    : (device?.display_gender    ?? null),
       group:     'group'     in patch ? patch.group     : (device?.display_group     ?? null),
+      year:      'year'      in patch ? patch.year      : (device?.display_year      ?? null),
     };
     setDevice((prev) => prev ? {
       ...prev,
@@ -268,6 +272,7 @@ export default function RemoteControl() {
       display_metric_id: next.metric_id,
       display_gender:    next.gender,
       display_group:     next.group,
+      display_year:      next.year,
     } : prev);
     try {
       await api.kioskDeviceSetDisplay(deviceId, next);
@@ -481,6 +486,31 @@ export default function RemoteControl() {
               </div>
             </>
           )}
+
+          {/* Year filter — All-time (= each athlete's best ever, the
+              default) plus chips for every year that has results. Lets
+              the coach show "this year's records" vs "all-time records"
+              on the TV. */}
+          <div style={{ ...s.metricLabel, marginTop: '12px' }}>Year</div>
+          <div style={s.metricChipRow}>
+            <button
+              type="button"
+              onClick={() => setDisplay({ year: null })}
+              style={{ ...s.metricChip, ...(!lockedYear ? s.metricChipActive : {}) }}
+            >
+              All-time
+            </button>
+            {years.map((y) => (
+              <button
+                key={y}
+                type="button"
+                onClick={() => setDisplay({ year: y })}
+                style={{ ...s.metricChip, ...(lockedYear === String(y) ? s.metricChipActive : {}) }}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
