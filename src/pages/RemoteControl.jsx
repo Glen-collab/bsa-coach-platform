@@ -201,7 +201,10 @@ export default function RemoteControl() {
   useEffect(() => { load(); }, [load]);
 
   const layout = device?.layout || 'two_day';
-  const dayStep = layout === 'two_day' ? 2 : 1;
+  // Step by 1 always — even in two-day layout, coach may want to land
+  // on day pairs like 2-3 or 3-4 (overlapping each other) instead of
+  // jumping in disjoint 1-2 → 3-4 chunks. Tap twice to step 2 if needed.
+  const dayStep = 1;
   const week = device?.view_week || 1;
   const startDay = device?.view_start_day || 1;
 
