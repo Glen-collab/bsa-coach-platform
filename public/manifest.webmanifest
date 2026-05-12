@@ -1,0 +1,31 @@
+{
+  "name": "BSA Coach",
+  "short_name": "BSA Coach",
+  "description": "Be Strong Again — coach console. Drive the gym TV, manage programs, see the leaderboard.",
+  "start_url": "/gym-tv",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#0f0c29",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

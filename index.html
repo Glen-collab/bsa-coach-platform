@@ -2,9 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>BSA Coach</title>
+
+    <!-- PWA manifest: name, icons, start_url=/gym-tv, theme color. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0f0c29" />
+
+    <!-- Browser tab favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>bsa-coach-platform</title>
+
+    <!-- iOS home-screen icon — Wisconsin Barbell Workout square crop.
+         180x180 PNG is what iPadOS uses on "Add to Home Screen". -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BSA Coach" />
   </head>
   <body>
     <div id="root"></div>
