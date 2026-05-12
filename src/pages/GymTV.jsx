@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
 import useMediaQuery from '../hooks/useMediaQuery';
+import GameModeCard from '../components/GameModeCard';
 
 const buildStyles = (isMobile) => ({
   page: { maxWidth: '1100px', margin: '0 auto', padding: isMobile ? '16px 12px' : '32px 24px' },
@@ -292,10 +293,15 @@ export default function GymTV() {
         )}
       </div>
 
-      {/* Full programs list */}
-      <div style={s.section} id="programs-list">
-        <div style={s.sectionTitle}>All Your Programs ({programs.length})</div>
-        <p style={{ fontSize: '13px', color: '#666', marginBottom: '10px' }}>
+      {/* Full programs list — collapsible because the list grows fast and
+          starts dominating the page after a coach has built 20+ programs.
+          Default-closed: the daily workflow is "tap a tile on the device
+          card above," not "browse the whole catalog." */}
+      <details style={s.section} id="programs-list">
+        <summary style={{ ...s.sectionTitle, cursor: 'pointer', userSelect: 'none' }}>
+          All Your Programs ({programs.length})
+        </summary>
+        <p style={{ fontSize: '13px', color: '#666', margin: '10px 0' }}>
           Flip the toggle to add a program to your kiosk lineup (shared across all your TVs).
         </p>
         {programs.length === 0 ? (
@@ -316,7 +322,13 @@ export default function GymTV() {
             </div>
           ))
         )}
-      </div>
+      </details>
+
+      {/* Game Mode — admin-only retro emulator launcher. Flips a kiosk Pi
+          from the workout TV view into a NES/SNES arcade for the gym's
+          rest periods or after-hours kid time. Discreet by design (only
+          Glen sees it for now); coach role doesn't render this. */}
+      {user?.role === 'admin' && <GameModeCard devices={devices} isMobile={isMobile} />}
 
       {/* Setup info — collapsed by default; only useful when first installing
           a new Pi. Lives at the bottom of the page so it doesn't clutter the
