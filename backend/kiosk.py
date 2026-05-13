@@ -518,12 +518,18 @@ def device_set_display():
     after a flip, it either renders the workout (mode='workout') or
     drops in a fullscreen iframe of leaderboard.bestrongagain.com/tv
     pre-locked to the chosen metric/gender/group (mode='leaderboard').
+
+    For game_nes / game_snes, the kiosk agent (separate process from
+    the Chromium kiosk that renders TVStatic) sees the mode change and
+    execs the mode-switcher script — kills the workout Chromium,
+    launches RetroArch with the requested core. Flipping back to
+    'workout' kills RetroArch and respawns the workout Chromium.
     """
     user_id = request.current_user["user_id"]
     data = request.get_json(silent=True) or {}
     device_id = data.get("device_id")
     mode = (data.get("mode") or "").strip()
-    if not device_id or mode not in ("workout", "leaderboard"):
+    if not device_id or mode not in ("workout", "leaderboard", "game_nes", "game_snes"):
         return jsonify({"error": "device_id + valid mode required"}), 400
 
     metric_id = data.get("metric_id")
