@@ -1,13 +1,13 @@
 // GameModeCard — admin-only retro emulator launcher on the GymTV page.
 // Lets Glen (admin) flip a specific Pi from the workout TV view into a
-// NES or SNES arcade. Scaffold for now — buttons render but the actual
-// launch happens once the Pi-side RetroPie + bsa-mode-switcher daemon
-// is installed (tracked in bsa-tv-kiosk/docs/RETRO_GAMES_PLAN.md).
-//
-// When Pi-side is live, swap the alert() in handleLaunch for a real
-// api.kioskDeviceSetGameMode(deviceId, system) call.
+// NES or SNES arcade. Posts mode='game_nes' | 'game_snes' to the
+// existing /api/kiosk/device/set-display endpoint; the Pi-side kiosk
+// agent polls /tv-config every 60s, notices the mode change, and
+// execs the mode-switcher script which kills Chromium and launches
+// RetroArch with the right core. Stop reverts to mode='workout'.
 
 import { useState } from 'react';
+import { api } from '../utils/api.jsx';
 
 const styles = (isMobile) => ({
   card: {
@@ -93,28 +93,28 @@ const styles = (isMobile) => ({
   },
 });
 
-export default function GameModeCard({ devices = [], isMobile }) {
+export default function GameModeCard({ devices = [], isMobile, onChange }) {
   const s = styles(isMobile);
   const [busyDeviceId, setBusyDeviceId] = useState(null);
 
-  // Placeholder until the Pi-side launcher is wired. When it is, swap
-  // these alerts for real api.kioskDeviceSetGameMode(deviceId, system).
-  const handleLaunch = (device, system) => {
+  // Maps the UI label to the backend mode. The Stop button reverts the
+  // device to 'workout' which both clears game mode and restores the
+  // normal workout-TV behavior.
+  const SYSTEM_TO_MODE = { NES: 'game_nes', SNES: 'game_snes' };
+
+  const setMode = async (device, mode, label) => {
     setBusyDeviceId(device.id);
-    setTimeout(() => setBusyDeviceId(null), 800);
-    alert(
-      `Game Mode — ${system} launch on "${device.display_name}"\n\n` +
-      `Pi-side install required: see\n` +
-      `Glen-collab/bsa-tv-kiosk/docs/RETRO_GAMES_PLAN.md\n\n` +
-      `(After RetroPie + bsa-mode-switcher are set up, this button will ` +
-      `flip the Pi from workout view to ${system} game grid.)`
-    );
+    try {
+      await api.kioskDeviceSetDisplay(device.id, { mode });
+      onChange?.();
+    } catch (e) {
+      alert(`Failed to ${label} on "${device.display_name}": ${e.message}`);
+    } finally {
+      setBusyDeviceId(null);
+    }
   };
-  const handleStop = (device) => {
-    setBusyDeviceId(device.id);
-    setTimeout(() => setBusyDeviceId(null), 800);
-    alert(`Game Mode — stop on "${device.display_name}" (placeholder).`);
-  };
+  const handleLaunch = (device, system) => setMode(device, SYSTEM_TO_MODE[system], `launch ${system}`);
+  const handleStop   = (device)         => setMode(device, 'workout', 'stop game mode');
 
   return (
     <div style={s.card}>
@@ -131,11 +131,16 @@ export default function GameModeCard({ devices = [], isMobile }) {
       {devices.length === 0 ? (
         <div style={s.empty}>No Pi devices registered yet.</div>
       ) : (
-        devices.map((dev) => (
+        devices.map((dev) => {
+          const inGameMode = dev.display_mode === 'game_nes' || dev.display_mode === 'game_snes';
+          const nowShowing = inGameMode
+            ? (dev.display_mode === 'game_nes' ? '🎮 NES' : '🎮 SNES')
+            : (dev.program_name || 'Idle');
+          return (
           <div key={dev.id} style={s.deviceRow}>
             <div style={s.deviceName}>{dev.display_name}</div>
             <div style={s.deviceState}>
-              Now showing: <b>{dev.program_name || 'Idle'}</b> · serial …{dev.device_serial?.slice(-6) || '????'}
+              Now showing: <b>{nowShowing}</b> · serial …{dev.device_serial?.slice(-6) || '????'}
             </div>
             <div style={s.buttonRow}>
               <button
@@ -150,18 +155,19 @@ export default function GameModeCard({ devices = [], isMobile }) {
               >▶ SNES</button>
               <button
                 style={s.stopBtn}
-                disabled={busyDeviceId === dev.id}
+                disabled={busyDeviceId === dev.id || !inGameMode}
                 onClick={() => handleStop(dev)}
               >⏹ Stop</button>
             </div>
           </div>
-        ))
+          );
+        })
       )}
 
       <div style={s.setupNote}>
-        🟡 <b>Pi-side install required.</b> RetroPie + the bsa-mode-switcher
-        daemon need to be installed on each Pi for these buttons to do
-        anything. Setup steps in <code>bsa-tv-kiosk/docs/RETRO_GAMES_PLAN.md</code>.
+        🟡 <b>Pi-side install required.</b> Backend wired — Pi needs
+        RetroArch + ROMs + the kiosk-agent mode-switcher hook to honor
+        these. Setup steps in <code>bsa-tv-kiosk/docs/RETRO_GAMES_PLAN.md</code>.
       </div>
     </div>
   );

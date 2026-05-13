@@ -328,7 +328,7 @@ export default function GymTV() {
           from the workout TV view into a NES/SNES arcade for the gym's
           rest periods or after-hours kid time. Discreet by design (only
           Glen sees it for now); coach role doesn't render this. */}
-      {user?.role === 'admin' && <GameModeCard devices={devices} isMobile={isMobile} />}
+      {user?.role === 'admin' && <GameModeCard devices={devices} isMobile={isMobile} onChange={load} />}
 
       {/* Setup info — collapsed by default; only useful when first installing
           a new Pi. Lives at the bottom of the page so it doesn't clutter the
