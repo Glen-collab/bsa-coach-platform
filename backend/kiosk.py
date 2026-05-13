@@ -573,6 +573,59 @@ def device_set_display():
         db.close()
 
 
+# ── Public: Pi self-exits game mode via gamepad/touch on the arcade ───
+@kiosk_bp.route("/exit-game-mode", methods=["POST"])
+def exit_game_mode():
+    """
+    Body: { coach: <referral_code>, device: <cpu_serial> }
+    Public — no auth, called by the arcade Flask on the Pi when the
+    user picks the on-screen "Back to Workouts" tile. The Pi has no
+    JWT, so the same anonymous (coach_code, device_serial) identity
+    used in tv-config also keys this write.
+
+    Limited blast radius: this only transitions display_mode from a
+    game_* value back to 'workout'. It refuses to change leaderboard
+    or workout state. A bad actor who knew a coach's referral code and
+    device serial could force a Pi out of arcade mode, nothing more.
+    """
+    data = request.get_json(silent=True) or {}
+    coach_code = (data.get("coach") or "").strip().upper()
+    device_serial = (data.get("device") or "").strip()
+    if not coach_code or not device_serial:
+        return jsonify({"error": "coach + device required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT id FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin')",
+            (coach_code,),
+        )
+        coach = cur.fetchone()
+        if not coach:
+            return jsonify({"error": "Coach not found"}), 404
+
+        # Only flip out of game_* modes — refuse to touch workout/leaderboard
+        # so this endpoint can't be abused to override admin choices.
+        cur.execute("""
+            UPDATE coach_devices
+            SET display_mode = 'workout'
+            WHERE coach_id = %s AND device_serial = %s
+              AND display_mode IN ('game_nes', 'game_snes')
+            RETURNING id, display_mode
+        """, (coach["id"], device_serial))
+        row = cur.fetchone()
+        db.commit()
+        if not row:
+            # Either device not found, or not currently in game mode —
+            # treat both as a no-op success. The Pi-side script will
+            # still exec locally regardless.
+            return jsonify({"success": True, "noop": True})
+        return jsonify({"success": True, "device": row})
+    finally:
+        db.close()
+
+
 # ── Coach: delete a device (e.g. Pi was retired or moved) ─────────────
 @kiosk_bp.route("/device/delete", methods=["POST"])
 @require_auth
