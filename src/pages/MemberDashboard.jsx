@@ -106,21 +106,12 @@ export default function MemberDashboard() {
         </div>
       </div>
 
-      {/* Referral */}
-      <div style={s.card}>
-        <div style={s.cardTitle}>Refer a Friend</div>
-        <p style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
-          Share your referral link and earn when people you refer subscribe.
-        </p>
-        {user?.referral_code && (
-          <div style={s.referral}>
-            <div style={{ fontSize: '12px', fontWeight: '600', color: '#1565c0', marginBottom: '4px' }}>Your Referral Link</div>
-            <div style={{ fontSize: '13px', fontWeight: '600', wordBreak: 'break-all' }}>
-              {window.location.origin}/register/{user.referral_code}
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Referral card removed — members don't have Express accounts to
+          receive commission payouts, so the "earn when you refer"
+          promise was false. Coaches still see their referral tools on
+          CoachDashboard via the existing 3-tier MLM commission engine.
+          If we add a member-share-with-friend feature later (no $$,
+          just a way for them to invite people), put it here. */}
     </div>
   );
 }
