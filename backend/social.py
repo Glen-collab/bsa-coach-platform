@@ -231,9 +231,13 @@ def friends_list():
     db = get_db()
     try:
         cur = db.cursor()
-        # Accepted friends (either side)
+        # Accepted friends (either side). DISTINCT ON (u.id) collapses the
+        # case where both directions of the pair exist as separate rows
+        # (broadcast used to insert (me, rid) AND (rid, me), so each friend
+        # appeared twice in the list).
         cur.execute("""
-            SELECT f.id AS friendship_id, f.status, f.accepted_at,
+            SELECT DISTINCT ON (u.id)
+                   f.id AS friendship_id, f.status, f.accepted_at,
                    u.id, u.first_name, u.last_name, u.email
             FROM user_friendships f
             JOIN users u ON u.id = CASE
@@ -242,9 +246,10 @@ def friends_list():
             END
             WHERE (f.requester_id = %s OR f.recipient_id = %s)
               AND f.status = 'accepted'
-            ORDER BY u.first_name
+            ORDER BY u.id, f.accepted_at NULLS LAST
         """, (me, me, me))
         friends = cur.fetchall()
+        friends.sort(key=lambda r: (r.get("first_name") or "").lower())
         # Incoming pending requests
         cur.execute("""
             SELECT f.id AS friendship_id, f.requested_at,
@@ -559,15 +564,10 @@ def broadcast_send():
                 """,
                 (me, rid),
             )
-            # Also handle the reverse direction so either party lists the other
-            cur.execute(
-                """
-                INSERT INTO user_friendships (requester_id, recipient_id, status, accepted_at)
-                VALUES (%s, %s, 'accepted', NOW())
-                ON CONFLICT (requester_id, recipient_id) DO NOTHING
-                """,
-                (rid, me),
-            )
+            # Reverse-direction row used to be inserted here so the list
+            # query found the pair either way, but /friends/list's WHERE
+            # already handles "requester_id = me OR recipient_id = me".
+            # Inserting the reverse just produced duplicates in the UI.
             # Insert the message itself
             cur.execute(
                 """
