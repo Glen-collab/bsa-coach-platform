@@ -18,6 +18,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 import random
 import string
+from auth import make_token, auto_friend_admin, auto_accept_messaging_consent, generate_referral_code
 
 workout_bp = Blueprint("workout", __name__)
 
@@ -192,6 +193,46 @@ def load_program():
         # It's cheap — typically <50KB even for a 12-week program.
         all_workouts = program_data.get("allWorkouts") or {}
 
+        # Auto-issue a chat JWT so the user is logged into FriendChat
+        # without going through a separate email/magic-link sign-in.
+        # Glen's rule: if they already signed up for the program (entered
+        # an access code), they're trusted enough to message. Looks up
+        # or lazily creates a users row keyed by email, auto-friends Glen
+        # (Tom-from-MySpace), auto-accepts messaging consent.
+        chat_user = None
+        chat_token = None
+        try:
+            cur.execute(
+                "SELECT id, role, first_name, last_name, email FROM users WHERE LOWER(email) = LOWER(%s) LIMIT 1",
+                (email,),
+            )
+            chat_user = cur.fetchone()
+            if not chat_user:
+                # Derive a first name from the tracker's user_name field
+                # if present, otherwise use the email's local part. Either
+                # way the displayName() helper on the client capitalizes
+                # it nicely.
+                tracker_name = (name or position.get("user_name") or "").strip()
+                first_for_user = tracker_name.split()[0] if tracker_name else email.split("@")[0]
+                last_for_user  = " ".join(tracker_name.split()[1:]) if " " in tracker_name else ""
+                ref = generate_referral_code(first_for_user or email)
+                cur.execute("""
+                    INSERT INTO users (email, first_name, last_name, role, referral_code, password_hash, is_active)
+                    VALUES (%s, %s, %s, 'member', %s, '', TRUE)
+                    RETURNING id, role, first_name, last_name, email
+                """, (email, first_for_user, last_for_user, ref))
+                chat_user = cur.fetchone()
+                auto_friend_admin(cur, chat_user["id"])
+            # Always stamp consent (no-op if already set) so the new
+            # signup lands able to chat immediately.
+            auto_accept_messaging_consent(cur, chat_user["id"])
+            db.commit()
+            chat_token = make_token(str(chat_user["id"]), chat_user["role"])
+        except Exception as _e:
+            # Never fail the program load over a chat-token issue.
+            chat_user = None
+            chat_token = None
+
         return jsonify({
             "success": True,
             "data": {
@@ -220,6 +261,17 @@ def load_program():
                     "consentAccepted": bool(position.get("consent_accepted")),
                 },
                 "savedWorkout": (json.loads(saved["workout_data"]) if isinstance(saved["workout_data"], str) else saved["workout_data"]) if saved and saved["workout_data"] else None,
+                # FriendChat auto-login. Tracker writes bsa_token to
+                # localStorage on load so the chat bubble shows the
+                # message board immediately — no email sign-in step.
+                "bsa_token": chat_token,
+                "bsa_user": {
+                    "id":         str(chat_user["id"]),
+                    "role":       chat_user["role"],
+                    "first_name": chat_user["first_name"],
+                    "last_name":  chat_user["last_name"],
+                    "email":      chat_user["email"],
+                } if chat_user else None,
             },
             "message": "Program loaded successfully",
         })
