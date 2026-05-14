@@ -26,6 +26,27 @@ def generate_referral_code(first_name: str) -> str:
     return f"{first_name.upper()[:4]}{suffix}"
 
 
+# "Tom from MySpace" — every BSA signup gets Glen as an auto-accepted
+# friend so they can DM him via the in-app chat without going through
+# the friend-request/accept flow. Source-of-truth identifier is the
+# TRAINER_EMAIL constant from email_helper. No-ops if Glen's account
+# doesn't exist yet (fresh env), the new user IS Glen (self-signup),
+# or a friendship row already exists in any state.
+def auto_friend_admin(cur, new_user_id):
+    cur.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(%s) LIMIT 1", (TRAINER_EMAIL,))
+    row = cur.fetchone()
+    if not row:
+        return
+    admin_id = row[0] if not isinstance(row, dict) else row["id"]
+    if str(admin_id) == str(new_user_id):
+        return
+    cur.execute("""
+        INSERT INTO user_friendships (requester_id, recipient_id, status, accepted_at)
+        VALUES (%s, %s, 'accepted', NOW())
+        ON CONFLICT (requester_id, recipient_id) DO NOTHING
+    """, (admin_id, new_user_id))
+
+
 def make_token(user_id: str, role: str) -> str:
     return jwt.encode({
         "user_id": user_id,
@@ -97,6 +118,7 @@ def register():
                 user_id, email, password_hash, first_name, last_name,
                 role, referred_by_id, my_referral_code
             ))
+            auto_friend_admin(cur, user_id)
             db.commit()
 
         # Notify Glen of new signup
@@ -329,6 +351,7 @@ def magic_link_request():
                 RETURNING id
             """, (email, first_name, referral_code))
             user_id = cur.fetchone()[0]
+            auto_friend_admin(cur, user_id)
 
         token = _secrets.token_urlsafe(32)
         expires = datetime.utcnow() + timedelta(minutes=10)
