@@ -278,13 +278,28 @@ def friends_list():
 @social_bp.route("/messages/unread-count", methods=["GET"])
 @require_auth
 def unread_count():
-    """For the red-dot badge. Returns total unread messages TO me."""
+    """For the red-dot badge. Returns unread messages, pending incoming
+    friend requests, and the total (sum). The chat bubble shows `total`
+    so a friend request shows up the same way an unread DM does."""
     me = request.current_user["user_id"]
     db = get_db()
     try:
         cur = db.cursor()
-        cur.execute("SELECT COUNT(*) AS n FROM user_messages WHERE to_user_id = %s AND read_at IS NULL", (me,))
-        return jsonify({"unread": cur.fetchone()["n"]})
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM user_messages WHERE to_user_id = %s AND read_at IS NULL",
+            (me,),
+        )
+        unread = cur.fetchone()["n"]
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM user_friendships WHERE recipient_id = %s AND status = 'pending'",
+            (me,),
+        )
+        pending = cur.fetchone()["n"]
+        return jsonify({
+            "unread": unread,
+            "pending_requests": pending,
+            "total": unread + pending,
+        })
     finally:
         db.close()
 
