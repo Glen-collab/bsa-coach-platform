@@ -96,6 +96,50 @@ def friends_search():
         db.close()
 
 
+@social_bp.route("/friends/search-by-name", methods=["GET"])
+@require_auth
+def friends_search_by_name():
+    """Typeahead search by first or last name. Returns up to 10 matches
+    with the caller's current friendship state for each (none /
+    pending / accepted / declined / blocked) so the UI shows the right
+    button: Add, Requested, Accept, or Friends. Powers the
+    Instagram/Facebook-style "Add a friend" flow that replaces the old
+    "type their exact email" input."""
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify({"matches": []})
+    me = request.current_user["user_id"]
+    db = get_db()
+    try:
+        cur = db.cursor()
+        like = f"%{q}%"
+        cur.execute("""
+            SELECT u.id, u.first_name, u.last_name,
+                   f.id            AS friendship_id,
+                   f.status        AS friendship_status,
+                   f.requester_id  AS friendship_requester
+            FROM users u
+            LEFT JOIN user_friendships f
+              ON (f.requester_id = u.id AND f.recipient_id = %s)
+              OR (f.recipient_id = u.id AND f.requester_id = %s)
+            WHERE u.id <> %s
+              AND u.role IN ('member', 'coach', 'admin')
+              AND (LOWER(u.first_name) LIKE LOWER(%s) OR LOWER(u.last_name) LIKE LOWER(%s))
+            ORDER BY u.first_name, u.last_name
+            LIMIT 10
+        """, (me, me, me, like, like))
+        rows = cur.fetchall()
+        for r in rows:
+            r["waiting_on_you"] = (
+                r.get("friendship_status") == "pending"
+                and str(r.get("friendship_requester") or "") != str(me)
+            )
+            r.pop("friendship_requester", None)
+        return jsonify({"matches": rows})
+    finally:
+        db.close()
+
+
 @social_bp.route("/friends/request", methods=["POST"])
 @require_auth
 def friends_request():
