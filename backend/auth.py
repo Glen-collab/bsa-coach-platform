@@ -47,6 +47,19 @@ def auto_friend_admin(cur, new_user_id):
     """, (admin_id, new_user_id))
 
 
+# Messaging consent is auto-stamped on register so a new user can DM
+# their auto-friend admin immediately instead of hitting the "Got it"
+# disclosure screen first. The disclosure text ("A coach may read your
+# chats to keep things safe — be kind, only message friends") still
+# belongs in the user-facing ToS / welcome email so the legal posture
+# is preserved; clicking Sign Up is the implicit acceptance.
+def auto_accept_messaging_consent(cur, user_id):
+    cur.execute(
+        "UPDATE users SET messaging_consent_at = COALESCE(messaging_consent_at, NOW()) WHERE id = %s",
+        (user_id,),
+    )
+
+
 def make_token(user_id: str, role: str) -> str:
     return jwt.encode({
         "user_id": user_id,
@@ -119,6 +132,7 @@ def register():
                 role, referred_by_id, my_referral_code
             ))
             auto_friend_admin(cur, user_id)
+            auto_accept_messaging_consent(cur, user_id)
             db.commit()
 
         # Notify Glen of new signup
@@ -352,6 +366,7 @@ def magic_link_request():
             """, (email, first_name, referral_code))
             user_id = cur.fetchone()[0]
             auto_friend_admin(cur, user_id)
+            auto_accept_messaging_consent(cur, user_id)
 
         token = _secrets.token_urlsafe(32)
         expires = datetime.utcnow() + timedelta(minutes=10)

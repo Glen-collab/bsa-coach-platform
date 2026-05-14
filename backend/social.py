@@ -13,7 +13,12 @@ JWT from the coach platform. Tracker users who want messaging must sign up on
 app.bestrongagain.com (most already do via the coach referral flow).
 """
 
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
+
+# Sentinel used to sort friends with no message history to the bottom
+# without tripping Python's TypeError on comparing None to a datetime.
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 from psycopg2.extras import RealDictCursor
 import psycopg2
 import os
@@ -272,8 +277,51 @@ def friends_list():
             """, (me, friend_ids))
             for r in cur.fetchall():
                 unread_by[str(r["from_user_id"])] = r["n"]
+
+        # Last-message preview per friend so the friend list reads like
+        # an Instagram/Facebook DM inbox: "Steve Smith — Hey buddy what's
+        # up?" instead of bare names with no context for who said what.
+        # Picks the most-recent message in either direction.
+        last_by = {}
+        if friend_ids:
+            cur.execute("""
+                SELECT DISTINCT ON (other_id)
+                       other_id,
+                       body,
+                       sent_at,
+                       from_user_id = %s AS from_me,
+                       is_broadcast
+                FROM (
+                    SELECT
+                        CASE WHEN from_user_id = %s THEN to_user_id ELSE from_user_id END AS other_id,
+                        body, sent_at, from_user_id, is_broadcast
+                    FROM user_messages
+                    WHERE (from_user_id = %s AND to_user_id = ANY(%s::uuid[]))
+                       OR (to_user_id   = %s AND from_user_id = ANY(%s::uuid[]))
+                ) sub
+                ORDER BY other_id, sent_at DESC
+            """, (me, me, me, friend_ids, me, friend_ids))
+            for r in cur.fetchall():
+                last_by[str(r["other_id"])] = {
+                    "preview": (r["body"] or "")[:120],
+                    "sent_at": r["sent_at"],
+                    "from_me": r["from_me"],
+                    "is_broadcast": r["is_broadcast"],
+                }
+
         for f in friends:
             f["unread"] = unread_by.get(str(f["id"]), 0)
+            f["last_message"] = last_by.get(str(f["id"]))
+        # Show friends with the freshest message at the top — recent
+        # conversations first, alphabetical for friends with no history.
+        # Python sort is stable, so a name-first sort followed by a
+        # recency sort puts conversations in DESC time order and leaves
+        # the rest alphabetical underneath.
+        friends.sort(key=lambda r: (r.get("first_name") or "").lower())
+        friends.sort(
+            key=lambda r: (r.get("last_message") or {}).get("sent_at") or _EPOCH,
+            reverse=True,
+        )
         return jsonify({"friends": friends, "incoming": incoming})
     finally:
         db.close()
