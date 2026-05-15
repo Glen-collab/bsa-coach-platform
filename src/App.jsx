@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import Navbar from './components/Navbar';
 import Landing from './pages/Landing';
+import CoachPitch from './pages/CoachPitch';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import MemberDashboard from './pages/MemberDashboard';
@@ -35,6 +36,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/become-a-coach" element={<CoachPitch />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/register/:referralCode" element={<Register />} />
