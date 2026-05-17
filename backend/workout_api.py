@@ -832,13 +832,28 @@ def update_program():
     if not code:
         return jsonify({"success": False, "message": "Access code required"}), 400
 
+    # Build dynamic UPDATE so partial updates (e.g. nickname-only) never wipe
+    # the workouts blob. Only fields actually present in the request get touched.
+    set_clauses = ["updated_at = NOW()"]
+    params = []
+    if "programData" in data:
+        set_clauses.append("program_data = %s")
+        params.append(json.dumps(program_data))
+    if "programName" in data:
+        set_clauses.append("program_name = %s")
+        params.append((data.get("programName") or "").strip())
+    if "programNickname" in data:
+        set_clauses.append("program_nickname = %s")
+        params.append((data.get("programNickname") or "").strip())
+    params.append(code)
+
     db = get_db()
     try:
         cur = db.cursor()
-        cur.execute("""
-            UPDATE workout_programs SET program_data = %s, updated_at = NOW()
-            WHERE access_code = %s
-        """, (json.dumps(program_data), code))
+        cur.execute(
+            f"UPDATE workout_programs SET {', '.join(set_clauses)} WHERE access_code = %s",
+            tuple(params),
+        )
         db.commit()
         return jsonify({"success": True, "accessCode": code})
     finally:
