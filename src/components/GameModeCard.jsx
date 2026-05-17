@@ -77,6 +77,15 @@ const styles = (isMobile) => ({
     fontSize: '13px', fontWeight: '700',
     cursor: 'pointer',
   },
+  pickerBtn: {
+    padding: '10px 14px',
+    borderRadius: '8px',
+    border: '1px solid rgba(56,189,248,0.4)',
+    background: 'rgba(56,189,248,0.15)',
+    color: '#bae6fd',
+    fontSize: '13px', fontWeight: '700',
+    cursor: 'pointer',
+  },
   empty: {
     fontSize: '12px', color: 'rgba(255,255,255,0.5)',
     fontStyle: 'italic', padding: '10px 0',
@@ -116,6 +125,17 @@ export default function GameModeCard({ devices = [], isMobile, onChange }) {
   const handleLaunch = (device, system) => setMode(device, SYSTEM_TO_MODE[system], `launch ${system}`);
   const handleStop   = (device)         => setMode(device, 'workout', 'stop game mode');
 
+  const handleLoadGame = async (device) => {
+    setBusyDeviceId(device.id);
+    try {
+      await api.kioskPiQuitGame();
+    } catch (e) {
+      alert(`Failed to load picker on "${device.display_name}": ${e.message}`);
+    } finally {
+      setBusyDeviceId(null);
+    }
+  };
+
   return (
     <div style={s.card}>
       <div style={s.header}>
@@ -153,6 +173,12 @@ export default function GameModeCard({ devices = [], isMobile, onChange }) {
                 disabled={busyDeviceId === dev.id}
                 onClick={() => handleLaunch(dev, 'SNES')}
               >▶ SNES</button>
+              <button
+                style={s.pickerBtn}
+                disabled={busyDeviceId === dev.id || !inGameMode}
+                onClick={() => handleLoadGame(dev)}
+                title="Kill the running game and drop back to the picker without leaving arcade mode"
+              >🎮 Load Game</button>
               <button
                 style={s.stopBtn}
                 disabled={busyDeviceId === dev.id || !inGameMode}

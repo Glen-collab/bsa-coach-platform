@@ -665,7 +665,7 @@ def delete_device():
 # won't wake up and halt itself from an hours-old request.
 # ─────────────────────────────────────────────────────────────────────
 
-_ALLOWED_COMMANDS = {"shutdown", "reboot", "reload"}
+_ALLOWED_COMMANDS = {"shutdown", "reboot", "reload", "quit_game"}
 
 
 def _coach_code_for(user):
@@ -711,6 +711,21 @@ def queue_pi_reboot():
     if not code:
         return jsonify({"success": False, "message": "No coach code on your account"}), 400
     return _queue_kiosk_command(code, "reboot")
+
+
+@kiosk_bp.route("/pi-quit-game", methods=["POST", "OPTIONS"])
+@require_auth
+def queue_pi_quit_game():
+    """Kill the currently running RetroArch game on the coach's Pi
+    without leaving arcade mode — drops the TV back to the game picker
+    so the user can choose a different game. The Pi agent translates
+    this into a POST to http://localhost:8088/api/quit."""
+    if request.method == "OPTIONS":
+        return "", 200
+    code = _coach_code_for(request.current_user)
+    if not code:
+        return jsonify({"success": False, "message": "No coach code on your account"}), 400
+    return _queue_kiosk_command(code, "quit_game")
 
 
 def _queue_kiosk_command(coach_code, command):

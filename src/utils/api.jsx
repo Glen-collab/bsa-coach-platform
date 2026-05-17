@@ -15,6 +15,10 @@ export const api = {
   // Auth
   register: (body) => request('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  // Fresh user state — tier from latest active subscription, plus the
+  // assigned starter program's access code. Use this on dashboard mount
+  // (not the localStorage snapshot, which is stale after payment).
+  me: () => request('/auth/me'),
 
   // Stripe
   checkout: (tier) => request('/stripe/checkout', { method: 'POST', body: JSON.stringify({ tier }) }),
@@ -104,8 +108,9 @@ export const api = {
   kioskDeviceSetDisplay: (deviceId, opts) => request('/kiosk/device/set-display', { method: 'POST', body: JSON.stringify({ device_id: deviceId, ...opts }) }),
 
   // Remote power — queue a command for the Pi to pick up on next poll.
-  kioskShutdown: () => request('/kiosk/shutdown', { method: 'POST' }),
-  kioskPiReboot: () => request('/kiosk/pi-reboot', { method: 'POST' }),
+  kioskShutdown:   () => request('/kiosk/shutdown',     { method: 'POST' }),
+  kioskPiReboot:   () => request('/kiosk/pi-reboot',    { method: 'POST' }),
+  kioskPiQuitGame: () => request('/kiosk/pi-quit-game', { method: 'POST' }),
 
   // Health
   health: () => request('/health'),
