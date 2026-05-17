@@ -22,3 +22,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python
+__pycache__/
+*.pyc
+
+# Secrets — never commit credentials. Keep these patterns broad on
+# purpose; the bias is toward false-positive matches over leaking keys.
+.env
+.env.*
+*.env
+*Stripe*Keys*
+*API*Keys*
+*api*keys*
+*secrets*.txt
+*credentials*.txt
+*.pem
+*.key
