@@ -629,3 +629,78 @@ def broadcast_send():
         return jsonify({"success": True, "sent": sent, "batch_id": batch_id})
     finally:
         db.close()
+
+
+# ── Friend stats (sneak preview) ──────────────────────────────────────────────
+# Returns aggregated workout volume for an accepted friend — TODAY + last 7
+# days. Lightweight competitive social signal ("are they working harder than
+# me?") without exposing exercise-level detail (which is too granular for a
+# member-to-member surface). Auth: must be accepted-friend in both directions.
+
+@social_bp.route("/friend-stats/<friend_user_id>", methods=["GET"])
+@require_auth
+def friend_stats(friend_user_id):
+    me = request.current_user["user_id"]
+    if str(me) == str(friend_user_id):
+        return jsonify({"error": "Can't peek at your own stats this way"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        # Friendship gate
+        cur.execute(
+            """
+            SELECT 1 FROM user_friendships
+            WHERE status = 'accepted'
+              AND ((requester_id = %s AND recipient_id = %s)
+                OR (requester_id = %s AND recipient_id = %s))
+            LIMIT 1
+            """,
+            (me, friend_user_id, friend_user_id, me),
+        )
+        if not cur.fetchone():
+            return jsonify({"error": "Not friends"}), 403
+
+        cur.execute("SELECT email, first_name FROM users WHERE id = %s", (friend_user_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "User not found"}), 404
+        friend_email = row["email"]
+        first_name   = row["first_name"]
+
+        def aggregate(where_clause):
+            cur.execute(
+                f"""
+                SELECT COUNT(*)::int                                              AS sessions,
+                       COALESCE(SUM((volume_stats->>'tonnage')::numeric), 0)::int        AS tonnage,
+                       COALESCE(SUM((volume_stats->>'est_calories')::numeric), 0)::int   AS calories,
+                       COALESCE(SUM((volume_stats->>'cardio_minutes')::numeric), 0)::int AS cardio_min,
+                       COALESCE(SUM((volume_stats->>'core_crunches')::numeric), 0)::int  AS core_reps,
+                       MAX(created_at)                                                   AS last_logged_at
+                FROM workout_logs
+                WHERE LOWER(user_email) = LOWER(%s) AND {where_clause}
+                """,
+                (friend_email,),
+            )
+            return cur.fetchone()
+
+        today = aggregate("workout_date = CURRENT_DATE")
+        week  = aggregate("workout_date >= CURRENT_DATE - INTERVAL '7 days'")
+
+        def shape(row_):
+            return {
+                "sessions":   row_["sessions"],
+                "tonnage":    row_["tonnage"],
+                "calories":   row_["calories"],
+                "cardio_min": row_["cardio_min"],
+                "core_reps":  row_["core_reps"],
+                "last_logged_at": row_["last_logged_at"].isoformat() if row_["last_logged_at"] else None,
+            }
+
+        return jsonify({
+            "first_name": first_name,
+            "today": shape(today),
+            "week":  shape(week),
+        })
+    finally:
+        db.close()
