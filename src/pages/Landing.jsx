@@ -269,7 +269,7 @@ export default function Landing() {
             <div style={s.tierTagline}>"Build something for me — and check in now and then."</div>
             <ul style={s.tierList}>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Everything in Basic</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Program is <strong>specific to you</strong> — your goals, your sport, your conditioning, your situation</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span><span>Program is <strong>specific to you</strong> — your goals, your sport, your conditioning, your situation</span></li>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Periodic check-ins and program reviews — I reach out when your numbers tell me to</li>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Direct chat with Coach Glen — priority response</li>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Form review when you ask for it</li>
@@ -284,7 +284,7 @@ export default function Landing() {
             <div style={s.tierTagline}>"In the trenches with me."</div>
             <ul style={s.tierList}>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Everything in Coached</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> <strong>Weekly check-ins</strong> — every week I'm in your data, your week, your training</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span><span><strong>Weekly check-ins</strong> — every week I'm in your data, your week, your training</span></li>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Program tweaks every week as your numbers come in</li>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> I follow your goals closely — sport-specific, body comp, performance</li>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Unlimited form reviews + nutrition guidance</li>
