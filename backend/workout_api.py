@@ -1059,12 +1059,26 @@ def get_clients():
     db = get_db()
     try:
         cur = db.cursor()
+        # LEFT JOIN users by email so we can pick up their Stripe-backed
+        # subscription tier. LATERAL JOIN picks the most relevant
+        # subscriptions row — active first, then most recent if no active.
         cur.execute("""
             SELECT up.*, p.program_name,
+                   sub.sub_tier         AS plan_tier,
+                   sub.sub_amount_cents AS plan_amount_cents,
+                   sub.sub_status       AS plan_status,
                    (SELECT COUNT(*) FROM workout_logs wl WHERE wl.access_code = up.access_code AND wl.user_email = up.user_email) as workout_count,
                    (SELECT MAX(workout_date) FROM workout_logs wl WHERE wl.access_code = up.access_code AND wl.user_email = up.user_email) as last_workout
             FROM workout_user_position up
             LEFT JOIN workout_programs p ON up.access_code = p.access_code
+            LEFT JOIN users u ON LOWER(u.email) = LOWER(up.user_email)
+            LEFT JOIN LATERAL (
+                SELECT tier AS sub_tier, amount_cents AS sub_amount_cents, status AS sub_status
+                FROM subscriptions
+                WHERE user_id = u.id
+                ORDER BY (CASE WHEN status = 'active' THEN 0 ELSE 1 END), created_at DESC
+                LIMIT 1
+            ) sub ON TRUE
             WHERE LOWER(p.user_email) = %s OR LOWER(p.optional_trainer_email) = %s
             ORDER BY up.updated_at DESC
         """, (email, email))
@@ -1098,6 +1112,9 @@ def get_clients():
                 "oneRmDeadlift": float(r.get("one_rm_deadlift") or 0),
                 "one_rm_clean": float(r.get("one_rm_clean") or 0),
                 "oneRmClean": float(r.get("one_rm_clean") or 0),
+                "plan_tier":         r.get("plan_tier"),
+                "plan_amount_cents": r.get("plan_amount_cents"),
+                "plan_status":       r.get("plan_status"),
             })
 
         return jsonify({"success": True, "data": clients})
