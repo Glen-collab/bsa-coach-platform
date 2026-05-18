@@ -215,6 +215,57 @@ def create_checkout():
 
 
 # ============================================
+# BILLING PORTAL - Self-serve cancel / payment method / invoices
+# ============================================
+
+@stripe_bp.route("/billing-portal", methods=["POST"])
+def billing_portal():
+    """Create a Stripe-hosted billing portal session for the authenticated
+    user. The portal lets them cancel their subscription, update their card,
+    and download invoices — without us building UI. Cancellation events flow
+    back through the existing /webhook handler.
+    """
+    import jwt as pyjwt
+
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return jsonify({"error": "Authentication required"}), 401
+    try:
+        payload = pyjwt.decode(auth[7:], os.environ.get("SECRET_KEY"), algorithms=["HS256"])
+        user_id = payload.get("user_id")
+    except Exception:
+        return jsonify({"error": "Invalid token"}), 401
+    if not user_id:
+        return jsonify({"error": "Authentication required"}), 401
+
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT stripe_customer_id FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+        stripe_customer_id = row[0] if row else None
+        if not stripe_customer_id:
+            return jsonify({
+                "error": "no_subscription",
+                "message": "You don't have an active subscription to manage yet."
+            }), 400
+
+        # Bounce back to the member dashboard once they're done in the portal.
+        body = request.json or {}
+        return_url = body.get("return_url") or "https://app.bestrongagain.com/dashboard"
+
+        session = stripe.billing_portal.Session.create(
+            customer=stripe_customer_id,
+            return_url=return_url,
+        )
+        return jsonify({"url": session.url})
+    except stripe.error.StripeError as e:
+        return jsonify({"error": "stripe_error", "message": str(e)}), 500
+    finally:
+        db.close()
+
+
+# ============================================
 # WEBHOOK - Handle Stripe Events
 # ============================================
 
@@ -247,18 +298,40 @@ def stripe_webhook():
     return jsonify({"received": True})
 
 
+def _md(obj, key, default=None):
+    """Safe field lookup on Stripe StripeObject (which doesn't support
+    .get() and doesn't dict-cast cleanly). Returns default when missing."""
+    try:
+        if key in obj:
+            return obj[key]
+    except Exception:
+        pass
+    return default
+
+
 def handle_checkout_completed(session, db):
     """New subscriber - create subscription record, trigger commissions."""
-    user_id = session["metadata"]["user_id"]
-    coach_id = session["metadata"].get("coach_id") or None
-    tier = session["metadata"]["tier"]
-    stripe_sub_id = session["subscription"]
+    metadata = session["metadata"] if "metadata" in session else None
+    user_id = _md(metadata, "user_id") if metadata is not None else None
+    coach_id = (_md(metadata, "coach_id") if metadata is not None else None) or None
+    tier = _md(metadata, "tier") if metadata is not None else None
+    stripe_sub_id = _md(session, "subscription")
+    if not user_id or not tier or not stripe_sub_id:
+        return
 
     # Retrieve the subscription to get price info
     stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
 
     subscription_id = str(uuid.uuid4())
     amount_cents = TIER_AMOUNTS[tier]
+
+    stripe_customer_id = _md(session, "customer")
+
+    # Pick the default starter program for newly-paying members. Code
+    # 7741 = "Beginner Adult" — bodyweight-friendly first program. We
+    # assign it ONLY if the user doesn't already have an active program,
+    # so coaches who manually assigned a custom program aren't disturbed.
+    DEFAULT_PROGRAM_ACCESS_CODE = "7741"
 
     with db.cursor() as cur:
         cur.execute("""
@@ -271,15 +344,45 @@ def handle_checkout_completed(session, db):
             subscription_id, user_id, coach_id, tier,
             stripe_sub_id, PRICE_IDS[tier], amount_cents
         ))
+
+        # Stamp Stripe customer ID on the user (lets us look up their
+        # subscription from the customer side later — e.g. customer
+        # portal links).
+        if stripe_customer_id:
+            cur.execute(
+                "UPDATE users SET stripe_customer_id = %s WHERE id = %s AND stripe_customer_id IS NULL",
+                (stripe_customer_id, user_id),
+            )
+
+        # Assign the starter program if the user doesn't already have one
+        # (coaches may pre-assign a custom program before payment lands).
+        cur.execute("""
+            UPDATE users
+               SET active_kiosk_program_id = (
+                   SELECT id FROM workout_programs
+                   WHERE access_code = %s AND is_active = TRUE
+                   LIMIT 1
+               )
+             WHERE id = %s AND active_kiosk_program_id IS NULL
+        """, (DEFAULT_PROGRAM_ACCESS_CODE, user_id))
+
         db.commit()
 
-    # Send subscription confirmation email to the user
+    # Send subscription confirmation email to the user. Pass the actual
+    # assigned program's access code so the email matches what the
+    # dashboard will load (was sending legacy STARTER_CODES["bodyweight"]
+    # which didn't match the webhook's assignment).
     try:
         with db.cursor() as cur:
-            cur.execute("SELECT email, first_name FROM users WHERE id = %s", (user_id,))
+            cur.execute("""
+                SELECT u.email, u.first_name, wp.access_code
+                  FROM users u
+                  LEFT JOIN workout_programs wp ON wp.id = u.active_kiosk_program_id
+                 WHERE u.id = %s
+            """, (user_id,))
             user_row = cur.fetchone()
         if user_row:
-            send_subscription_email(user_row[0], user_row[1], tier)
+            send_subscription_email(user_row[0], user_row[1], tier, access_code=user_row[2])
     except:
         pass
 
@@ -313,7 +416,7 @@ def handle_checkout_completed(session, db):
 
 def handle_invoice_paid(invoice, db):
     """Recurring payment - fire commissions again each billing cycle."""
-    stripe_sub_id = invoice.get("subscription")
+    stripe_sub_id = _md(invoice, "subscription")
     if not stripe_sub_id:
         return
 

@@ -5,6 +5,8 @@ import Landing from './pages/Landing';
 import CoachPitch from './pages/CoachPitch';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import MemberDashboard from './pages/MemberDashboard';
 import CoachDashboard from './pages/CoachDashboard';
 import AdminDashboard from './pages/AdminDashboard';
@@ -40,6 +42,8 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/register/:referralCode" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/dashboard" element={<ProtectedRoute>{getDashboard()}</ProtectedRoute>} />
       <Route path="/coach" element={<ProtectedRoute requiredRole="coach"><CoachDashboard /></ProtectedRoute>} />
       <Route path="/apply-coach" element={<ApplyCoach />} />

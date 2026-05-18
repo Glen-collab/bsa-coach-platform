@@ -15,6 +15,8 @@ export const api = {
   // Auth
   register: (body) => request('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token, password) => request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
   // Fresh user state — tier from latest active subscription, plus the
   // assigned starter program's access code. Use this on dashboard mount
   // (not the localStorage snapshot, which is stale after payment).
@@ -22,6 +24,7 @@ export const api = {
 
   // Stripe
   checkout: (tier) => request('/stripe/checkout', { method: 'POST', body: JSON.stringify({ tier }) }),
+  billingPortal: () => request('/stripe/billing-portal', { method: 'POST', body: JSON.stringify({ return_url: window.location.origin + '/dashboard' }) }),
   connectOnboard: () => request('/stripe/connect/onboard', { method: 'POST' }),
 
   // Coach

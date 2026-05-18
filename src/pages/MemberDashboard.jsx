@@ -1,6 +1,6 @@
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useMediaQuery from '../hooks/useMediaQuery';
 
 const TRACKER_URL = 'https://bestrongagain.netlify.app/';
@@ -52,6 +52,26 @@ export default function MemberDashboard() {
   const s = buildStyles(isMobile);
   const { user } = useAuth();
   const [upgrading, setUpgrading] = useState(false);
+  const [managing,  setManaging]  = useState(false);
+
+  const handleManageSubscription = async () => {
+    setManaging(true);
+    try {
+      const res = await api.billingPortal();
+      if (res.url) window.location.href = res.url;
+    } catch (err) {
+      alert(err.message || 'Could not open the billing portal.');
+      setManaging(false);
+    }
+  };
+  // Fresh state from /auth/me — `user` from localStorage is stale right
+  // after a payment (tier flipped on the server, snapshot in storage is
+  // still pre-payment). Hit /me on mount so we display the correct tier
+  // and pass the assigned program's access code to the tracker.
+  const [me, setMe] = useState(null);
+  useEffect(() => {
+    api.me().then(setMe).catch(() => { /* fall back to localStorage user */ });
+  }, []);
 
   const handleUpgrade = async (tier) => {
     setUpgrading(true);
@@ -64,11 +84,15 @@ export default function MemberDashboard() {
     setUpgrading(false);
   };
 
-  // Build tracker URL with email + name prepopulated (tracker reads ?email=&code= & name= from URL).
+  // Build tracker URL with email + name + access_code prepopulated.
+  // Tracker reads ?email=&code=&name= and auto-loads the program when
+  // both email + code are present.
   const trackerParams = new URLSearchParams();
   if (user?.email) trackerParams.set('email', user.email);
   if (user?.first_name) trackerParams.set('name', user.first_name);
+  if (me?.active_access_code) trackerParams.set('code', me.active_access_code);
   const trackerHref = `${TRACKER_URL}?${trackerParams.toString()}`;
+  const currentTier = me?.tier || 'Free';
 
   return (
     <div style={s.page}>
@@ -91,7 +115,7 @@ export default function MemberDashboard() {
         <div style={s.cardTitle}>Your Plan</div>
         <div style={s.stat}>
           <div style={s.statLabel}>CURRENT TIER</div>
-          <div style={s.statValue}>{user?.tier || 'Free'}</div>
+          <div style={s.statValue}>{currentTier}</div>
         </div>
         <div style={s.tierRow}>
           <button style={s.btn} disabled={upgrading} onClick={() => handleUpgrade('basic')}>
@@ -104,6 +128,28 @@ export default function MemberDashboard() {
             {upgrading ? '...' : 'Elite — $400/mo'}
           </button>
         </div>
+
+        {/* Self-serve subscription management. Only show when they
+            actually have something to manage. Opens Stripe-hosted
+            billing portal — cancel, change card, download invoices. */}
+        {currentTier && currentTier.toLowerCase() !== 'free' && (
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #eee', textAlign: 'center' }}>
+            <button
+              onClick={handleManageSubscription}
+              disabled={managing}
+              style={{
+                padding: '10px 20px', border: '2px solid #15803d', borderRadius: '8px',
+                background: '#fff', color: '#15803d', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+                opacity: managing ? 0.6 : 1,
+              }}
+            >
+              {managing ? 'Opening…' : 'Manage Subscription / Cancel'}
+            </button>
+            <div style={{ marginTop: '6px', fontSize: '12px', color: '#888' }}>
+              Opens Stripe's secure billing portal. Cancel, update card, download invoices.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Referral card removed — members don't have Express accounts to

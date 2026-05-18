@@ -52,6 +52,9 @@ export default function Login() {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+        <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px' }}>
+          <Link to="/forgot-password" style={{ color: '#15803d' }}>Forgot password?</Link>
+        </div>
         <div style={s.footer}>
           Don't have an account? <Link to="/register">Sign up</Link>
         </div>

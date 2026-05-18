@@ -200,6 +200,54 @@ def register():
         db.close()
 
 
+@auth_bp.route("/me", methods=["GET"])
+@require_auth
+def me():
+    """Fresh user state — tier from latest active subscription + the
+    starter program's access_code if one is assigned. The dashboard
+    calls this on mount instead of trusting the stale localStorage
+    snapshot from login (tier flips post-payment, login is pre-payment)."""
+    user_id = request.current_user["user_id"]
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("""
+                SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.referral_code,
+                       u.stripe_customer_id, u.active_kiosk_program_id,
+                       wp.access_code AS program_access_code,
+                       wp.program_name AS program_name,
+                       s.tier AS sub_tier,
+                       s.status AS sub_status
+                FROM users u
+                LEFT JOIN workout_programs wp ON wp.id = u.active_kiosk_program_id
+                LEFT JOIN LATERAL (
+                    SELECT tier, status FROM subscriptions
+                    WHERE user_id = u.id AND status IN ('active','trialing','past_due')
+                    ORDER BY current_period_start DESC LIMIT 1
+                ) s ON TRUE
+                WHERE u.id = %s
+            """, (user_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Not found"}), 404
+            return jsonify({
+                "id":              str(row[0]),
+                "email":           row[1],
+                "first_name":      row[2],
+                "last_name":       row[3],
+                "role":            row[4],
+                "referral_code":   row[5],
+                "stripe_customer": row[6],
+                "active_program_id":   str(row[7]) if row[7] else None,
+                "active_access_code":  row[8],
+                "active_program_name": row[9],
+                "tier":          row[10],
+                "subscription_status": row[11],
+            })
+    finally:
+        db.close()
+
+
 @auth_bp.route("/login", methods=["POST"])
 def login():
     data = request.json
@@ -235,6 +283,115 @@ def login():
             }
         })
 
+    finally:
+        db.close()
+
+
+# ── Password Reset ────────────────────────────────────────────────────────────
+#
+# /forgot-password — email-only. Always returns 200 so an attacker can't probe
+# for valid emails. If the email IS valid we generate a 1-hour token, hash it,
+# store the hash, and email the user a magic reset link.
+#
+# /reset-password  — accepts the raw token + new password. Hashes the token,
+# looks it up, validates expiry + not-yet-used, sets the new password hash,
+# marks the token used.
+
+import hashlib
+import secrets
+
+PASSWORD_RESET_TTL_MIN = 60
+
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+@auth_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    from email_helper import send_password_reset_email
+    data = request.json or {}
+    email = (data.get("email") or "").lower().strip()
+    if not email:
+        return jsonify({"error": "Email required"}), 400
+
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT id, first_name FROM users WHERE LOWER(email) = %s AND is_active = TRUE",
+                (email,),
+            )
+            row = cur.fetchone()
+
+        # IMPORTANT: always respond 200. Don't leak whether the email exists.
+        if not row:
+            return jsonify({"ok": True})
+
+        user_id, first_name = row
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = _hash_reset_token(raw_token)
+
+        with db.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO password_resets (user_id, token_hash, expires_at)
+                VALUES (%s, %s, NOW() + (%s || ' minutes')::interval)
+                """,
+                (user_id, token_hash, PASSWORD_RESET_TTL_MIN),
+            )
+            db.commit()
+
+        try:
+            send_password_reset_email(email, first_name or "there", raw_token)
+        except Exception as e:
+            # Don't fail the request because email blew up — log and move on.
+            print(f"[forgot_password] email send failed: {e}")
+
+        return jsonify({"ok": True})
+    finally:
+        db.close()
+
+
+@auth_bp.route("/reset-password", methods=["POST"])
+def reset_password():
+    data = request.json or {}
+    raw_token = (data.get("token") or "").strip()
+    new_password = data.get("password") or ""
+
+    if not raw_token or len(new_password) < 8:
+        return jsonify({"error": "Token and a new password (8+ chars) are required"}), 400
+
+    token_hash = _hash_reset_token(raw_token)
+    new_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, user_id
+                FROM password_resets
+                WHERE token_hash = %s AND used_at IS NULL AND expires_at > NOW()
+                """,
+                (token_hash,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "This reset link is invalid or has expired."}), 400
+        reset_id, user_id = row
+
+        with db.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET password_hash = %s WHERE id = %s",
+                (new_hash, user_id),
+            )
+            cur.execute(
+                "UPDATE password_resets SET used_at = NOW() WHERE id = %s",
+                (reset_id,),
+            )
+            db.commit()
+        return jsonify({"ok": True})
     finally:
         db.close()
 

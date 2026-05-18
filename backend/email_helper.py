@@ -285,3 +285,28 @@ def notify_new_subscription(coach_email, coach_name, client_name, client_email, 
         """,
         reply_to=client_email
     )
+
+
+def send_password_reset_email(email, first_name, raw_token):
+    """Email the user a one-time password reset link. Token is valid for 1 hour."""
+    reset_url = f"{APP_URL}/reset-password?token={raw_token}"
+    send_email(
+        email,
+        "Reset your Be Strong Again password",
+        f"""
+        <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color:#15803d;">Reset your password</h2>
+            <p>Hey {first_name},</p>
+            <p>Someone (hopefully you) asked to reset your Be Strong Again password.</p>
+            <p>Click the button below to set a new one — this link is good for <strong>one hour</strong>.</p>
+            <p style="margin:24px 0;">
+              <a href="{reset_url}" style="display:inline-block;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;">
+                Set a new password
+              </a>
+            </p>
+            <p style="color:#666;font-size:13px;">If the button doesn't work, copy this link:<br>{reset_url}</p>
+            <p style="color:#666;font-size:13px;">Didn't ask for this? Ignore this email — your current password still works.</p>
+            <hr><p style="color:#888;font-size:12px;">Be Strong Again — Coach Glen</p>
+        </div>
+        """,
+    )
