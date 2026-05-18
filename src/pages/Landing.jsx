@@ -95,7 +95,12 @@ const buildStyles = (isMobile) => ({
   },
   tierName: { fontSize: '18px', fontWeight: 800, marginBottom: '4px', textAlign: 'center' },
   tierPrice: { fontSize: '34px', fontWeight: 900, color: '#15803d', textAlign: 'center', margin: '6px 0 2px', letterSpacing: '-1px' },
-  tierUnit: { fontSize: '13px', color: '#888', textAlign: 'center', marginBottom: '18px' },
+  tierUnit: { fontSize: '13px', color: '#888', textAlign: 'center', marginBottom: '10px' },
+  tierTagline: {
+    fontSize: '13px', color: '#15803d', textAlign: 'center',
+    fontStyle: 'italic', fontWeight: 600, marginBottom: '14px',
+    minHeight: '34px', // keeps the three cards aligned even when one wraps
+  },
   tierList: { listStyle: 'none', padding: 0, margin: '0 0 18px', flex: 1 },
   tierItem: { fontSize: '14px', padding: '6px 0', color: '#445', display: 'flex', gap: '8px', alignItems: 'flex-start' },
   tierCheck: { color: '#16a34a', fontWeight: 800, flexShrink: 0 },
@@ -148,7 +153,8 @@ export default function Landing() {
         <h1 style={s.heroTitle}>Train like you walked into my gym.</h1>
         <p style={s.heroSub}>
           Coach Glen's program in your phone. Real workouts, 1,000+ exercise
-          videos, and message me direct — for twenty bucks a month.
+          videos, and a program that meets you where you're at — for twenty
+          bucks a month.
         </p>
         <Link to={startLink('basic')} style={s.heroCta}>Start Today — $20</Link>
         <div style={s.heroNote}>Cancel anytime. First workout in under a minute.</div>
@@ -237,21 +243,22 @@ export default function Landing() {
       <section style={s.section}>
         <h2 style={s.sectionTitle}>Pick your level.</h2>
         <p style={s.sectionLead}>
-          Most people start at Basic. Upgrade anytime when you want more of my time.
+          Three levels. Pick how much of me you want.
         </p>
         <div style={s.tiers}>
           <div style={s.tier}>
             <div style={s.tierName}>Basic</div>
             <div style={s.tierPrice}>$20</div>
             <div style={s.tierUnit}>per month</div>
+            <div style={s.tierTagline}>"I got this. Just give me a program."</div>
             <ul style={s.tierList}>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Daily program</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Full video library</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Chat with Coach Glen</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Progress tracking</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Travel workouts</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Daily program built for general fitness</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Full video library + travel workouts</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Progress tracking — your numbers, your data</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Chat support when you need it (best-effort reply)</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> You drive. Minimal hand-holding.</li>
             </ul>
-            <Link to={startLink('basic')} style={s.tierBtn}>Start with Basic</Link>
+            <Link to={startLink('basic')} style={s.tierBtn}>Start at $20</Link>
           </div>
 
           <div style={{ ...s.tier, ...s.tierFeatured }}>
@@ -259,12 +266,13 @@ export default function Landing() {
             <div style={s.tierName}>Coached</div>
             <div style={s.tierPrice}>$200</div>
             <div style={s.tierUnit}>per month</div>
+            <div style={s.tierTagline}>"Build something for me — and check in now and then."</div>
             <ul style={s.tierList}>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Everything in Basic</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Weekly coach check-in</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Program tweaks to fit your life</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Form review on submitted clips</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Priority chat response</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Program is <strong>specific to you</strong> — your goals, your sport, your conditioning, your situation</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Periodic check-ins and program reviews — I reach out when your numbers tell me to</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Direct chat with Coach Glen — priority response</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Form review when you ask for it</li>
             </ul>
             <Link to={startLink('coached')} style={s.tierBtn}>Get Coached</Link>
           </div>
@@ -273,12 +281,15 @@ export default function Landing() {
             <div style={s.tierName}>Elite</div>
             <div style={s.tierPrice}>$400</div>
             <div style={s.tierUnit}>per month</div>
+            <div style={s.tierTagline}>"In the trenches with me."</div>
             <ul style={s.tierList}>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Everything in Coached</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Unlimited form reviews</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Nutrition guidance</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> <strong>Weekly check-ins</strong> — every week I'm in your data, your week, your training</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Program tweaks every week as your numbers come in</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> I follow your goals closely — sport-specific, body comp, performance</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Unlimited form reviews + nutrition guidance</li>
               <li style={s.tierItem}><span style={s.tierCheck}>✓</span> 1:1 video call monthly</li>
-              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Custom programming</li>
+              <li style={s.tierItem}><span style={s.tierCheck}>✓</span> Direct line — I watch your progress like an in-person client</li>
             </ul>
             <Link to={startLink('elite')} style={{ ...s.tierBtn, ...s.tierBtnQuiet }}>Go Elite</Link>
           </div>
