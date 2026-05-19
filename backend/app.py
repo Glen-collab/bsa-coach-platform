@@ -38,6 +38,7 @@ from media import media_bp
 from kiosk import kiosk_bp
 from cast import cast_bp
 from social import social_bp
+from members import members_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(stripe_bp, url_prefix='/api/stripe')
@@ -49,6 +50,7 @@ app.register_blueprint(media_bp, url_prefix='/api/media')
 app.register_blueprint(kiosk_bp, url_prefix='/api/kiosk')
 app.register_blueprint(cast_bp, url_prefix='/api/cast')
 app.register_blueprint(social_bp, url_prefix='/api/social')
+app.register_blueprint(members_bp, url_prefix='/api/members')
 
 @app.route('/api/health')
 def health():

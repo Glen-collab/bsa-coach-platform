@@ -492,3 +492,60 @@ def get_chatbot_config_public(coach_id):
     if config is None:
         return jsonify({"error": "not found"}), 404
     return jsonify(config)
+
+
+# ── Share AI summary to member dashboard ─────────────────────────────────────
+# The trainer dashboard's AI Coach Summary panel generates weekly + monthly
+# recaps. The coach can edit them, then push to the member's dashboard via
+# this endpoint. The text is whatever's in the textarea at click time — so
+# the coach controls exactly what the member sees.
+
+@coaches_bp.route("/share-summary", methods=["POST"])
+def share_summary():
+    """Body: { client_email, period: 'weekly'|'monthly', body }
+    Auth: coach JWT. Resolves the member from email."""
+    import jwt as pyjwt
+
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return jsonify({"error": "Authentication required"}), 401
+    try:
+        payload = pyjwt.decode(auth[7:], os.environ.get("SECRET_KEY"), algorithms=["HS256"])
+        coach_id = payload.get("user_id")
+    except Exception:
+        return jsonify({"error": "Invalid token"}), 401
+
+    data = request.json or {}
+    client_email = (data.get("client_email") or "").lower().strip()
+    period       = (data.get("period") or "").strip()
+    body         = (data.get("body") or "").strip()
+
+    if not client_email or period not in ("weekly", "monthly") or not body:
+        return jsonify({"error": "client_email, period (weekly|monthly), and body are required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT id FROM users WHERE LOWER(email) = %s", (client_email,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Member not found"}), 404
+        member_id = row["id"]
+
+        cur.execute(
+            """
+            INSERT INTO coach_summaries (user_id, coach_id, period, body)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, created_at
+            """,
+            (member_id, coach_id, period, body),
+        )
+        new_row = cur.fetchone()
+        db.commit()
+        return jsonify({
+            "success": True,
+            "id": str(new_row["id"]),
+            "created_at": new_row["created_at"].isoformat(),
+        })
+    finally:
+        db.close()

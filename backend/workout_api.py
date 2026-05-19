@@ -394,6 +394,18 @@ def log_workout():
     volume_stats = data.get("volume_stats")
     chatbot_data = data.get("chatbot_data")
 
+    # Optional today's-bodyweight from the tracker's weight tile. Numeric or
+    # None — skipped silently if not provided so legacy clients don't break.
+    body_weight = data.get("body_weight_lbs")
+    try:
+        body_weight = float(body_weight) if body_weight not in (None, "", 0, "0") else None
+        # Sanity bounds — nothing useful outside 50–700 lbs and we want to
+        # reject typos like 1850.
+        if body_weight is not None and (body_weight < 50 or body_weight > 700):
+            body_weight = None
+    except (TypeError, ValueError):
+        body_weight = None
+
     if not email or not code:
         return jsonify({"success": False, "message": "Email and access code required"}), 400
 
@@ -417,18 +429,21 @@ def log_workout():
 
         if existing:
             cur.execute("""
-                UPDATE workout_logs SET workout_data = %s, volume_stats = %s, chatbot_data = %s
+                UPDATE workout_logs
+                SET workout_data = %s, volume_stats = %s, chatbot_data = %s,
+                    body_weight_lbs = COALESCE(%s, body_weight_lbs)
                 WHERE id = %s
-            """, (json.dumps(workout_data), json.dumps(volume_stats), json.dumps(chatbot_data), existing["id"]))
+            """, (json.dumps(workout_data), json.dumps(volume_stats), json.dumps(chatbot_data),
+                  body_weight, existing["id"]))
         else:
             cur.execute("""
                 INSERT INTO workout_logs (access_code, user_email, user_name, program_name,
                     week_number, day_number, workout_date, workout_data, volume_stats, chatbot_data,
-                    one_rm_bench, one_rm_squat, one_rm_deadlift, one_rm_clean)
-                VALUES (%s, %s, %s, %s, %s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s)
+                    one_rm_bench, one_rm_squat, one_rm_deadlift, one_rm_clean, body_weight_lbs)
+                VALUES (%s, %s, %s, %s, %s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (code, email, name, program_name, week, day,
                   json.dumps(workout_data), json.dumps(volume_stats), json.dumps(chatbot_data),
-                  bench, squat, deadlift, clean))
+                  bench, squat, deadlift, clean, body_weight))
 
         # Advance position
         cur.execute("SELECT * FROM workout_programs WHERE access_code = %s", (code,))

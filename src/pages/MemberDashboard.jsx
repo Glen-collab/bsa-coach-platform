@@ -69,8 +69,12 @@ export default function MemberDashboard() {
   // still pre-payment). Hit /me on mount so we display the correct tier
   // and pass the assigned program's access code to the tracker.
   const [me, setMe] = useState(null);
+  const [dash, setDash] = useState(null);
+  const [summaries, setSummaries] = useState(null);
   useEffect(() => {
     api.me().then(setMe).catch(() => { /* fall back to localStorage user */ });
+    api.memberDashboard().then(setDash).catch(() => setDash({ error: true }));
+    api.memberCoachSummaries().then(setSummaries).catch(() => setSummaries({ unlocked: false, summaries: [] }));
   }, []);
 
   const handleUpgrade = async (tier) => {
@@ -152,12 +156,237 @@ export default function MemberDashboard() {
         )}
       </div>
 
-      {/* Referral card removed — members don't have Express accounts to
-          receive commission payouts, so the "earn when you refer"
-          promise was false. Coaches still see their referral tools on
-          CoachDashboard via the existing 3-tier MLM commission engine.
-          If we add a member-share-with-friend feature later (no $$,
-          just a way for them to invite people), put it here. */}
+      {/* ── Tier-gated stats ─── */}
+      <DashboardSections dash={dash} summaries={summaries} s={s} onUpgrade={handleUpgrade} upgrading={upgrading} />
+
+      {/* Community — pulls them back to the blog/forum */}
+      <div style={s.card}>
+        <div style={s.cardTitle}>Community</div>
+        <p style={{ fontSize: '13px', color: '#666', margin: '0 0 12px', lineHeight: 1.5 }}>
+          Read the latest training write-ups, nutrition breakdowns, and member stories on the blog.
+        </p>
+        <a
+          href="https://bestrongagain.com/blog/"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: 'inline-block', padding: '10px 18px',
+            background: 'linear-gradient(135deg, #1a1a2e, #16213e)', color: '#fff',
+            borderRadius: '8px', fontSize: '13px', fontWeight: 700, textDecoration: 'none',
+          }}
+        >
+          Open the Blog →
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tier-gated sections. Renders charts + summaries + locked upgrade teases.
+// All the data lives on /api/members/dashboard, gated server-side.
+
+function DashboardSections({ dash, summaries, s, onUpgrade, upgrading }) {
+  if (!dash || dash.error) {
+    return null;
+  }
+
+  return (
+    <>
+      {/* Stats card — tonnage always; calories + cardio gated */}
+      <div style={s.card}>
+        <div style={s.cardTitle}>Your Numbers</div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          <StatTile label="Lifetime sessions" value={(dash.lifetime?.sessions || 0).toLocaleString()} />
+          <StatTile label="Lifetime tonnage" value={`${(dash.lifetime?.tonnage || 0).toLocaleString()} lbs`} />
+        </div>
+
+        <ChartBlock title="Weekly tonnage" series={dash.tonnage_chart} valueKey="tonnage" unit="lbs" />
+
+        {dash.calories_chart?.unlocked ? (
+          <ChartBlock title="Weekly calorie burn" series={dash.calories_chart.data} valueKey="calories" unit="cal" />
+        ) : (
+          <LockedTease tease={dash.calories_chart?.tease} upgradeTo="coached" onUpgrade={onUpgrade} disabled={upgrading} />
+        )}
+
+        {dash.cardio_chart?.unlocked ? (
+          <ChartBlock title="Weekly cardio minutes" series={dash.cardio_chart.data} valueKey="cardio_min" unit="min" />
+        ) : (
+          <LockedTease tease={dash.cardio_chart?.tease} upgradeTo="elite" onUpgrade={onUpgrade} disabled={upgrading} />
+        )}
+      </div>
+
+      {/* Weight trend — all tiers, only if data exists */}
+      {dash.weight_chart?.data?.length > 0 && (
+        <div style={s.card}>
+          <div style={s.cardTitle}>Bodyweight</div>
+          <WeightChart series={dash.weight_chart.data} />
+          <p style={{ fontSize: '11px', color: '#888', margin: '6px 0 0' }}>
+            Logged on the tracker's optional weight tile.
+          </p>
+        </div>
+      )}
+
+      {/* AI coach summaries archive */}
+      <div style={s.card}>
+        <div style={s.cardTitle}>Coach Summaries</div>
+        {!summaries ? (
+          <div style={{ fontSize: '13px', color: '#888' }}>Loading…</div>
+        ) : summaries.unlocked ? (
+          summaries.summaries.length === 0 ? (
+            <div style={{ fontSize: '13px', color: '#888' }}>
+              Nothing here yet. Your coach will share weekly/monthly summaries here as your training progresses.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {summaries.summaries.map((row) => (
+                <SummaryRow key={row.id} row={row} />
+              ))}
+            </div>
+          )
+        ) : (
+          <LockedTease tease={summaries.tease || 'Personalized coach summaries — unlock with Coached'} upgradeTo="coached" onUpgrade={onUpgrade} disabled={upgrading} />
+        )}
+      </div>
+    </>
+  );
+}
+
+function StatTile({ label, value }) {
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff',
+      borderRadius: '10px', padding: '10px 14px', minWidth: '140px',
+    }}>
+      <div style={{ fontSize: '11px', opacity: 0.85, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</div>
+      <div style={{ fontSize: '18px', fontWeight: 800, marginTop: '4px' }}>{value}</div>
+    </div>
+  );
+}
+
+// Tiny inline-SVG line chart. No chart lib needed; series is short (≤12).
+function ChartBlock({ title, series, valueKey, unit }) {
+  const data = Array.isArray(series) ? series : [];
+  const hasData = data.some((d) => (Number(d[valueKey]) || 0) > 0);
+  return (
+    <div style={{ marginTop: '12px' }}>
+      <div style={{ fontSize: '12px', fontWeight: 700, color: '#444', marginBottom: '6px' }}>{title}</div>
+      {hasData ? (
+        <MiniLineChart points={data.map((d) => Number(d[valueKey]) || 0)} unit={unit} />
+      ) : (
+        <div style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic' }}>
+          Log a few workouts and this chart fills in.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WeightChart({ series }) {
+  const points = series.map((d) => d.weight);
+  return <MiniLineChart points={points} unit="lbs" tight />;
+}
+
+function MiniLineChart({ points, unit, tight }) {
+  if (!points || points.length === 0) return null;
+  const width = 320, height = 80, pad = 8;
+  const min = tight ? Math.min(...points) - 1 : 0;
+  const max = Math.max(...points, 1);
+  const range = Math.max(max - min, 1);
+  const stepX = points.length > 1 ? (width - pad * 2) / (points.length - 1) : 0;
+  const coord = (v, i) => [
+    pad + stepX * i,
+    height - pad - ((v - min) / range) * (height - pad * 2),
+  ];
+  const path = points.map((v, i) => {
+    const [x, y] = coord(v, i);
+    return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(' ');
+  const lastPoint = coord(points[points.length - 1], points.length - 1);
+  const lastVal = points[points.length - 1];
+  return (
+    <div>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '80px' }}>
+        <path d={path} fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={lastPoint[0]} cy={lastPoint[1]} r="3.5" fill="#15803d" />
+      </svg>
+      <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+        Latest: <strong style={{ color: '#15803d' }}>{Math.round(lastVal).toLocaleString()} {unit}</strong>
+      </div>
+    </div>
+  );
+}
+
+function LockedTease({ tease, upgradeTo, onUpgrade, disabled }) {
+  return (
+    <div style={{
+      marginTop: '12px',
+      padding: '14px 16px',
+      background: 'linear-gradient(135deg, #fafbfc, #f1f5f9)',
+      border: '1px dashed #c7cdd6',
+      borderRadius: '10px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '12px',
+      flexWrap: 'wrap',
+    }}>
+      <div style={{ fontSize: '13px', color: '#555', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '16px' }}>🔒</span>
+        <span>{tease}</span>
+      </div>
+      <button
+        onClick={() => onUpgrade(upgradeTo)}
+        disabled={disabled}
+        style={{
+          padding: '8px 14px', border: 'none', borderRadius: '8px',
+          background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+          fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+          opacity: disabled ? 0.6 : 1,
+        }}
+      >
+        Upgrade →
+      </button>
+    </div>
+  );
+}
+
+function SummaryRow({ row }) {
+  const [open, setOpen] = useState(false);
+  const dateStr = new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const preview = (row.body || '').split('\n').filter(Boolean)[0] || '';
+  return (
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: '10px', overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          width: '100%', textAlign: 'left',
+          padding: '12px 14px', background: '#fff', border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+            <span style={{
+              fontSize: '10px', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.4px',
+              padding: '2px 6px', background: '#dcfce7', borderRadius: '4px',
+            }}>{row.period}</span>
+            <span style={{ fontSize: '12px', color: '#888' }}>{dateStr}</span>
+          </div>
+          <div style={{ fontSize: '13px', color: '#1a1a2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {preview}
+          </div>
+        </div>
+        <span style={{ color: '#888', fontSize: '14px' }}>{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div style={{
+          padding: '12px 14px 16px', background: '#fafafa', borderTop: '1px solid #eee',
+          fontSize: '13px', color: '#333', lineHeight: 1.55, whiteSpace: 'pre-wrap',
+        }}>
+          {row.body}
+        </div>
+      )}
     </div>
   );
 }

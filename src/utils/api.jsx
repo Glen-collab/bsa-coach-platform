@@ -22,6 +22,10 @@ export const api = {
   // (not the localStorage snapshot, which is stale after payment).
   me: () => request('/auth/me'),
 
+  // Member dashboard (tier-gated stats + charts)
+  memberDashboard:    () => request('/members/dashboard'),
+  memberCoachSummaries: () => request('/members/coach-summaries'),
+
   // Stripe
   checkout: (tier) => request('/stripe/checkout', { method: 'POST', body: JSON.stringify({ tier }) }),
   billingPortal: () => request('/stripe/billing-portal', { method: 'POST', body: JSON.stringify({ return_url: window.location.origin + '/dashboard' }) }),
