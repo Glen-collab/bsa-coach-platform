@@ -192,10 +192,17 @@ def coach_workout_clients(coach_id):
 
         # Get their workout positions (same format as get-clients.php).
         # LEFT JOIN users + LATERAL subscriptions to pick up plan tier/price
-        # so the trainer dashboard can show "$20/mo" badges.
+        # so the trainer dashboard can show "$20/mo" badges. Resolved name
+        # falls back to users.first_name + users.last_name when the tracker
+        # never received a name param (welcome email links from prior
+        # versions didn't include &name=).
         placeholders = ','.join(['%s'] * len(client_emails))
         cur.execute(f"""
             SELECT up.*,
+                   COALESCE(
+                       NULLIF(TRIM(up.user_name), ''),
+                       NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '')
+                   ) AS resolved_user_name,
                    p.program_name,
                    sub.sub_tier         AS plan_tier,
                    sub.sub_amount_cents AS plan_amount_cents,
@@ -219,11 +226,12 @@ def coach_workout_clients(coach_id):
 
         clients = []
         for r in rows:
+            resolved_name = r.get("resolved_user_name") or r.get("user_name") or ""
             clients.append({
                 "user_email": r["user_email"],
                 "email": r["user_email"],
-                "user_name": r.get("user_name", ""),
-                "name": r.get("user_name", ""),
+                "user_name": resolved_name,
+                "name": resolved_name,
                 "access_code": r["access_code"],
                 "accessCode": r["access_code"],
                 "program_name": r.get("program_name", ""),

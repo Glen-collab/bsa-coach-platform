@@ -3,6 +3,7 @@ email_helper.py — Shared email sending for BSA Coach Platform
 """
 import os
 import smtplib
+import urllib.parse
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -146,7 +147,8 @@ def notify_coach_denied(email, first_name, notes=""):
 def send_welcome_email(email, first_name):
     """Send welcome email to new user with free bodyweight workout."""
     code = STARTER_CODES["bodyweight"]
-    app_link = f"{TRACKER_URL}/?code={code}&email={email}"
+    name_param = f"&name={urllib.parse.quote(first_name)}" if first_name else ""
+    app_link = f"{TRACKER_URL}/?code={code}&email={email}{name_param}"
     send_email(
         email,
         f"Welcome {first_name} — your free workout is ready",
@@ -209,7 +211,11 @@ def send_subscription_email(email, first_name, tier, access_code=None):
         else:
             access_code = STARTER_CODES["bodyweight"]
 
-    app_link = f"{TRACKER_URL}/?code={access_code}&email={email}"
+    # Pre-fill name in the tracker URL so workout_user_position.user_name
+    # gets populated on first load (otherwise the trainer dashboard shows
+    # only the email).
+    name_param = f"&name={urllib.parse.quote(first_name)}" if first_name else ""
+    app_link = f"{TRACKER_URL}/?code={access_code}&email={email}{name_param}"
 
     tier_details = {
         "basic": "You've got access to workout programs and our library of 950+ exercise videos. Your coach will check in with you every couple weeks to make sure you're on track.",

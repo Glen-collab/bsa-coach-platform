@@ -1077,8 +1077,16 @@ def get_clients():
         # LEFT JOIN users by email so we can pick up their Stripe-backed
         # subscription tier. LATERAL JOIN picks the most relevant
         # subscriptions row — active first, then most recent if no active.
+        # Resolved name falls back to users.first_name + last_name when the
+        # tracker never captured a name (e.g. welcome-email link from before
+        # we started passing &name=).
         cur.execute("""
-            SELECT up.*, p.program_name,
+            SELECT up.*,
+                   COALESCE(
+                       NULLIF(TRIM(up.user_name), ''),
+                       NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '')
+                   ) AS resolved_user_name,
+                   p.program_name,
                    sub.sub_tier         AS plan_tier,
                    sub.sub_amount_cents AS plan_amount_cents,
                    sub.sub_status       AS plan_status,
@@ -1101,12 +1109,13 @@ def get_clients():
 
         clients = []
         for r in rows:
+            resolved_name = r.get("resolved_user_name") or r.get("user_name") or ""
             clients.append({
                 # Snake case for trainer dashboard compatibility
                 "user_email": r["user_email"],
                 "email": r["user_email"],
-                "user_name": r.get("user_name", ""),
-                "name": r.get("user_name", ""),
+                "user_name": resolved_name,
+                "name": resolved_name,
                 "access_code": r["access_code"],
                 "accessCode": r["access_code"],
                 "program_name": r.get("program_name", ""),
