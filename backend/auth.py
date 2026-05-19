@@ -287,6 +287,38 @@ def login():
         db.close()
 
 
+# ── Lightweight membership check ─────────────────────────────────────────────
+# Public endpoint — given an email, says whether that person has an active
+# Stripe subscription. The tracker uses this to decide whether the Dashboard
+# button opens the real dashboard or an upsell modal. Email-existence leak
+# matches the surface already exposed by /forgot-password.
+
+@auth_bp.route("/check-member", methods=["POST"])
+def check_member():
+    data = request.json or {}
+    email = (data.get("email") or "").lower().strip()
+    if not email:
+        return jsonify({"is_member": False})
+
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1
+                FROM users u
+                JOIN subscriptions s ON s.user_id = u.id
+                WHERE LOWER(u.email) = %s AND s.status = 'active'
+                LIMIT 1
+                """,
+                (email,),
+            )
+            is_member = cur.fetchone() is not None
+        return jsonify({"is_member": is_member})
+    finally:
+        db.close()
+
+
 # ── Password Reset ────────────────────────────────────────────────────────────
 #
 # /forgot-password — email-only. Always returns 200 so an attacker can't probe
