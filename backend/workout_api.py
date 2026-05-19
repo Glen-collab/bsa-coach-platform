@@ -1247,6 +1247,64 @@ def get_client_details():
         wp_sorted = sorted(weekly_progress.values(), key=lambda x: x["week_number"])
         wv_sorted = sorted(weekly_volume.values(), key=lambda x: x["week"])
 
+        # Cross-program lifetime — aggregate across EVERY program this user
+        # has been on (matched by user_email). Powers the "Across all
+        # programs" mini-card on the trainer dashboard and gives the AI
+        # Coach Summary the context to recognize program transitions.
+        cur.execute(
+            """
+            SELECT COUNT(*)::int                                                          AS sessions,
+                   COALESCE(SUM((volume_stats->>'tonnage')::numeric), 0)::int             AS tonnage,
+                   COALESCE(SUM((volume_stats->>'est_calories')::numeric), 0)::int        AS calories,
+                   COALESCE(SUM((volume_stats->>'cardio_minutes')::numeric), 0)::int      AS cardio_min,
+                   COALESCE(SUM((volume_stats->>'core_crunches')::numeric), 0)::int       AS core_reps
+            FROM workout_logs
+            WHERE LOWER(user_email) = %s
+            """,
+            (email,),
+        )
+        lifetime_totals = cur.fetchone() or {}
+
+        # Per-program rollup. Base is workout_user_position so a program
+        # the user was assigned but never logged against (e.g. brand-new
+        # current program) still shows up — sessions=0, is_current=true.
+        # That signal is what the AI Coach Summary uses to recognize a
+        # program transition.
+        cur.execute(
+            """
+            SELECT up.access_code,
+                   COALESCE(p.program_name, '(unnamed program)') AS program_name,
+                   COUNT(wl.id)::int                              AS sessions,
+                   MIN(wl.workout_date)                           AS first_logged,
+                   MAX(wl.workout_date)                           AS last_logged,
+                   COALESCE(SUM((wl.volume_stats->>'tonnage')::numeric), 0)::int       AS tonnage,
+                   COALESCE(SUM((wl.volume_stats->>'est_calories')::numeric), 0)::int  AS calories
+            FROM workout_user_position up
+            LEFT JOIN workout_programs p ON p.access_code = up.access_code
+            LEFT JOIN workout_logs wl ON wl.access_code = up.access_code
+                                     AND LOWER(wl.user_email) = LOWER(up.user_email)
+            WHERE LOWER(up.user_email) = %s
+            GROUP BY up.access_code, p.program_name, up.updated_at
+            ORDER BY MAX(wl.workout_date) DESC NULLS LAST,
+                     up.updated_at DESC
+            """,
+            (email,),
+        )
+        program_rows = cur.fetchall()
+        programs_history = [
+            {
+                "access_code":  r["access_code"],
+                "program_name": r["program_name"],
+                "sessions":     r["sessions"],
+                "first_logged": str(r["first_logged"]) if r["first_logged"] else None,
+                "last_logged":  str(r["last_logged"]) if r["last_logged"] else None,
+                "tonnage":      r["tonnage"],
+                "calories":     r["calories"],
+                "is_current":   r["access_code"] == code,
+            }
+            for r in program_rows
+        ]
+
         return jsonify({
             "success": True,
             "data": {
@@ -1258,6 +1316,17 @@ def get_client_details():
                 "days_per_week": days_per_week,
                 "total_volume_stats": total_volume,
                 "weekly_volume_stats": wv_sorted,
+                # NEW: cross-program lifetime for the user across ALL their
+                # programs (not just this access_code).
+                "lifetime": {
+                    "sessions":   int(lifetime_totals.get("sessions") or 0),
+                    "tonnage":    int(lifetime_totals.get("tonnage") or 0),
+                    "calories":   int(lifetime_totals.get("calories") or 0),
+                    "cardio_min": int(lifetime_totals.get("cardio_min") or 0),
+                    "core_reps":  int(lifetime_totals.get("core_reps") or 0),
+                    "program_count": len(programs_history),
+                    "programs": programs_history,
+                },
             }
         })
     finally:
