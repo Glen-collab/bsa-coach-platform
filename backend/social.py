@@ -687,6 +687,27 @@ def friend_stats(friend_user_id):
         today = aggregate("workout_date = CURRENT_DATE")
         week  = aggregate("workout_date >= CURRENT_DATE - INTERVAL '7 days'")
 
+        # Most recently-logged bodyweight from the tracker's weight tile —
+        # surfaces as a single "latest weight" line on the friend's sneak
+        # peek. Optional: returns null if friend never logs weight.
+        cur.execute(
+            """
+            SELECT body_weight_lbs, workout_date
+            FROM workout_logs
+            WHERE LOWER(user_email) = LOWER(%s) AND body_weight_lbs IS NOT NULL
+            ORDER BY workout_date DESC, created_at DESC
+            LIMIT 1
+            """,
+            (friend_email,),
+        )
+        bw_row = cur.fetchone()
+        latest_weight = None
+        if bw_row and bw_row.get("body_weight_lbs") is not None:
+            latest_weight = {
+                "weight_lbs": float(bw_row["body_weight_lbs"]),
+                "logged_on":  bw_row["workout_date"].isoformat() if bw_row["workout_date"] else None,
+            }
+
         def shape(row_):
             return {
                 "sessions":   row_["sessions"],
@@ -701,6 +722,7 @@ def friend_stats(friend_user_id):
             "first_name": first_name,
             "today": shape(today),
             "week":  shape(week),
+            "latest_weight": latest_weight,
         })
     finally:
         db.close()
