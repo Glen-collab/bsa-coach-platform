@@ -193,13 +193,15 @@ function DashboardSections({ dash, summaries, s }) {
 
   return (
     <>
-      {/* Stats card — tonnage always; calories + cardio gated */}
+      {/* Stats card */}
       <div style={s.card}>
         <div style={s.cardTitle}>Your Numbers</div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px' }}>
           <StatTile label="Lifetime sessions" value={(dash.lifetime?.sessions || 0).toLocaleString()} />
           <StatTile label="Lifetime tonnage" value={`${(dash.lifetime?.tonnage || 0).toLocaleString()} lbs`} />
         </div>
+
+        <TonnageStory tonnage={dash.lifetime?.tonnage || 0} />
 
         <ChartBlock title="Weekly tonnage" series={dash.tonnage_chart} valueKey="tonnage" unit="lbs" />
         <ChartBlock title="Weekly calorie burn" series={dash.calories_chart?.data} valueKey="calories" unit="cal" />
@@ -233,6 +235,111 @@ function DashboardSections({ dash, summaries, s }) {
         )}
       </div>
     </>
+  );
+}
+
+// Tonnage milestones — real-ish weights of recognizable objects so the
+// abstract "lifetime tonnage" number becomes a concrete story. Ordered
+// ascending; we show whatever the user has already crossed + the next one
+// as a target. Numbers are approximate but trustworthy.
+const TONNAGE_MILESTONES = [
+  { lbs: 500,       thing: 'a Smart car',           emoji: '🚗' },
+  { lbs: 2000,      thing: 'a pickup truck',        emoji: '🛻' },
+  { lbs: 5000,      thing: 'a Ford F-150',          emoji: '🚙' },
+  { lbs: 12000,     thing: 'an elephant',           emoji: '🐘' },
+  { lbs: 25000,     thing: 'a school bus',          emoji: '🚌' },
+  { lbs: 80000,     thing: 'a semi-truck',          emoji: '🚛' },
+  { lbs: 140000,    thing: 'an M1 Abrams tank',     emoji: '🪖' },
+  { lbs: 225000,    thing: 'the Statue of Liberty', emoji: '🗽' },
+  { lbs: 485000,    thing: 'a Boeing 747',          emoji: '✈️' },
+  { lbs: 875000,    thing: 'a fully-loaded 747',    emoji: '🛫' },
+  { lbs: 2000000,   thing: 'a cargo ship',          emoji: '🚢' },
+  { lbs: 5000000,   thing: 'the Eiffel Tower',      emoji: '🗼' },
+];
+
+function tonnageStoryFor(lbs) {
+  let achieved = null;
+  let next = null;
+  for (let i = 0; i < TONNAGE_MILESTONES.length; i++) {
+    const m = TONNAGE_MILESTONES[i];
+    if (lbs >= m.lbs) achieved = m;
+    else { next = m; break; }
+  }
+  if (!achieved && next) {
+    return { achieved: null, next, progress: lbs / next.lbs, remaining: next.lbs - lbs };
+  }
+  if (!next) {
+    return { achieved, next: null, progress: 1, remaining: 0 };
+  }
+  const span = next.lbs - achieved.lbs;
+  const into = lbs - achieved.lbs;
+  return { achieved, next, progress: into / span, remaining: next.lbs - lbs };
+}
+
+function TonnageStory({ tonnage }) {
+  if (!tonnage || tonnage < 100) {
+    return (
+      <div style={{
+        marginBottom: '14px', padding: '12px 14px',
+        background: 'linear-gradient(135deg, #fffbeb, #fef3c7)',
+        border: '1px solid #fde68a', borderRadius: '12px',
+        fontSize: '13px', color: '#7c2d12', display: 'flex', alignItems: 'center', gap: '8px',
+      }}>
+        <span style={{ fontSize: '20px' }}>💪</span>
+        <span>Log a workout to start your tonnage story.</span>
+      </div>
+    );
+  }
+  const story = tonnageStoryFor(tonnage);
+  const pct = Math.max(0, Math.min(100, Math.round((story.progress || 0) * 100)));
+
+  return (
+    <div style={{
+      marginBottom: '14px',
+      padding: '14px 16px',
+      background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)',
+      border: '1px solid #86efac',
+      borderRadius: '12px',
+    }}>
+      {story.achieved ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: story.next ? '12px' : 0 }}>
+          <span style={{ fontSize: '32px', lineHeight: 1 }}>{story.achieved.emoji}</span>
+          <div>
+            <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              You've lifted
+            </div>
+            <div style={{ fontSize: '17px', fontWeight: 800, color: '#064e3b', lineHeight: 1.2 }}>
+              {story.achieved.thing}
+            </div>
+            <div style={{ fontSize: '11px', color: '#15803d', marginTop: '2px' }}>
+              ≈ {story.achieved.lbs.toLocaleString()} lbs
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: '13px', color: '#064e3b', marginBottom: '12px' }}>
+          You're building toward your first big milestone — keep going.
+        </div>
+      )}
+
+      {story.next && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: '12px', color: '#15803d', marginBottom: '4px' }}>
+            <span>Next: <strong style={{ color: '#064e3b' }}>{story.next.thing}</strong> {story.next.emoji}</span>
+            <span style={{ fontWeight: 700 }}>{story.remaining.toLocaleString()} lbs to go</span>
+          </div>
+          <div style={{ height: '6px', background: 'rgba(21,128,61,0.15)', borderRadius: '999px', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${pct}%`,
+              background: 'linear-gradient(90deg, #16a34a, #15803d)',
+              borderRadius: '999px',
+              transition: 'width 0.4s ease',
+            }} />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
