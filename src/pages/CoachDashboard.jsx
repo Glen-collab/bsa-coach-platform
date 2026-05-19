@@ -131,6 +131,22 @@ export default function CoachDashboard() {
         </div>
       </div>
 
+      {/* Pending payout footnote — earnings shown above are EARNED.
+          Pending means the platform owes you the money but the Stripe
+          Connect transfer hasn't run (usually because Stripe Connect
+          isn't onboarded yet). */}
+      {(summary.pending || 0) > 0 && (
+        <div style={{
+          marginTop: '-6px', marginBottom: '14px',
+          padding: '8px 12px', borderRadius: '8px',
+          background: '#fefce8', border: '1px solid #fde68a',
+          fontSize: '12px', color: '#78350f', lineHeight: 1.4,
+        }}>
+          <strong>${((summary.pending || 0) / 100).toFixed(0)} pending Stripe Connect payout.</strong>
+          {' '}You've earned it — it transfers to your bank once Stripe Connect is set up above.
+        </div>
+      )}
+
       {/* Quick Tools */}
       <div style={s.card}>
         <div style={s.cardTitle}>Your Tools</div>

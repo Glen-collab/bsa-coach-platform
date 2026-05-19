@@ -93,19 +93,31 @@ def coach_dashboard(coach_id):
             }
             clients.append(client)
 
-        # Earnings summary
+        # Earnings summary. Tiles on the coach dashboard show total EARNED
+        # (paid + pending) so a coach who hasn't onboarded Stripe Connect
+        # still sees their real revenue — with a pending-payout footnote.
+        # Returns cents; UI divides by 100.
         cur.execute("""
             SELECT
-                COALESCE(SUM(commission_amount_cents) FILTER (WHERE status = 'paid'), 0) as total_paid,
-                COALESCE(SUM(commission_amount_cents) FILTER (WHERE status = 'pending'), 0) as total_pending,
-                COUNT(*) FILTER (WHERE status = 'paid') as total_transactions
+                COALESCE(SUM(commission_amount_cents)
+                         FILTER (WHERE status IN ('paid','pending')
+                                 AND created_at >= DATE_TRUNC('month', NOW())), 0) AS this_month_cents,
+                COALESCE(SUM(commission_amount_cents)
+                         FILTER (WHERE status IN ('paid','pending')), 0)            AS all_time_cents,
+                COALESCE(SUM(commission_amount_cents)
+                         FILTER (WHERE status = 'paid'), 0)                         AS paid_cents,
+                COALESCE(SUM(commission_amount_cents)
+                         FILTER (WHERE status = 'pending'), 0)                      AS pending_cents,
+                COUNT(*) FILTER (WHERE status IN ('paid','pending'))                AS total_transactions
             FROM commissions
             WHERE earner_id = %s
         """, (coach_id,))
         earnings_row = cur.fetchone()
         earnings = {
-            "total_paid": earnings_row["total_paid"] / 100,
-            "total_pending": earnings_row["total_pending"] / 100,
+            "this_month":         int(earnings_row["this_month_cents"]),
+            "all_time":           int(earnings_row["all_time_cents"]),
+            "paid":               int(earnings_row["paid_cents"]),
+            "pending":            int(earnings_row["pending_cents"]),
             "total_transactions": earnings_row["total_transactions"] or 0,
         }
 
