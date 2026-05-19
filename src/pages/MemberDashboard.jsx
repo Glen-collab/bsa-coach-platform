@@ -156,8 +156,8 @@ export default function MemberDashboard() {
         )}
       </div>
 
-      {/* ── Tier-gated stats ─── */}
-      <DashboardSections dash={dash} summaries={summaries} s={s} onUpgrade={handleUpgrade} upgrading={upgrading} />
+      {/* ── Member stats: charts, weight, summaries (no gates) ─── */}
+      <DashboardSections dash={dash} summaries={summaries} s={s} />
 
       {/* Community — pulls them back to the blog/forum */}
       <div style={s.card}>
@@ -186,7 +186,7 @@ export default function MemberDashboard() {
 // Tier-gated sections. Renders charts + summaries + locked upgrade teases.
 // All the data lives on /api/members/dashboard, gated server-side.
 
-function DashboardSections({ dash, summaries, s, onUpgrade, upgrading }) {
+function DashboardSections({ dash, summaries, s }) {
   if (!dash || dash.error) {
     return null;
   }
@@ -202,18 +202,8 @@ function DashboardSections({ dash, summaries, s, onUpgrade, upgrading }) {
         </div>
 
         <ChartBlock title="Weekly tonnage" series={dash.tonnage_chart} valueKey="tonnage" unit="lbs" />
-
-        {dash.calories_chart?.unlocked ? (
-          <ChartBlock title="Weekly calorie burn" series={dash.calories_chart.data} valueKey="calories" unit="cal" />
-        ) : (
-          <LockedTease tease={dash.calories_chart?.tease} upgradeTo="coached" onUpgrade={onUpgrade} disabled={upgrading} />
-        )}
-
-        {dash.cardio_chart?.unlocked ? (
-          <ChartBlock title="Weekly cardio minutes" series={dash.cardio_chart.data} valueKey="cardio_min" unit="min" />
-        ) : (
-          <LockedTease tease={dash.cardio_chart?.tease} upgradeTo="elite" onUpgrade={onUpgrade} disabled={upgrading} />
-        )}
+        <ChartBlock title="Weekly calorie burn" series={dash.calories_chart?.data} valueKey="calories" unit="cal" />
+        <ChartBlock title="Weekly cardio minutes" series={dash.cardio_chart?.data} valueKey="cardio_min" unit="min" />
       </div>
 
       {/* Weight trend — all tiers, only if data exists */}
@@ -227,25 +217,22 @@ function DashboardSections({ dash, summaries, s, onUpgrade, upgrading }) {
         </div>
       )}
 
-      {/* AI coach summaries archive */}
+      {/* AI coach summaries archive — visible to all tiers, empty until
+          the coach pushes one from the trainer dashboard. */}
       <div style={s.card}>
         <div style={s.cardTitle}>Coach Summaries</div>
         {!summaries ? (
           <div style={{ fontSize: '13px', color: '#888' }}>Loading…</div>
-        ) : summaries.unlocked ? (
-          summaries.summaries.length === 0 ? (
-            <div style={{ fontSize: '13px', color: '#888' }}>
-              Nothing here yet. Your coach will share weekly/monthly summaries here as your training progresses.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {summaries.summaries.map((row) => (
-                <SummaryRow key={row.id} row={row} />
-              ))}
-            </div>
-          )
+        ) : summaries.summaries?.length === 0 ? (
+          <div style={{ fontSize: '13px', color: '#888' }}>
+            Nothing here yet. Your coach will share weekly or monthly summaries here as your training progresses.
+          </div>
         ) : (
-          <LockedTease tease={summaries.tease || 'Personalized coach summaries — unlock with Coached'} upgradeTo="coached" onUpgrade={onUpgrade} disabled={upgrading} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {summaries.summaries.map((row) => (
+              <SummaryRow key={row.id} row={row} />
+            ))}
+          </div>
         )}
       </div>
     </>
@@ -313,40 +300,6 @@ function MiniLineChart({ points, unit, tight }) {
       <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
         Latest: <strong style={{ color: '#15803d' }}>{Math.round(lastVal).toLocaleString()} {unit}</strong>
       </div>
-    </div>
-  );
-}
-
-function LockedTease({ tease, upgradeTo, onUpgrade, disabled }) {
-  return (
-    <div style={{
-      marginTop: '12px',
-      padding: '14px 16px',
-      background: 'linear-gradient(135deg, #fafbfc, #f1f5f9)',
-      border: '1px dashed #c7cdd6',
-      borderRadius: '10px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '12px',
-      flexWrap: 'wrap',
-    }}>
-      <div style={{ fontSize: '13px', color: '#555', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '16px' }}>🔒</span>
-        <span>{tease}</span>
-      </div>
-      <button
-        onClick={() => onUpgrade(upgradeTo)}
-        disabled={disabled}
-        style={{
-          padding: '8px 14px', border: 'none', borderRadius: '8px',
-          background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
-          fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-          opacity: disabled ? 0.6 : 1,
-        }}
-      >
-        Upgrade →
-      </button>
     </div>
   );
 }

@@ -117,17 +117,9 @@ def member_dashboard():
         )
         lifetime = cur.fetchone() or {"sessions": 0, "tonnage": 0, "calories": 0, "cardio_min": 0}
 
-        # Tier-gate the payload — only return fields they're allowed to see.
-        # All tiers see sessions + tonnage. Calories unlocks at coached.
-        # Cardio + weight + summaries unlock at elite. Locked sections still
-        # return a marker so the client can render the upgrade tease.
-        rank = TIER_RANK.get(tier, 0)
-
-        def gated(min_tier_rank, payload, lock_tease):
-            if rank >= min_tier_rank:
-                return {"unlocked": True, **payload}
-            return {"unlocked": False, "tease": lock_tease}
-
+        # All charts available to every tier — gates were dropped because
+        # making $20/mo members stare at locked cards every visit hurts
+        # retention more than it drives upgrades.
         return jsonify({
             "user": {"first_name": u["first_name"], "email": email},
             "tier": tier,
@@ -136,18 +128,10 @@ def member_dashboard():
                 "sessions": lifetime["sessions"],
                 "tonnage":  lifetime["tonnage"],
             },
-            "tonnage_chart": [{"week_start": w["week_start"], "tonnage": w["tonnage"], "sessions": w["sessions"]} for w in weeks],
-            "calories_chart": gated(
-                TIER_RANK["coached"],
-                {"data": [{"week_start": w["week_start"], "calories": w["calories"]} for w in weeks]},
-                "Calorie burn — unlock with Coached",
-            ),
-            "cardio_chart": gated(
-                TIER_RANK["elite"],
-                {"data": [{"week_start": w["week_start"], "cardio_min": w["cardio_min"]} for w in weeks]},
-                "Cardio time tracking — unlock with Elite",
-            ),
-            "weight_chart": {"data": weight_series},  # all tiers — personal history
+            "tonnage_chart":  [{"week_start": w["week_start"], "tonnage":   w["tonnage"],   "sessions": w["sessions"]} for w in weeks],
+            "calories_chart": {"unlocked": True, "data": [{"week_start": w["week_start"], "calories":   w["calories"]} for w in weeks]},
+            "cardio_chart":   {"unlocked": True, "data": [{"week_start": w["week_start"], "cardio_min": w["cardio_min"]} for w in weeks]},
+            "weight_chart":   {"data": weight_series},
         })
     finally:
         db.close()
@@ -156,49 +140,23 @@ def member_dashboard():
 @members_bp.route("/coach-summaries", methods=["GET"])
 @require_auth
 def coach_summaries():
-    """Tier-gated archive of AI-generated coach summaries the coach has
-    shared to this member's dashboard. Coached → monthly only.
-    Elite → weekly + monthly."""
+    """Archive of AI summaries the coach has shared with this member.
+    Available to every tier — empty array if the coach hasn't shared
+    anything yet. The coach controls who gets summaries via the
+    Send-to-Dashboard button in the trainer dashboard."""
     user_id = request.current_user["user_id"]
     db = get_db()
     try:
         cur = db.cursor()
         cur.execute(
             """
-            SELECT (SELECT tier FROM subscriptions
-                    WHERE user_id = %s
-                    ORDER BY (CASE WHEN status = 'active' THEN 0 ELSE 1 END), created_at DESC
-                    LIMIT 1) AS active_tier
-            """,
-            (user_id,),
-        )
-        row = cur.fetchone()
-        tier = (row.get("active_tier") if row else None) or "free"
-        rank = TIER_RANK.get(tier, 0)
-
-        if rank < TIER_RANK["coached"]:
-            return jsonify({
-                "tier": tier,
-                "unlocked": False,
-                "tease": "Personalized coach summaries — unlock with Coached",
-                "summaries": [],
-            })
-
-        # Coached: monthly only. Elite: both.
-        if rank >= TIER_RANK["elite"]:
-            periods = ("weekly", "monthly")
-        else:
-            periods = ("monthly",)
-
-        cur.execute(
-            """
             SELECT id, period, body, created_at
             FROM coach_summaries
-            WHERE user_id = %s AND period = ANY(%s)
+            WHERE user_id = %s
             ORDER BY created_at DESC
             LIMIT 50
             """,
-            (user_id, list(periods)),
+            (user_id,),
         )
         summaries = [
             {
@@ -209,6 +167,6 @@ def coach_summaries():
             }
             for r in cur.fetchall()
         ]
-        return jsonify({"tier": tier, "unlocked": True, "summaries": summaries})
+        return jsonify({"unlocked": True, "summaries": summaries})
     finally:
         db.close()
