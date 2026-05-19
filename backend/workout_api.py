@@ -394,6 +394,15 @@ def log_workout():
     volume_stats = data.get("volume_stats")
     chatbot_data = data.get("chatbot_data")
 
+    # Trust the tracker's local calendar date when provided. Fixes the case
+    # where a user trains at 11pm Central and CURRENT_DATE (UTC) stamps it
+    # as the next day. Format: 'YYYY-MM-DD'. Falls back to UTC CURRENT_DATE
+    # for legacy callers that don't send the field.
+    import re as _re
+    client_workout_date = data.get("workout_date")
+    if not (client_workout_date and _re.match(r"^\d{4}-\d{2}-\d{2}$", str(client_workout_date))):
+        client_workout_date = None
+
     # Optional today's-bodyweight from the tracker's weight tile. Numeric or
     # None — skipped silently if not provided so legacy clients don't break.
     body_weight = data.get("body_weight_lbs")
@@ -431,17 +440,19 @@ def log_workout():
             cur.execute("""
                 UPDATE workout_logs
                 SET workout_data = %s, volume_stats = %s, chatbot_data = %s,
-                    body_weight_lbs = COALESCE(%s, body_weight_lbs)
+                    body_weight_lbs = COALESCE(%s, body_weight_lbs),
+                    workout_date = COALESCE(%s::date, workout_date)
                 WHERE id = %s
             """, (json.dumps(workout_data), json.dumps(volume_stats), json.dumps(chatbot_data),
-                  body_weight, existing["id"]))
+                  body_weight, client_workout_date, existing["id"]))
         else:
             cur.execute("""
                 INSERT INTO workout_logs (access_code, user_email, user_name, program_name,
                     week_number, day_number, workout_date, workout_data, volume_stats, chatbot_data,
                     one_rm_bench, one_rm_squat, one_rm_deadlift, one_rm_clean, body_weight_lbs)
-                VALUES (%s, %s, %s, %s, %s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, COALESCE(%s::date, CURRENT_DATE), %s, %s, %s, %s, %s, %s, %s, %s)
             """, (code, email, name, program_name, week, day,
+                  client_workout_date,
                   json.dumps(workout_data), json.dumps(volume_stats), json.dumps(chatbot_data),
                   bench, squat, deadlift, clean, body_weight))
 
