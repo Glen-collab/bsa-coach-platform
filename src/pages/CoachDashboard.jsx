@@ -102,8 +102,10 @@ export default function CoachDashboard() {
       <h1 style={s.title}>Coach Dashboard</h1>
       <p style={s.sub}>Manage your clients, track earnings, and grow your team.</p>
 
-      {/* Stripe Connect */}
-      {!user?.stripe_onboarded && (
+      {/* Stripe Connect — hidden for platform owner (admin) because their
+          subscription revenue lands directly in the platform Stripe account.
+          They don't need a separate Express account to receive transfers. */}
+      {!user?.stripe_onboarded && user?.role !== 'admin' && (
         <div style={{ ...s.card, background: '#fffbeb', border: '1px solid #f59e0b' }}>
           <div style={s.cardTitle}>Set Up Payouts</div>
           <p style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>
@@ -131,11 +133,11 @@ export default function CoachDashboard() {
         </div>
       </div>
 
-      {/* Pending payout footnote — earnings shown above are EARNED.
-          Pending means the platform owes you the money but the Stripe
-          Connect transfer hasn't run (usually because Stripe Connect
-          isn't onboarded yet). */}
-      {(summary.pending || 0) > 0 && (
+      {/* Pending payout footnote — only relevant for recruited coaches who
+          haven't onboarded their Connect Express account yet. For the
+          platform owner the money is already in their main Stripe account,
+          so "pending payout" would be misleading. */}
+      {(summary.pending || 0) > 0 && user?.role !== 'admin' && (
         <div style={{
           marginTop: '-6px', marginBottom: '14px',
           padding: '8px 12px', borderRadius: '8px',
