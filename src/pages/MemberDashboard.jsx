@@ -206,14 +206,11 @@ function DashboardSections({ dash, summaries, s }) {
         <ChartBlock title="Weekly cardio minutes" series={dash.cardio_chart?.data} valueKey="cardio_min" unit="min" />
       </div>
 
-      {/* Weight trend — all tiers, only if data exists */}
+      {/* Weight trend — Hume-style smoothed line + raw dots */}
       {dash.weight_chart?.data?.length > 0 && (
         <div style={s.card}>
           <div style={s.cardTitle}>Bodyweight</div>
           <WeightChart series={dash.weight_chart.data} />
-          <p style={{ fontSize: '11px', color: '#888', margin: '6px 0 0' }}>
-            Logged on the tracker's optional weight tile.
-          </p>
         </div>
       )}
 
@@ -269,9 +266,97 @@ function ChartBlock({ title, series, valueKey, unit }) {
   );
 }
 
+// Hume-style weight chart. Daily measurements are noisy (water, food,
+// time of day) so the headline is the EWMA-smoothed trend, with the raw
+// data points shown faded behind it. Same approach Happy Scale / Hacker's
+// Diet use — α=0.1 gives roughly a 10-day half-life.
 function WeightChart({ series }) {
-  const points = series.map((d) => d.weight);
-  return <MiniLineChart points={points} unit="lbs" tight />;
+  if (!series || series.length === 0) return null;
+
+  const ALPHA = 0.1;
+  const trend = [];
+  for (let i = 0; i < series.length; i++) {
+    const w = series[i].weight;
+    const prev = i === 0 ? w : trend[i - 1];
+    trend.push(prev + ALPHA * (w - prev));
+  }
+
+  const raw = series.map((d) => d.weight);
+  const allValues = [...raw, ...trend];
+  const minVal = Math.min(...allValues) - 1;
+  const maxVal = Math.max(...allValues) + 1;
+  const range = Math.max(maxVal - minVal, 1);
+
+  const width = 320, height = 150, padX = 8, padTop = 8, padBottom = 18;
+  const plotH = height - padTop - padBottom;
+  const stepX = series.length > 1 ? (width - padX * 2) / (series.length - 1) : 0;
+  const x = (i) => padX + stepX * i;
+  const y = (v) => padTop + plotH - ((v - minVal) / range) * plotH;
+
+  const trendPath = trend
+    .map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
+    .join(' ');
+
+  const latestTrend  = trend[trend.length - 1];
+  const oldestTrend  = trend[0];
+  const deltaLb = latestTrend - oldestTrend;
+  const firstDate = new Date(series[0].date);
+  const lastDate  = new Date(series[series.length - 1].date);
+  const dayCount  = Math.max(1, Math.round((lastDate - firstDate) / 86400000));
+  const deltaColor = deltaLb < -0.2 ? '#15803d' : deltaLb > 0.2 ? '#b91c1c' : '#666';
+  const deltaArrow = deltaLb < -0.2 ? '▼' : deltaLb > 0.2 ? '▲' : '—';
+
+  // Pull 3 reference y-grid values evenly across the range for context.
+  const grid = [minVal, (minVal + maxVal) / 2, maxVal];
+
+  // Date label helpers
+  const fmtShort = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  return (
+    <div>
+      {/* Headline trend weight + delta */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '4px' }}>
+        <div>
+          <span style={{ fontSize: '11px', color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Trend weight</span>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#1a1a2e', lineHeight: 1 }}>
+            {latestTrend.toFixed(1)}<span style={{ fontSize: '14px', color: '#888', fontWeight: 600, marginLeft: '4px' }}>lbs</span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: '11px', color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{dayCount}-day change</div>
+          <div style={{ fontSize: '18px', fontWeight: 800, color: deltaColor, lineHeight: 1 }}>
+            {deltaArrow} {Math.abs(deltaLb).toFixed(1)} lbs
+          </div>
+        </div>
+      </div>
+
+      {/* Chart */}
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '150px', marginTop: '6px' }}>
+        {/* Reference grid lines */}
+        {grid.map((g, i) => (
+          <g key={i}>
+            <line x1={padX} x2={width - padX} y1={y(g)} y2={y(g)} stroke="#eef0f3" strokeWidth="1" />
+            <text x={width - padX} y={y(g) - 2} textAnchor="end" fontSize="9" fill="#aaa">{g.toFixed(0)}</text>
+          </g>
+        ))}
+        {/* Faded raw daily dots */}
+        {raw.map((v, i) => (
+          <circle key={i} cx={x(i)} cy={y(v)} r="2.5" fill="#94a3b8" fillOpacity="0.45" />
+        ))}
+        {/* Smoothed trend line */}
+        <path d={trendPath} fill="none" stroke="#16a34a" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Endpoint marker */}
+        <circle cx={x(trend.length - 1)} cy={y(latestTrend)} r="4" fill="#15803d" stroke="#fff" strokeWidth="2" />
+        {/* Date axis */}
+        <text x={padX}            y={height - 4} textAnchor="start" fontSize="10" fill="#aaa">{fmtShort(firstDate)}</text>
+        <text x={width - padX}    y={height - 4} textAnchor="end"   fontSize="10" fill="#aaa">{fmtShort(lastDate)}</text>
+      </svg>
+
+      <p style={{ fontSize: '11px', color: '#888', margin: '4px 0 0' }}>
+        Faded dots are daily readings. The line is the smoothed trend that ignores day-to-day noise.
+      </p>
+    </div>
+  );
 }
 
 function MiniLineChart({ points, unit, tight }) {
