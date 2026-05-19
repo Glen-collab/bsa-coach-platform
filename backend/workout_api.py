@@ -233,6 +233,20 @@ def load_program():
             chat_user = None
             chat_token = None
 
+        # Cumulative weeks for the Test-Your-Might belt progression.
+        # Computed dynamically as distinct ISO-weeks the user has logged
+        # ANY workout in, across ALL their access codes. This is what
+        # makes belts persist across programs (the per-row counter never
+        # delivered that — see commit history). Robust to non-linear
+        # progression, retroactively correct for every existing user.
+        cur.execute(
+            "SELECT COUNT(DISTINCT DATE_TRUNC('week', workout_date))::int AS weeks "
+            "FROM workout_logs WHERE LOWER(user_email) = LOWER(%s)",
+            (email,),
+        )
+        cw_row = cur.fetchone()
+        user_cumulative_weeks = (cw_row.get("weeks") if cw_row else 0) or 0
+
         return jsonify({
             "success": True,
             "data": {
@@ -256,7 +270,7 @@ def load_program():
                     "weightLbs": str(position.get("weight_lbs") or ""),
                     "age": str(position.get("age") or ""),
                     "gender": position.get("gender") or "",
-                    "cumulativeWeeks": position.get("cumulative_weeks") or 0,
+                    "cumulativeWeeks": user_cumulative_weeks,
                     "questionnaireCompleted": bool(position.get("questionnaire_completed")),
                     "consentAccepted": bool(position.get("consent_accepted")),
                 },
@@ -495,10 +509,20 @@ def log_workout():
 
         db.commit()
 
-        # Get user position info for email
-        cur.execute("SELECT cumulative_weeks FROM workout_user_position WHERE access_code = %s AND user_email = %s", (code, email))
-        pos_row = cur.fetchone()
-        cumulative_weeks = pos_row["cumulative_weeks"] if pos_row else 0
+        # Cumulative weeks for the Test-Your-Might game + email belt
+        # banner. Dynamic count of distinct weeks the user has logged
+        # workouts in, across ALL their access codes — so belts persist
+        # across program transitions instead of resetting on each new
+        # program. (Per-row workout_user_position.cumulative_weeks is
+        # vestigial — schema kept for legacy callers, but never read for
+        # game state anymore.)
+        cur.execute(
+            "SELECT COUNT(DISTINCT DATE_TRUNC('week', workout_date))::int AS weeks "
+            "FROM workout_logs WHERE LOWER(user_email) = LOWER(%s)",
+            (email,),
+        )
+        cw_row = cur.fetchone()
+        cumulative_weeks = (cw_row.get("weeks") if cw_row else 0) or 0
 
         # Get workout count for game
         cur.execute("SELECT COUNT(*) as count FROM workout_logs WHERE access_code = %s AND user_email = %s", (code, email))
@@ -579,6 +603,7 @@ def log_workout():
             "data": {
                 "email_sent": True,
                 "workout_count": count_row["count"] if count_row else 0,
+                "cumulative_weeks": cumulative_weeks,
                 "is_relog": is_relog,
             }
         })
