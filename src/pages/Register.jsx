@@ -73,6 +73,18 @@ export default function Register() {
 
       navigate(redirectTo || '/dashboard');
     } catch (err) {
+      // Existing account at this email — route them into login instead of
+      // dead-ending. Brings the welcome-back banner + forgot-password link
+      // in the right place. Preserves tier so a successful login → upgrade
+      // path can fire later if we want.
+      if (err.code === 'account_exists' || err.message === 'account_exists') {
+        const q = new URLSearchParams();
+        q.set('email', email);
+        q.set('reason', 'upgrade');
+        if (presetTier) q.set('tier', presetTier);
+        navigate(`/login?${q.toString()}`);
+        return;
+      }
       setError(err.message);
     }
     setLoading(false);

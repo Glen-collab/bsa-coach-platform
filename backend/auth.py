@@ -195,7 +195,16 @@ def register():
         })
 
     except psycopg2.IntegrityError:
-        return jsonify({"error": "Email already registered"}), 409
+        # Most common cause: someone already has an account at this email
+        # (e.g. Bluehost-era imports clicking "Become a Member" from the
+        # tracker). Return a structured signal so the frontend can route
+        # them into the login flow instead of dead-ending on a red banner.
+        return jsonify({
+            "code": "account_exists",
+            "error": "account_exists",
+            "message": f"An account already exists for {email}. Log in to continue.",
+            "email": email,
+        }), 409
     finally:
         db.close()
 

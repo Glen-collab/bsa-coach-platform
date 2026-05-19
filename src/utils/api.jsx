@@ -7,7 +7,15 @@ async function request(endpoint, options = {}) {
 
   const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+  if (!res.ok) {
+    // Throw with the friendly message but attach the raw payload + a code so
+    // callers can branch on structured error responses (e.g. account_exists).
+    const err = new Error(data.message || data.error || 'Request failed');
+    err.code = data.code || data.error;
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
   return data;
 }
 

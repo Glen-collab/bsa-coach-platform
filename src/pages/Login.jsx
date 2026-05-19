@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
 
@@ -16,7 +16,12 @@ const s = {
 };
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [params] = useSearchParams();
+  const prefilledEmail = params.get('email') || '';
+  const reason = params.get('reason'); // 'upgrade' when bounced from /register
+  const tier = params.get('tier');
+
+  const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,6 +35,15 @@ export default function Login() {
     try {
       const res = await api.login({ email, password });
       login(res.user, res.token);
+
+      // If they bounced over from /register intending to upgrade to a paid
+      // tier, send them straight into Stripe checkout once authenticated.
+      if (reason === 'upgrade' && tier && ['basic', 'coached', 'elite'].includes(tier)) {
+        try {
+          const co = await api.checkout(tier);
+          if (co?.checkout_url) { window.location.href = co.checkout_url; return; }
+        } catch { /* fall through to dashboard, they can retry from there */ }
+      }
       navigate('/dashboard');
     } catch (err) {
       setError(err.message);
@@ -42,6 +56,21 @@ export default function Login() {
       <div style={s.card}>
         <h1 style={s.title}>Welcome Back</h1>
         <p style={s.subtitle}>Log in to your account</p>
+
+        {reason === 'upgrade' && (
+          <div style={{
+            background: '#ecfdf5', border: '1px solid #86efac',
+            color: '#065f46', padding: '12px 14px', borderRadius: '10px',
+            fontSize: '13px', marginBottom: '16px', lineHeight: 1.5,
+          }}>
+            We found your account. Log in to continue — your existing email and
+            history are already on file. Forgot your password?{' '}
+            <Link to={`/forgot-password${prefilledEmail ? '?email=' + encodeURIComponent(prefilledEmail) : ''}`} style={{ color: '#15803d', fontWeight: 700 }}>
+              Reset it →
+            </Link>
+          </div>
+        )}
+
         {error && <div style={s.error}>{error}</div>}
         <form onSubmit={handleSubmit}>
           <label style={s.label}>Email</label>
