@@ -266,6 +266,7 @@ export default function CoachDashboard() {
               <tr>
                 <th style={s.th}>Name</th>
                 <th style={s.th}>Tier</th>
+                <th style={s.th}>Goals</th>
                 <th style={s.th}>Status</th>
                 <th style={s.th}>Joined</th>
               </tr>
@@ -275,6 +276,20 @@ export default function CoachDashboard() {
                 <tr key={c.id}>
                   <td style={s.td}>{c.first_name} {c.last_name}</td>
                   <td style={s.td}>{c.tier || '—'}</td>
+                  <td style={s.td}>
+                    {c.goals && c.goals.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', maxWidth: '200px' }}>
+                        {c.goals.map((g) => (
+                          <span key={g} style={{
+                            display: 'inline-block', background: '#fef3c7', color: '#92400e',
+                            padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap',
+                          }}>{g}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ color: '#bbb' }}>—</span>
+                    )}
+                  </td>
                   <td style={s.td}>
                     <span style={{ color: c.status === 'active' ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
                       {c.status || 'pending'}

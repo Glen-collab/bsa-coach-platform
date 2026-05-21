@@ -40,7 +40,7 @@ def coach_dashboard(coach_id):
         # Clients who signed up via this coach's referral code
         cur.execute("""
             SELECT u.id, u.first_name, u.last_name, u.email, u.created_at,
-                   s.tier, s.status as sub_status, s.amount_cents
+                   s.tier, s.status as sub_status, s.amount_cents, u.goals
             FROM users u
             LEFT JOIN subscriptions s ON s.user_id = u.id AND s.status = 'active'
             WHERE u.referred_by_id = %s AND u.role = 'member'
@@ -82,6 +82,7 @@ def coach_dashboard(coach_id):
                 "tier": pc["tier"],
                 "sub_status": pc["sub_status"],
                 "monthly_value": (pc["amount_cents"] or 0) / 100,
+                "goals": pc["goals"] or [],
                 "programs": [{
                     "access_code": w["access_code"],
                     "program_name": w["program_name"],
