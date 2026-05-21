@@ -123,9 +123,10 @@ export const api = {
   kioskDeviceSetDisplay: (deviceId, opts) => request('/kiosk/device/set-display', { method: 'POST', body: JSON.stringify({ device_id: deviceId, ...opts }) }),
 
   // Remote power — queue a command for the Pi to pick up on next poll.
-  kioskShutdown:   () => request('/kiosk/shutdown',     { method: 'POST' }),
-  kioskPiReboot:   () => request('/kiosk/pi-reboot',    { method: 'POST' }),
-  kioskPiQuitGame: () => request('/kiosk/pi-quit-game', { method: 'POST' }),
+  // Pass a device_serial to target one Pi; omit for "all my Pis".
+  kioskShutdown:   (deviceSerial) => request('/kiosk/shutdown',     { method: 'POST', body: JSON.stringify(deviceSerial ? { device_serial: deviceSerial } : {}) }),
+  kioskPiReboot:   (deviceSerial) => request('/kiosk/pi-reboot',    { method: 'POST', body: JSON.stringify(deviceSerial ? { device_serial: deviceSerial } : {}) }),
+  kioskPiQuitGame: (deviceSerial) => request('/kiosk/pi-quit-game', { method: 'POST', body: JSON.stringify(deviceSerial ? { device_serial: deviceSerial } : {}) }),
 
   // Health
   health: () => request('/health'),

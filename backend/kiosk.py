@@ -687,30 +687,39 @@ def _coach_code_for(user):
     return row["referral_code"].strip().upper()
 
 
+def _device_serial_from_request():
+    """Optional device_serial out of the request body — present when the coach
+    targeted a specific Pi from the dashboard, absent (NULL) when broadcasting
+    to all of their devices."""
+    data = request.get_json(silent=True) or {}
+    serial = (data.get("device_serial") or "").strip()
+    return serial or None
+
+
 @kiosk_bp.route("/shutdown", methods=["POST", "OPTIONS"])
 @require_auth
 def queue_shutdown():
-    """Coach queues a graceful shutdown for their own Pi kiosk(s)."""
+    """Coach queues a graceful shutdown.
+    Body { device_serial: "..." } targets one Pi; omit for all coach's Pis."""
     if request.method == "OPTIONS":
         return "", 200
     code = _coach_code_for(request.current_user)
     if not code:
         return jsonify({"success": False, "message": "No coach code on your account"}), 400
-    return _queue_kiosk_command(code, "shutdown")
+    return _queue_kiosk_command(code, "shutdown", _device_serial_from_request())
 
 
 @kiosk_bp.route("/pi-reboot", methods=["POST", "OPTIONS"])
 @require_auth
 def queue_pi_reboot():
-    """Coach reboots their Pi kiosk remotely.
-    Named pi-reboot to avoid collision with any future /reboot endpoint
-    meant for something else."""
+    """Coach reboots a Pi kiosk remotely.
+    Body { device_serial: "..." } targets one Pi; omit for all coach's Pis."""
     if request.method == "OPTIONS":
         return "", 200
     code = _coach_code_for(request.current_user)
     if not code:
         return jsonify({"success": False, "message": "No coach code on your account"}), 400
-    return _queue_kiosk_command(code, "reboot")
+    return _queue_kiosk_command(code, "reboot", _device_serial_from_request())
 
 
 @kiosk_bp.route("/pi-quit-game", methods=["POST", "OPTIONS"])
@@ -719,25 +728,26 @@ def queue_pi_quit_game():
     """Kill the currently running RetroArch game on the coach's Pi
     without leaving arcade mode — drops the TV back to the game picker
     so the user can choose a different game. The Pi agent translates
-    this into a POST to http://localhost:8088/api/quit."""
+    this into a POST to http://localhost:8088/api/quit.
+    Body { device_serial: "..." } targets one Pi; omit for all coach's Pis."""
     if request.method == "OPTIONS":
         return "", 200
     code = _coach_code_for(request.current_user)
     if not code:
         return jsonify({"success": False, "message": "No coach code on your account"}), 400
-    return _queue_kiosk_command(code, "quit_game")
+    return _queue_kiosk_command(code, "quit_game", _device_serial_from_request())
 
 
-def _queue_kiosk_command(coach_code, command):
+def _queue_kiosk_command(coach_code, command, device_serial=None):
     if command not in _ALLOWED_COMMANDS:
         return jsonify({"success": False, "message": "unknown command"}), 400
     db = get_db()
     try:
         cur = db.cursor()
         cur.execute(
-            """INSERT INTO kiosk_commands (coach_code, command)
-               VALUES (%s, %s) RETURNING id, created_at, expires_at""",
-            (coach_code, command),
+            """INSERT INTO kiosk_commands (coach_code, command, device_serial)
+               VALUES (%s, %s, %s) RETURNING id, created_at, expires_at""",
+            (coach_code, command, device_serial),
         )
         row = cur.fetchone()
         db.commit()
@@ -745,6 +755,7 @@ def _queue_kiosk_command(coach_code, command):
             "success": True,
             "id": row["id"],
             "command": command,
+            "device_serial": device_serial,
             "expires_at": str(row["expires_at"]),
         })
     finally:
@@ -753,30 +764,36 @@ def _queue_kiosk_command(coach_code, command):
 
 @kiosk_bp.route("/commands", methods=["GET"])
 def poll_commands():
-    """Pi polls here with ?coach_code=<its referral_code>. Returns
-    pending (unacked, unexpired) commands.
+    """Pi polls here with ?coach_code=<its referral_code>&device=<serial>.
+    Returns pending (unacked, unexpired) commands targeted at this device
+    or broadcast to the whole coach (device_serial IS NULL).
 
     Unauthenticated on purpose — the Pi has no user session and would
     be painful to bootstrap JWTs onto. The coach_code acts as a shared
     secret: it was placed in /home/pi/bsa-config at captive-portal
     onboarding and only the Pi and the coach know it. Worst case a
     leaked code would let an attacker send 'shutdown' / 'reboot' to
-    *that coach's* Pi — disruptive but not catastrophic."""
+    *that coach's* Pi(s) — disruptive but not catastrophic.
+
+    `device` is also optional for backwards compat with older Pi agents
+    that pre-date per-device targeting; those just receive broadcasts."""
     coach_code = (request.args.get("coach_code") or "").strip().upper()
     if not coach_code:
         return jsonify({"commands": []})
+    device_serial = (request.args.get("device") or "").strip() or None
     db = get_db()
     try:
         cur = db.cursor()
         cur.execute(
-            """SELECT id, command
+            """SELECT id, command, device_serial
                FROM kiosk_commands
                WHERE coach_code = %s
                  AND executed_at IS NULL
                  AND expires_at > NOW()
+                 AND (device_serial IS NULL OR device_serial = %s)
                ORDER BY created_at ASC
                LIMIT 5""",
-            (coach_code,),
+            (coach_code, device_serial),
         )
         rows = cur.fetchall()
         return jsonify({"commands": [dict(r) for r in rows]})

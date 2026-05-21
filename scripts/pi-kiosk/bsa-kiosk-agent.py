@@ -40,6 +40,24 @@ logging.basicConfig(
 log = logging.getLogger("bsa-kiosk-agent")
 
 
+def read_cpu_serial():
+    """Pi CPU serial from /proc/cpuinfo — same identifier the rest of the
+    BSA stack uses to register a device (coach_devices.device_serial).
+    Returns None if we can't read it; the agent then polls broadcast-only."""
+    try:
+        with open("/proc/cpuinfo", "r") as f:
+            for line in f:
+                if line.startswith("Serial"):
+                    parts = line.split(":", 1)
+                    if len(parts) == 2:
+                        s = parts[1].strip()
+                        if s and s != "0000000000000000":
+                            return s
+    except Exception as e:
+        log.warning("Could not read /proc/cpuinfo: %s", e)
+    return None
+
+
 def read_coach_code():
     """bsa-config can be either:
       • JSON:        {"coach_code": "GLENM7NUS"}
@@ -96,8 +114,14 @@ def http_post(url, body=None):
         return json.load(resp)
 
 
-def poll(coach_code):
+def poll(coach_code, device_serial=None):
+    """Pass our own device_serial so the backend can filter out
+    commands targeted at another Pi on the same coach code. If
+    device_serial is None (couldn't read /proc/cpuinfo), backend returns
+    broadcasts only — degraded but safe."""
     url = f"{API_BASE}/commands?coach_code={urllib.request.quote(coach_code)}"
+    if device_serial:
+        url += f"&device={urllib.request.quote(device_serial)}"
     return http_get(url).get("commands", [])
 
 
@@ -140,11 +164,21 @@ def main():
     if not coach_code:
         log.error("No COACH_CODE in %s; exiting", CONFIG_PATH)
         sys.exit(1)
-    log.info("Agent online — polling %s for coach=%s every %ds", API_BASE, coach_code, POLL_INTERVAL)
+    device_serial = read_cpu_serial()
+    if device_serial:
+        log.info(
+            "Agent online — polling %s for coach=%s device=%s every %ds",
+            API_BASE, coach_code, device_serial[-6:], POLL_INTERVAL,
+        )
+    else:
+        log.warning(
+            "Agent online — polling %s for coach=%s WITHOUT device id (broadcast-only) every %ds",
+            API_BASE, coach_code, POLL_INTERVAL,
+        )
     backoff = POLL_INTERVAL
     while True:
         try:
-            cmds = poll(coach_code)
+            cmds = poll(coach_code, device_serial)
             backoff = POLL_INTERVAL
             for cmd in cmds:
                 if execute(cmd):
