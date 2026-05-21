@@ -203,7 +203,7 @@ export default function GymTV() {
           so it's default-open. Collapse to compress the page when juggling
           multiple Pis. */}
       <details style={s.section} open>
-        <summary style={{ ...s.sectionTitle, cursor: 'pointer', userSelect: 'none', listStyle: 'none' }}>
+        <summary style={{ ...s.sectionTitle, cursor: 'pointer', userSelect: 'none' }}>
           Your Devices ({devices.length})
         </summary>
         {devices.length === 0 ? (
