@@ -146,8 +146,11 @@ def register():
                     referred_by_name = f"{ref[0]} {ref[1]}"
                     referred_by_email = ref[2]
         try:
-            # Always notify Glen
-            notify_admin_new_signup(first_name, last_name, email, my_referral_code, referred_by_name)
+            # Admin notification is deferred until /submit-goals so the
+            # email arrives with the goals attached — Glen needs that
+            # context to draft a personalized reply. If the user bails
+            # between register and goal-submit, they still show up in
+            # the admin dashboard.
             # Send welcome email to new user
             send_welcome_email(email, first_name)
             # If referred by a coach (not Glen), notify the coach too
@@ -205,6 +208,72 @@ def register():
             "message": f"An account already exists for {email}. Log in to continue.",
             "email": email,
         }), 409
+    finally:
+        db.close()
+
+
+@auth_bp.route("/submit-goals", methods=["POST"])
+@require_auth
+def submit_goals():
+    """Saves the new member's goals, auto-assigns the Beginner Adult
+    starter program (access code 7741) for free users so they can start
+    training immediately, and fires the admin notification email — now
+    with goals attached so Glen can draft a personalized reply on the spot.
+    """
+    me = request.current_user["user_id"]
+    data = request.json or {}
+    goals = data.get("goals") or []
+    # Defensive: cap goal count + length so a hostile payload can't bloat the row
+    if not isinstance(goals, list):
+        return jsonify({"error": "goals must be an array"}), 400
+    goals = [str(g).strip()[:80] for g in goals if str(g).strip()][:12]
+
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            # Save goals
+            cur.execute("UPDATE users SET goals = %s WHERE id = %s", (goals, me))
+            # Assign Beginner Adult (access_code 7741) as starter ONLY if no
+            # program has been assigned yet — don't clobber a coach's pick or
+            # a paid-tier webhook assignment.
+            starter_program_name = None
+            cur.execute("SELECT active_kiosk_program_id FROM users WHERE id = %s", (me,))
+            row = cur.fetchone()
+            current_prog = row[0] if row else None
+            if not current_prog:
+                cur.execute("SELECT id, program_name FROM workout_programs WHERE access_code = '7741' LIMIT 1")
+                p = cur.fetchone()
+                if p:
+                    cur.execute("UPDATE users SET active_kiosk_program_id = %s WHERE id = %s", (p[0], me))
+                    starter_program_name = p[1]
+            # Pull the fields needed for the admin notification email
+            cur.execute("""
+                SELECT u.first_name, u.last_name, u.email, u.referral_code,
+                       ref.first_name, ref.last_name
+                FROM users u
+                LEFT JOIN users ref ON ref.id = u.referred_by_id
+                WHERE u.id = %s
+            """, (me,))
+            r = cur.fetchone()
+            db.commit()
+
+        if r:
+            referred_by = f"{r[4]} {r[5]}" if (r[4] or r[5]) else None
+            try:
+                notify_admin_new_signup(
+                    first_name=r[0], last_name=r[1], email=r[2],
+                    referral_code=r[3], referred_by=referred_by,
+                    goals=goals, starter_program=starter_program_name,
+                )
+            except Exception:
+                pass  # Don't fail goal-submission if the admin email is flaky
+
+        return jsonify({
+            "ok": True,
+            "goals": goals,
+            "starter_program": starter_program_name,
+            "starter_access_code": "7741" if starter_program_name else None,
+        })
     finally:
         db.close()
 

@@ -29,6 +29,7 @@ export const api = {
   // assigned starter program's access code. Use this on dashboard mount
   // (not the localStorage snapshot, which is stale after payment).
   me: () => request('/auth/me'),
+  submitGoals: (goals) => request('/auth/submit-goals', { method: 'POST', body: JSON.stringify({ goals }) }),
 
   // Member dashboard (tier-gated stats + charts)
   memberDashboard:    () => request('/members/dashboard'),
