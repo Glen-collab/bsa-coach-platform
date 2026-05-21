@@ -309,9 +309,30 @@ def friends_list():
                     "is_broadcast": r["is_broadcast"],
                 }
 
+        # Latest program name per friend — surfaced on the inbox row as
+        # "Name (Program)" bait so the user can see what each friend is
+        # training without opening the thread. Pulled from each friend's
+        # most-recent workout_logs row (which stores program_name).
+        prog_by = {}
+        emails_lc = [(f.get("email") or "").lower() for f in friends if f.get("email")]
+        if emails_lc:
+            cur.execute("""
+                SELECT DISTINCT ON (LOWER(user_email))
+                       LOWER(user_email) AS email_lc, program_name
+                FROM workout_logs
+                WHERE LOWER(user_email) = ANY(%s::text[])
+                ORDER BY LOWER(user_email), workout_date DESC, id DESC
+            """, (emails_lc,))
+            prog_by_email = {r["email_lc"]: r["program_name"] for r in cur.fetchall()}
+            for f in friends:
+                e = (f.get("email") or "").lower()
+                if e and prog_by_email.get(e):
+                    prog_by[str(f["id"])] = prog_by_email[e]
+
         for f in friends:
             f["unread"] = unread_by.get(str(f["id"]), 0)
             f["last_message"] = last_by.get(str(f["id"]))
+            f["program_name"] = prog_by.get(str(f["id"]))
         # Show friends with the freshest message at the top — recent
         # conversations first, alphabetical for friends with no history.
         # Python sort is stable, so a name-first sort followed by a
