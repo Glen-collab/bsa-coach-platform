@@ -252,7 +252,8 @@ def list_members():
                 SELECT
                     u.id, u.first_name, u.last_name, u.email, u.role,
                     u.referral_code, u.created_at,
-                    s.tier, s.status as sub_status
+                    s.tier, s.status as sub_status,
+                    u.goals
                 FROM users u
                 LEFT JOIN subscriptions s ON s.user_id = u.id AND s.status = 'active'
                 WHERE u.is_active = TRUE
@@ -274,6 +275,7 @@ def list_members():
                     "joined": str(r[6]) if r[6] else None,
                     "tier": r[7],
                     "subscription_status": r[8],
+                    "goals": r[9] or [],
                 }
                 for r in rows
             ]
@@ -366,7 +368,8 @@ def list_coaches():
                 # Get clients under this coach
                 cur.execute("""
                     SELECT u.id, u.first_name, u.last_name, u.email, u.created_at,
-                           s.tier, s.status as sub_status, s.amount_cents
+                           s.tier, s.status as sub_status, s.amount_cents,
+                           u.goals
                     FROM users u
                     LEFT JOIN subscriptions s ON s.user_id = u.id AND s.status = 'active'
                     WHERE u.referred_by_id = %s AND u.role = 'member' AND u.is_active = TRUE
@@ -388,6 +391,7 @@ def list_coaches():
                         "tier": cl[5],
                         "sub_status": cl[6],
                         "monthly": amt / 100,
+                        "goals": cl[8] or [],
                     })
 
                 coaches.append({

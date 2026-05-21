@@ -4,6 +4,33 @@ import useMediaQuery from '../hooks/useMediaQuery';
 import BroadcastCard from '../components/BroadcastCard';
 import GymTvPowerCard from '../components/GymTvPowerCard';
 
+// Compact goal chips for the admin tables. Empty array → em-dash so
+// the column reads "this member never told us" rather than blank.
+function renderGoals(goals) {
+  if (!goals || !goals.length) return <span style={{ color: '#bbb' }}>—</span>;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', maxWidth: '180px' }}>
+      {goals.map((g) => (
+        <span
+          key={g}
+          style={{
+            display: 'inline-block',
+            background: '#fef3c7',
+            color: '#92400e',
+            padding: '2px 6px',
+            borderRadius: '999px',
+            fontSize: '10px',
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {g}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 const buildStyles = (isMobile) => ({
   page: { maxWidth: '960px', margin: '0 auto', padding: isMobile ? '16px 12px' : '32px 24px' },
   title: { fontSize: isMobile ? '20px' : '24px', fontWeight: '700', marginBottom: '6px' },
@@ -369,6 +396,7 @@ export default function AdminDashboard() {
                     <th style={s.th}>Name</th>
                     <th style={s.th}>Email</th>
                     <th style={s.th}>Tier</th>
+                    <th style={s.th}>Goals</th>
                     <th style={s.th}>Joined</th>
                     <th style={s.th}>Action</th>
                   </tr>
@@ -385,6 +413,7 @@ export default function AdminDashboard() {
                           <span style={{ ...s.badge, background: '#fef3c7', color: '#d97706' }}>Free</span>
                         )}
                       </td>
+                      <td style={s.td}>{renderGoals(m.goals)}</td>
                       <td style={s.td}>{m.joined ? new Date(m.joined).toLocaleDateString() : '—'}</td>
                       <td style={s.td}>
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -448,6 +477,7 @@ export default function AdminDashboard() {
                             <th style={{ ...s.th, fontSize: '11px' }}>Email</th>
                             <th style={{ ...s.th, fontSize: '11px' }}>Tier</th>
                             <th style={{ ...s.th, fontSize: '11px' }}>Monthly</th>
+                            <th style={{ ...s.th, fontSize: '11px' }}>Goals</th>
                             <th style={{ ...s.th, fontSize: '11px' }}>Joined</th>
                             <th style={{ ...s.th, fontSize: '11px' }}>Actions</th>
                           </tr>
@@ -465,6 +495,7 @@ export default function AdminDashboard() {
                                 )}
                               </td>
                               <td style={s.td}>{cl.monthly ? `$${cl.monthly}` : '—'}</td>
+                              <td style={s.td}>{renderGoals(cl.goals)}</td>
                               <td style={s.td}>{cl.joined ? new Date(cl.joined).toLocaleDateString() : '—'}</td>
                               <td style={s.td}>
                                 <div style={{ display: 'flex', gap: '4px' }}>
