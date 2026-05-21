@@ -108,6 +108,18 @@ export default function GymTvPowerCard({ isMobile, s }) {
     ...s.toolBtn,
     background: 'linear-gradient(135deg, #1a1a2e, #2d2d4a)',
   };
+  // The All-TVs shutdown is a destructive broadcast — every gym TV at once.
+  // Red + radioactive marker so it can't be mistaken for the per-device row
+  // (which is dark navy) on a quick scan. Mild box-shadow + bolder weight
+  // separate it visually from the rest of the controls.
+  const btnShutdownAll = {
+    ...s.toolBtn,
+    background: 'linear-gradient(135deg, #dc2626, #991b1b)',
+    color: '#fff',
+    fontWeight: 800,
+    boxShadow: '0 0 0 1px rgba(255,255,255,0.15) inset, 0 4px 10px rgba(220,38,38,0.35)',
+    letterSpacing: '0.3px',
+  };
   const btnReboot = {
     ...s.toolBtn,
     background: 'linear-gradient(135deg, #667eea, #764ba2)',
@@ -170,9 +182,10 @@ export default function GymTvPowerCard({ isMobile, s }) {
         <button
           onClick={() => send('shutdown', null, 'All TVs')}
           disabled={busy.__all || loadingDevices}
-          style={{ ...btnShutdown, opacity: busy.__all ? 0.6 : 1 }}
+          style={{ ...btnShutdownAll, opacity: busy.__all ? 0.6 : 1 }}
+          title="Shuts down EVERY gym TV at once"
         >
-          {busy.__all === 'shutdown' ? 'Sending…' : 'Shutdown All'}
+          {busy.__all === 'shutdown' ? 'Sending…' : '☢ Shutdown All'}
         </button>
         <button
           onClick={() => send('reboot', null, 'All TVs')}
