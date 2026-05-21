@@ -45,33 +45,43 @@ def send_email(to, subject, html_body, reply_to=None):
         return False
 
 
-def notify_admin_new_signup(first_name, last_name, email, referral_code, referred_by=None, goals=None, starter_program=None):
-    """Email Glen when someone new registers (and ideally has selected
-    their goals). The goals make this email actionable — Glen can draft
-    a personalized reply on the spot instead of cold-emailing for context."""
+def notify_admin_new_signup(first_name, last_name, email, referral_code, referred_by=None, goals=None, starter_program=None, is_update=False, previous_goals=None):
+    """Email Glen when someone new registers OR updates their goals.
+    Goals make this email actionable — Glen can draft a personalized
+    reply on the spot instead of cold-emailing for context. Goals can
+    drift over time (new signup wants Get Jacked → six months in is
+    into Hyrox), so the same endpoint serves both paths and this email
+    distinguishes them via subject + heading."""
     referred_text = f"<p><strong>Referred by:</strong> {referred_by}</p>" if referred_by else "<p><strong>Referred by:</strong> Direct signup (no referral)</p>"
-    if goals:
-        chips = "".join(
+    def _chips(items):
+        return "".join(
             f'<span style="display:inline-block;background:#fef3c7;color:#92400e;padding:6px 12px;border-radius:999px;margin:3px;font-size:13px;font-weight:600;">{g}</span>'
-            for g in goals
+            for g in items
         )
-        goals_block = f'<p style="margin-top:18px;"><strong>Goals:</strong></p><div style="margin:8px 0;">{chips}</div>'
+    if goals:
+        goals_block = f'<p style="margin-top:18px;"><strong>Goals:</strong></p><div style="margin:8px 0;">{_chips(goals)}</div>'
     else:
-        goals_block = '<p><strong>Goals:</strong> <em>not yet selected</em></p>'
+        goals_block = '<p><strong>Goals:</strong> <em>cleared</em></p>' if is_update else '<p><strong>Goals:</strong> <em>not yet selected</em></p>'
+    previous_block = ""
+    if is_update and previous_goals:
+        previous_block = f'<p style="margin-top:14px;color:#888;font-size:13px;"><strong>Previously:</strong></p><div style="margin:6px 0;opacity:0.7;">{_chips(previous_goals)}</div>'
     program_line = f"<p><strong>Starter assigned:</strong> {starter_program}</p>" if starter_program else ""
-    reply_subject = f"Welcome to BSA — let's talk about your goals"
+    heading = "Goals Updated" if is_update else "New User Registration"
+    subject_prefix = "Goals Updated" if is_update else "New Signup"
+    reply_subject = "Following up on your goals" if is_update else "Welcome to BSA — let's talk about your goals"
     reply_link = f'mailto:{email}?subject={reply_subject.replace(" ", "%20").replace("&", "%26")}'
     send_email(
         TRAINER_EMAIL,
-        f"New Signup: {first_name} {last_name}" + (f" — {', '.join(goals)}" if goals else ""),
+        f"{subject_prefix}: {first_name} {last_name}" + (f" — {', '.join(goals)}" if goals else ""),
         f"""
-        <h2>New User Registration</h2>
+        <h2>{heading}</h2>
         <p><strong>Name:</strong> {first_name} {last_name}</p>
         <p><strong>Email:</strong> <a href="{reply_link}">{email}</a></p>
         <p><strong>Referral Code:</strong> {referral_code}</p>
         {referred_text}
         {program_line}
         {goals_block}
+        {previous_block}
         <p style="margin-top:18px;">
           <a href="{reply_link}" style="display:inline-block;background:linear-gradient(135deg,#B37602,#8a5b00);color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;">Reply to {first_name}</a>
           &nbsp;

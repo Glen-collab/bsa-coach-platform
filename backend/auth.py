@@ -231,6 +231,14 @@ def submit_goals():
     db = get_db()
     try:
         with db.cursor() as cur:
+            # Detect first-time-set vs update — goals can change over time
+            # (someone signs up wanting "Get Jacked" then six months later
+            # is into Hyrox), so this endpoint serves both. The admin
+            # notification email subject reflects which path fired.
+            cur.execute("SELECT goals FROM users WHERE id = %s", (me,))
+            prev_row = cur.fetchone()
+            previous_goals = (prev_row[0] if prev_row else None) or []
+            is_update = bool(previous_goals)
             # Save goals
             cur.execute("UPDATE users SET goals = %s WHERE id = %s", (goals, me))
             # Assign Beginner Adult (access_code 7741) as starter ONLY if no
@@ -264,6 +272,7 @@ def submit_goals():
                     first_name=r[0], last_name=r[1], email=r[2],
                     referral_code=r[3], referred_by=referred_by,
                     goals=goals, starter_program=starter_program_name,
+                    is_update=is_update, previous_goals=previous_goals,
                 )
             except Exception:
                 pass  # Don't fail goal-submission if the admin email is flaky
@@ -295,7 +304,8 @@ def me():
                        wp.access_code AS program_access_code,
                        wp.program_name AS program_name,
                        s.tier AS sub_tier,
-                       s.status AS sub_status
+                       s.status AS sub_status,
+                       u.goals
                 FROM users u
                 LEFT JOIN workout_programs wp ON wp.id = u.active_kiosk_program_id
                 LEFT JOIN LATERAL (
@@ -321,6 +331,7 @@ def me():
                 "active_program_name": row[9],
                 "tier":          row[10],
                 "subscription_status": row[11],
+                "goals":         row[12] or [],
             })
     finally:
         db.close()

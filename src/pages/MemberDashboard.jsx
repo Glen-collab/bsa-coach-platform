@@ -5,6 +5,20 @@ import useMediaQuery from '../hooks/useMediaQuery';
 
 const TRACKER_URL = 'https://bestrongagain.netlify.app/';
 
+// Goal categories — KEEP IN SYNC with Register.jsx's GOAL_OPTIONS.
+// Members can revisit and change these any time on their dashboard,
+// since "what they want" drifts (today: Get Jacked; six months in: Hyrox).
+const GOAL_OPTIONS = [
+  'Get Jacked',
+  'Focus on Form',
+  'Aging Gracefully',
+  'Weight Loss',
+  'Build Muscle',
+  'Hyrox / Competition',
+  'Martial Arts',
+  'Coming Back from Injury',
+];
+
 const buildStyles = (isMobile) => ({
   page: { maxWidth: '800px', margin: '0 auto', padding: isMobile ? '16px 12px' : '32px 24px' },
   welcome: { fontSize: isMobile ? '22px' : '24px', fontWeight: '700', marginBottom: '4px' },
@@ -71,11 +85,34 @@ export default function MemberDashboard() {
   const [me, setMe] = useState(null);
   const [dash, setDash] = useState(null);
   const [summaries, setSummaries] = useState(null);
+  // Goal editor — opens an inline picker so members can update their goals
+  // any time (today: Get Jacked; later: Hyrox). Sends Glen an update email
+  // tagged "Goals Updated" so he can reach out if the new goals don't match
+  // the program he assigned them.
+  const [goalsEditing, setGoalsEditing] = useState(false);
+  const [goalsDraft, setGoalsDraft] = useState([]);
+  const [goalsSaving, setGoalsSaving] = useState(false);
   useEffect(() => {
-    api.me().then(setMe).catch(() => { /* fall back to localStorage user */ });
+    api.me().then((m) => { setMe(m); setGoalsDraft(m?.goals || []); }).catch(() => { /* fall back to localStorage user */ });
     api.memberDashboard().then(setDash).catch(() => setDash({ error: true }));
     api.memberCoachSummaries().then(setSummaries).catch(() => setSummaries({ unlocked: false, summaries: [] }));
   }, []);
+
+  const toggleDraftGoal = (g) => {
+    setGoalsDraft((d) => d.includes(g) ? d.filter(x => x !== g) : [...d, g]);
+  };
+
+  const saveGoals = async () => {
+    setGoalsSaving(true);
+    try {
+      const res = await api.submitGoals(goalsDraft);
+      setMe((prev) => prev ? { ...prev, goals: res?.goals ?? goalsDraft } : prev);
+      setGoalsEditing(false);
+    } catch (err) {
+      alert(err.message || 'Could not save your goals.');
+    }
+    setGoalsSaving(false);
+  };
 
   const handleUpgrade = async (tier) => {
     setUpgrading(true);
@@ -153,6 +190,86 @@ export default function MemberDashboard() {
               Opens Stripe's secure billing portal. Cancel, update card, download invoices.
             </div>
           </div>
+        )}
+      </div>
+
+      {/* ── Your Goals — editable any time ─── */}
+      <div style={s.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <div style={s.cardTitle}>Your Goals</div>
+          {!goalsEditing && (
+            <button
+              onClick={() => { setGoalsDraft(me?.goals || []); setGoalsEditing(true); }}
+              style={{ padding: '6px 12px', border: '1px solid #B37602', borderRadius: '8px', background: '#fff', color: '#B37602', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+            >
+              {me?.goals?.length ? 'Update' : 'Tell Glen'}
+            </button>
+          )}
+        </div>
+        {!goalsEditing && (
+          <>
+            {me?.goals?.length ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {me.goals.map((g) => (
+                  <span key={g} style={{
+                    display: 'inline-block', background: '#fef3c7', color: '#92400e',
+                    padding: '6px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: 700,
+                  }}>{g}</span>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: '13px', color: '#666', margin: 0, lineHeight: 1.5 }}>
+                Tell Glen what you're training for. He uses these to pick the right program for you — and your goals can change any time, so come back here whenever they do.
+              </p>
+            )}
+          </>
+        )}
+        {goalsEditing && (
+          <>
+            <p style={{ fontSize: '13px', color: '#666', margin: '0 0 12px 0', lineHeight: 1.5 }}>
+              Pick all that apply. Glen will see the update and may follow up if your new goals don't match the program he assigned you.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '8px', marginBottom: '14px' }}>
+              {GOAL_OPTIONS.map((g) => {
+                const sel = goalsDraft.includes(g);
+                return (
+                  <button
+                    key={g}
+                    onClick={() => toggleDraftGoal(g)}
+                    style={{
+                      padding: '10px 8px',
+                      border: sel ? '2px solid #B37602' : '2px solid #e0e0e0',
+                      borderRadius: '10px',
+                      background: sel ? 'linear-gradient(135deg,#fef3c7,#fde68a)' : '#fff',
+                      color: sel ? '#7c2d12' : '#333',
+                      fontSize: '12px',
+                      fontWeight: sel ? 700 : 600,
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {g}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={saveGoals}
+                disabled={goalsSaving}
+                style={{ ...s.btn, opacity: goalsSaving ? 0.6 : 1, flex: 1 }}
+              >
+                {goalsSaving ? 'Saving…' : 'Save Goals'}
+              </button>
+              <button
+                onClick={() => { setGoalsEditing(false); setGoalsDraft(me?.goals || []); }}
+                disabled={goalsSaving}
+                style={{ padding: '10px 16px', border: '1px solid #ddd', borderRadius: '8px', background: '#fff', color: '#666', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
         )}
       </div>
 
