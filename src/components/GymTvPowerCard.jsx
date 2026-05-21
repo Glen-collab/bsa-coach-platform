@@ -36,6 +36,10 @@ export default function GymTvPowerCard({ isMobile, s }) {
   const [busy, setBusy] = useState({});
   // per-row status messages
   const [msgs, setMsgs] = useState({});
+  // Default-collapsed so the power tools don't take up screen real estate
+  // on the daily dashboard view. Coach taps the header to expand when
+  // they actually need to shutdown / reboot a Pi.
+  const [open, setOpen] = useState(false);
 
   const loadDevices = useCallback(async () => {
     setLoadingDevices(true);
@@ -50,6 +54,16 @@ export default function GymTvPowerCard({ isMobile, s }) {
   }, []);
 
   useEffect(() => { loadDevices(); }, [loadDevices]);
+
+  // When the user renames a device on the GymTV page and tabs back to
+  // their admin dashboard, refresh so the new label shows up here too.
+  // Without this, the old "New device (1956)" stays cached until manual
+  // Refresh click — confusing rename UX across tabs.
+  useEffect(() => {
+    const onFocus = () => loadDevices();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [loadDevices]);
 
   const send = async (kind, deviceSerial, label) => {
     const target = deviceSerial ? `“${label}”` : 'ALL of your gym TVs';
@@ -99,19 +113,42 @@ export default function GymTvPowerCard({ isMobile, s }) {
     background: 'linear-gradient(135deg, #667eea, #764ba2)',
   };
 
+  const onlineCount = devices.filter((d) => {
+    if (!d.last_seen_at) return false;
+    return (Date.now() - new Date(d.last_seen_at).getTime()) / 60000 < 2;
+  }).length;
+
   return (
     <div style={s.card}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={s.cardTitle}>Gym TV Power</div>
-        <button
-          onClick={loadDevices}
-          disabled={loadingDevices}
-          style={{ fontSize: 12, color: '#6b7280', background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
-        >
-          {loadingDevices ? 'Refreshing…' : 'Refresh'}
-        </button>
+      <div
+        onClick={() => setOpen((v) => !v)}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v); } }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 14, color: '#6b7280', width: 14, display: 'inline-block', transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}>▶</span>
+          <div style={s.cardTitle}>Gym TV Power</div>
+          {!open && devices.length > 0 && (
+            <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>
+              · {devices.length} TV{devices.length === 1 ? '' : 's'}{onlineCount > 0 ? `, ${onlineCount} online` : ''}
+            </span>
+          )}
+        </div>
+        {open && (
+          <button
+            onClick={(e) => { e.stopPropagation(); loadDevices(); }}
+            disabled={loadingDevices}
+            style={{ fontSize: 12, color: '#6b7280', background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            {loadingDevices ? 'Refreshing…' : 'Refresh'}
+          </button>
+        )}
       </div>
-      <div style={{ fontSize: 13, color: '#666', marginBottom: 12, lineHeight: 1.4 }}>
+      {!open && (<></>)}
+      {open && (<>
+      <div style={{ fontSize: 13, color: '#666', marginBottom: 12, marginTop: 10, lineHeight: 1.4 }}>
         Graceful remote control for your Pi-powered gym TVs. Use Shutdown before
         you leave for the night so the Pi halts cleanly instead of getting its
         power yanked.
@@ -189,6 +226,7 @@ export default function GymTvPowerCard({ isMobile, s }) {
           </div>
         );
       })}
+      </>)}
     </div>
   );
 }

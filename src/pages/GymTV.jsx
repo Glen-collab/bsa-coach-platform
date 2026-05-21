@@ -144,6 +144,15 @@ export default function GymTV() {
   };
   useEffect(() => { load(); }, []);
 
+  // Tab-back refresh so renames done elsewhere (e.g. RemoteControl) show
+  // up here without a manual reload. Also keeps device last-seen timestamps
+  // fresh when Glen returns to this tab.
+  useEffect(() => {
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+
   const kioskLineup = useMemo(() => programs.filter((p) => p.show_on_kiosk), [programs]);
 
   const toggleKiosk = async (p, show) => {
@@ -190,9 +199,13 @@ export default function GymTV() {
       <h1 style={s.title}>Gym TV</h1>
       <p style={s.sub}>Pick what plays on each gym TV. Tap Remote Control to drive week & day from your phone.</p>
 
-      {/* DEVICES */}
-      <div style={s.section}>
-        <div style={s.sectionTitle}>Your Devices ({devices.length})</div>
+      {/* DEVICES — collapsible. The device picker is the main use case,
+          so it's default-open. Collapse to compress the page when juggling
+          multiple Pis. */}
+      <details style={s.section} open>
+        <summary style={{ ...s.sectionTitle, cursor: 'pointer', userSelect: 'none', listStyle: 'none' }}>
+          Your Devices ({devices.length})
+        </summary>
         {devices.length === 0 ? (
           <div style={s.empty}>No devices registered yet. Boot a Pi pointed at the URL above and it'll show up here.</div>
         ) : (
@@ -291,7 +304,7 @@ export default function GymTV() {
             );
           })
         )}
-      </div>
+      </details>
 
       {/* Full programs list — collapsible because the list grows fast and
           starts dominating the page after a coach has built 20+ programs.

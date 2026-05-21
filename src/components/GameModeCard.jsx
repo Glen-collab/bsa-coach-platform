@@ -105,6 +105,9 @@ const styles = (isMobile) => ({
 export default function GameModeCard({ devices = [], isMobile, onChange }) {
   const s = styles(isMobile);
   const [busyDeviceId, setBusyDeviceId] = useState(null);
+  // Default-collapsed — Game Mode is an occasional admin flip, not the
+  // daily workflow. Header stays visible so Glen can see/expand it fast.
+  const [open, setOpen] = useState(false);
 
   // Maps the UI label to the backend mode. The Stop button reverts the
   // device to 'workout' which both clears game mode and restores the
@@ -138,11 +141,22 @@ export default function GameModeCard({ devices = [], isMobile, onChange }) {
 
   return (
     <div style={s.card}>
-      <div style={s.header}>
-        <span style={{ fontSize: '20px' }}>🎮</span>
-        <h2 style={s.title}>Game Mode</h2>
-        <span style={s.adminBadge}>Admin</span>
+      <div
+        style={{ ...s.header, cursor: 'pointer', userSelect: 'none', justifyContent: 'space-between' }}
+        onClick={() => setOpen((v) => !v)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v); } }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '20px' }}>🎮</span>
+          <h2 style={s.title}>Game Mode</h2>
+          <span style={s.adminBadge}>Admin</span>
+        </div>
+        <span style={{ color: '#fbbf24', fontSize: 14, transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}>▶</span>
       </div>
+      {!open && (<></>)}
+      {open && (<>
       <p style={s.sub}>
         Flip a kiosk Pi from the workout TV into a retro arcade (NES / SNES).
         Use during gym off-hours or when kids need a break between sets.
@@ -195,6 +209,7 @@ export default function GameModeCard({ devices = [], isMobile, onChange }) {
         RetroArch + ROMs + the kiosk-agent mode-switcher hook to honor
         these. Setup steps in <code>bsa-tv-kiosk/docs/RETRO_GAMES_PLAN.md</code>.
       </div>
+      </>)}
     </div>
   );
 }
