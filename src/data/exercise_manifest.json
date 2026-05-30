@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-21T19:07:11.711Z",
-  "total": 1934,
+  "generated_at": "2026-05-30T11:47:14.092Z",
+  "total": 1961,
   "exercises": [
     {
       "name": "Barbell Bench Press",
@@ -65,6 +65,22 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "4139f25debf1be5a7b543c05fa407676"
+    },
+    {
+      "name": "Cambered Bar Barbell Bench",
+      "category": "Chest",
+      "subcategory": "Barbell",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "cfa03b1495ccba448c6af0522a8517c8"
+    },
+    {
+      "name": "Cambered Bar Incline Bench Press",
+      "category": "Chest",
+      "subcategory": "Barbell",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "b9ba02c0e74ecdf9970eac6ea9ed8ca2"
     },
     {
       "name": "Chest Fly + Press Combo",
@@ -1323,6 +1339,46 @@
       "default_video_uid": "1248a0392e139d20bbedd1526efb8053"
     },
     {
+      "name": "Inverted Rows Single Arm to Double",
+      "category": "Back",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0fe21e9839170650e4df352dead724d4"
+    },
+    {
+      "name": "Typewriter Pull-Ups",
+      "category": "Back",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "94775c8005cb3b58e8ddc8b7f0abe84e"
+    },
+    {
+      "name": "Pull-Up Pulses (3+3)",
+      "category": "Back",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a3d453d90870bcc6bfe750e8c2f100f1"
+    },
+    {
+      "name": "Arm Hang Switch Grip",
+      "category": "Back",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "873e9ee3ef3fdca223e4a1f9d2b95ac9"
+    },
+    {
+      "name": "Handstand Up Down on Plate",
+      "category": "Back",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "f92802f1decd1b0e356dfa2e2e2b7bfe"
+    },
+    {
       "name": "Seated Bar Row",
       "category": "Back",
       "subcategory": "Machine",
@@ -2481,6 +2537,14 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "9cd0652af2db9bc882402ac04cda5c36"
+    },
+    {
+      "name": "Band Pull Apart on Rack (Mid + High)",
+      "category": "Shoulders",
+      "subcategory": "Corrective",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "5d01c4fa132b7c1565fe4db1df3268c6"
     },
     {
       "name": "EZ Bar Curl",
@@ -3739,6 +3803,14 @@
       "default_video_uid": "461da49bf1a8d069417632a102bd4cc2"
     },
     {
+      "name": "Dips",
+      "category": "Triceps",
+      "subcategory": "Other",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "432beebd80d2eaff4d560e2935e8c6b5"
+    },
+    {
       "name": "Alternating Barbell Reverse Lunge",
       "category": "Legs",
       "subcategory": "Barbell",
@@ -4161,6 +4233,14 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "d90f08c9b3a9e94e3627138c9337e768"
+    },
+    {
+      "name": "Squat x10 Pause x10, Squat x10",
+      "category": "Legs",
+      "subcategory": "Barbell",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "33ee8e451d3021a60dd3271445b0b389"
     },
     {
       "name": "1 1/2 Dumbbell Squat",
@@ -4803,6 +4883,22 @@
       "default_video_uid": "ba77294554c442a4bf2d22b6e2a552c1"
     },
     {
+      "name": "Slider Lateral Lunge (BW)",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "8b55cfc3cb920f8a19750ea6bfad8b90"
+    },
+    {
+      "name": "Slider Reverse Lunge (BW)",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "234ee1e54f2ccac654bfe893c5d2833e"
+    },
+    {
       "name": "Single Leg Hamstring Curl",
       "category": "Legs",
       "subcategory": "Machine",
@@ -4839,8 +4935,8 @@
       "category": "Legs",
       "subcategory": "Machine",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "2b52e817dfcea6d3d89f2b209c7920e9"
     },
     {
       "name": "Double Leg Lying Hamstring Curl",
@@ -4977,6 +5073,30 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "383bbc667f259a4072f783affd337b60"
+    },
+    {
+      "name": "Glute Ham Raise",
+      "category": "Legs",
+      "subcategory": "Machine",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "c537d0ab0cbf74a723f7f04afb0f67ac"
+    },
+    {
+      "name": "Seated Leg Press",
+      "category": "Legs",
+      "subcategory": "Machine",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "458b587c2495647c4b639dd66a50711f"
+    },
+    {
+      "name": "Seated Single Leg Leg Press",
+      "category": "Legs",
+      "subcategory": "Machine",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "8531e14b012fd9ecc4c30867319f9e2a"
     },
     {
       "name": "90/90 Hip Switch",
@@ -5225,6 +5345,22 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "a30519dee183ea4db989d07c357f123c"
+    },
+    {
+      "name": "90/90 Wall Hamstring Core Activation",
+      "category": "Legs",
+      "subcategory": "Corrective",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a6990869b87c3e5e32c2edc462a9ac77"
+    },
+    {
+      "name": "90/90 Foam Roller Internal Rotation",
+      "category": "Legs",
+      "subcategory": "Corrective",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "743a74f7b34bf0df3f6d4f070c7cd2eb"
     },
     {
       "name": "Full Plate Sit Ups No Foot Support",
@@ -6657,6 +6793,14 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "6030f48bbbdc30195772d8f490d1aa70"
+    },
+    {
+      "name": "Bar Hang Ins and Outs",
+      "category": "Core",
+      "subcategory": "Lower",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "3282fdc81b493075531139283654b0c1"
     },
     {
       "name": "Hanging Knee Raises",
@@ -11451,7 +11595,7 @@
       "default_video_uid": null
     },
     {
-      "name": "Step Back, Check Kick",
+      "name": "Step Back, Down Block, Reverse Punch",
       "category": "Sparring",
       "subcategory": "Defensive Combinations",
       "source_library": "martialArtsLibrary",
@@ -11459,7 +11603,7 @@
       "default_video_uid": null
     },
     {
-      "name": "Step Back, Counter Roundhouse",
+      "name": "Step Back, Middle Block, Reverse Punch",
       "category": "Sparring",
       "subcategory": "Defensive Combinations",
       "source_library": "martialArtsLibrary",
@@ -11467,7 +11611,7 @@
       "default_video_uid": null
     },
     {
-      "name": "Catch Front Kick, Counter Roundhouse",
+      "name": "Step Back, High Block, Reverse Punch",
       "category": "Sparring",
       "subcategory": "Defensive Combinations",
       "source_library": "martialArtsLibrary",
@@ -11819,7 +11963,7 @@
       "default_video_uid": null
     },
     {
-      "name": "Step Back, Down Block, Reverse Punch",
+      "name": "Fighting Stance, Back Leg Front Snap Kick, Reverse Punch",
       "category": "One-Step Sparring",
       "subcategory": "Basic One-Step",
       "source_library": "martialArtsLibrary",
@@ -11827,7 +11971,7 @@
       "default_video_uid": null
     },
     {
-      "name": "Step Back, Middle Block, Reverse Punch",
+      "name": "Fighting Stance, Back Leg Roundhouse, Reverse Punch",
       "category": "One-Step Sparring",
       "subcategory": "Basic One-Step",
       "source_library": "martialArtsLibrary",
@@ -11835,7 +11979,31 @@
       "default_video_uid": null
     },
     {
-      "name": "Step Back, High Block, Reverse Punch",
+      "name": "Fighting Stance, Back Leg Side Kick, Reverse Punch",
+      "category": "One-Step Sparring",
+      "subcategory": "Basic One-Step",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Fighting Stance, Front Snap Kick, Reverse Punch",
+      "category": "One-Step Sparring",
+      "subcategory": "Basic One-Step",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Fighting Stance, Roundhouse, Reverse Punch",
+      "category": "One-Step Sparring",
+      "subcategory": "Basic One-Step",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Fighting Stance, Front Side Kick, Reverse Punch",
       "category": "One-Step Sparring",
       "subcategory": "Basic One-Step",
       "source_library": "martialArtsLibrary",
@@ -11908,6 +12076,22 @@
     },
     {
       "name": "Step Behind Side Kick Break",
+      "category": "Board Breaking",
+      "subcategory": "Breaking Techniques",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Front Leg Front Snap Kick Break",
+      "category": "Board Breaking",
+      "subcategory": "Breaking Techniques",
+      "source_library": "martialArtsLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Cross Punch Break",
       "category": "Board Breaking",
       "subcategory": "Breaking Techniques",
       "source_library": "martialArtsLibrary",
@@ -12979,6 +13163,22 @@
       "default_video_uid": "b2007113903d3b11cc57d761bc1f64ac"
     },
     {
+      "name": "Shoulder Mobility Chicken Wing (Band)",
+      "category": "Shoulder Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "d19141c61b3772d6c78b716797de6aa4"
+    },
+    {
+      "name": "Shoulder Mobility Chicken Wing + Prisoner",
+      "category": "Shoulder Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "c44ded049f1263a6fc61da80224e18ed"
+    },
+    {
       "name": "T-Spine Mobility Preset 1 - Rotation Focus",
       "category": "T-Spine Mobility",
       "subcategory": null,
@@ -14017,6 +14217,14 @@
       "source_library": "warmupExercises",
       "has_default_video": false,
       "default_video_uid": null
+    },
+    {
+      "name": "90/90 Foam Roller Internal Rotation",
+      "category": "Myofascial Release",
+      "subcategory": null,
+      "source_library": "warmupExercises",
+      "has_default_video": true,
+      "default_video_uid": "743a74f7b34bf0df3f6d4f070c7cd2eb"
     },
     {
       "name": "Med Ball Preset 1",
@@ -15217,6 +15425,14 @@
       "source_library": "warmupExercises",
       "has_default_video": false,
       "default_video_uid": null
+    },
+    {
+      "name": "90/90 Wall Hamstring Core Activation",
+      "category": "Dynamic Warmup",
+      "subcategory": null,
+      "source_library": "warmupExercises",
+      "has_default_video": true,
+      "default_video_uid": "a6990869b87c3e5e32c2edc462a9ac77"
     },
     {
       "name": "Linear Agility Preset 1",

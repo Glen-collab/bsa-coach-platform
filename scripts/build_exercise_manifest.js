@@ -1,5 +1,5 @@
 // build_exercise_manifest.js
-// Reads the four bundled exercise libraries from workoutbuilder-tkd and emits
+// Reads the four bundled exercise libraries from workoutbuilder and emits
 // a flat JSON manifest the coach Media Library UI can render as a checklist.
 //
 // Output: src/data/exercise_manifest.json
@@ -14,8 +14,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..');
-const SOURCE_DIR = resolve(REPO_ROOT, '..', 'workoutbuilder-tkd', 'src', 'data');
-const OUT_PATH = resolve(REPO_ROOT, 'src', 'data', 'exercise_manifest.json');
+const SOURCE_DIR = resolve(REPO_ROOT, '..', 'workoutbuilder', 'src', 'data');
+const OUT_PATHS = [
+  resolve(REPO_ROOT, 'src', 'data', 'exercise_manifest.json'),       // frontend (MediaLibrary checklist)
+  resolve(REPO_ROOT, 'backend', 'data', 'exercise_manifest.json'),   // backend (workout-import parser catalog)
+];
 
 const sources = [
   { file: 'exerciseLibrary.js',  exportName: 'exerciseCategories',     libraryId: 'exerciseLibrary'    },
@@ -89,20 +92,20 @@ const deduped = manifest.filter((e) => {
   return true;
 });
 
-mkdirSync(dirname(OUT_PATH), { recursive: true });
-writeFileSync(
-  OUT_PATH,
-  JSON.stringify(
-    {
-      generated_at: new Date().toISOString(),
-      total: deduped.length,
-      exercises: deduped,
-    },
-    null,
-    2
-  )
+const output = JSON.stringify(
+  {
+    generated_at: new Date().toISOString(),
+    total: deduped.length,
+    exercises: deduped,
+  },
+  null,
+  2
 );
 
-console.log(`\nWrote ${deduped.length} exercises → ${OUT_PATH}`);
+for (const outPath of OUT_PATHS) {
+  mkdirSync(dirname(outPath), { recursive: true });
+  writeFileSync(outPath, output);
+  console.log(`\nWrote ${deduped.length} exercises → ${outPath}`);
+}
 console.log(`  with default video: ${deduped.filter(e => e.has_default_video).length}`);
 console.log(`  without default video: ${deduped.filter(e => !e.has_default_video).length}`);
