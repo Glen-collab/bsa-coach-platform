@@ -2,7 +2,7 @@
 workout_api.py — Flask routes that replace the Bluehost PHP API
 Covers: load-program, log-workout, submit-questionnaire, submit-completion,
         get-weekly-stats, load-user-override, save-user-override, delete-user-override,
-        save-program, update-program, list-programs, get-travel-workouts,
+        save-program, update-program, delete-program, list-programs, get-travel-workouts,
         save-travel-workout, delete-travel-workout, get-clients, get-client-details,
         get-dashboard-stats, delete-client
 """
@@ -112,6 +112,103 @@ def load_program():
         program = cur.fetchone()
         if not program:
             return jsonify({"success": False, "message": "Program not found"})
+
+        # Payment gate: new users get 1-week free trial. Existing clients
+        # get a 2-week grace period (starts after survey or 3 dismissals).
+        # TV kiosk + kiosk-station use system emails — always bypass.
+        from datetime import datetime, timezone, timedelta
+        is_tv_display = email in ('tv-display@bestrongagain.com', 'kiosk@bestrongagain.com')
+        survey_available = False
+        grace_days_remaining = None
+        if is_tv_display:
+            bsa_user = None
+        else:
+            cur.execute("""
+                SELECT id, role, grace_period_ends_at, survey_completed_at,
+                       survey_dismiss_count, free_trial_ends_at
+                FROM users WHERE LOWER(email) = %s
+            """, (email,))
+            bsa_user = cur.fetchone()
+        has_sub = False
+        if bsa_user:
+            cur.execute("""
+                SELECT 1 FROM subscriptions
+                WHERE user_id = %s AND status = 'active'
+                LIMIT 1
+            """, (bsa_user["id"],))
+            has_sub = cur.fetchone() is not None
+        is_privileged = bsa_user and bsa_user["role"] in ("coach", "admin")
+        if not has_sub and not is_privileged and not is_tv_display:
+            cur.execute("""
+                SELECT 1 FROM workout_logs
+                WHERE LOWER(user_email) = %s
+                LIMIT 1
+            """, (email,))
+            has_logs = cur.fetchone() is not None
+            now = datetime.now(timezone.utc)
+
+            if not has_logs:
+                # New user — 1-week free trial
+                if bsa_user:
+                    trial_end = bsa_user.get("free_trial_ends_at")
+                    if trial_end is None:
+                        # First visit — start the 1-week trial
+                        cur.execute("""
+                            UPDATE users SET free_trial_ends_at = NOW() + INTERVAL '7 days'
+                            WHERE id = %s RETURNING free_trial_ends_at
+                        """, (bsa_user["id"],))
+                        row = cur.fetchone()
+                        db.commit()
+                        trial_end = row["free_trial_ends_at"] if row else None
+                    if trial_end:
+                        if hasattr(trial_end, 'tzinfo') and trial_end.tzinfo is None:
+                            trial_end = trial_end.replace(tzinfo=timezone.utc)
+                        if now >= trial_end:
+                            return jsonify({
+                                "success": False,
+                                "payment_required": True,
+                                "message": "Your free trial has ended. Subscribe to continue accessing your workout programs!",
+                                "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=basic",
+                            }), 403
+                        grace_days_remaining = max(0, (trial_end - now).days)
+                else:
+                    # No BSA account at all — hard block
+                    return jsonify({
+                        "success": False,
+                        "payment_required": True,
+                        "message": "A subscription is required to access workout programs. Please subscribe to get started!",
+                        "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=basic",
+                    }), 403
+
+            elif has_logs and bsa_user:
+                # Existing client — survey + 2-week grace period
+                grace_end = bsa_user.get("grace_period_ends_at")
+                survey_done = bsa_user.get("survey_completed_at") is not None
+                dismiss_count = bsa_user.get("survey_dismiss_count") or 0
+
+                if grace_end:
+                    if hasattr(grace_end, 'tzinfo') and grace_end.tzinfo is None:
+                        grace_end = grace_end.replace(tzinfo=timezone.utc)
+                    if now >= grace_end:
+                        return jsonify({
+                            "success": False,
+                            "payment_required": True,
+                            "message": "Your free trial has ended. Subscribe to continue accessing your workout programs!",
+                            "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=basic",
+                        }), 403
+                    grace_days_remaining = max(0, (grace_end - now).days)
+                elif not survey_done and dismiss_count < 3:
+                    survey_available = True
+                elif not survey_done and dismiss_count >= 3:
+                    # Auto-start 2-week grace after 3 dismissals
+                    cur.execute("""
+                        UPDATE users SET grace_period_ends_at = NOW() + INTERVAL '2 weeks'
+                        WHERE id = %s RETURNING grace_period_ends_at
+                    """, (bsa_user["id"],))
+                    row = cur.fetchone()
+                    db.commit()
+                    if row and row["grace_period_ends_at"]:
+                        grace_days_remaining = 14
 
         program_data = program["program_data"]
         if isinstance(program_data, str):
@@ -286,8 +383,94 @@ def load_program():
                     "last_name":  chat_user["last_name"],
                     "email":      chat_user["email"],
                 } if chat_user else None,
+                "survey_available": survey_available,
+                "grace_days_remaining": grace_days_remaining,
             },
             "message": "Program loaded successfully",
+        })
+    finally:
+        db.close()
+
+
+@workout_bp.route("/dismiss-survey.php", methods=["POST", "OPTIONS"])
+def dismiss_survey():
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    email = (data.get("user_email") or "").lower().strip()
+    if not email:
+        return jsonify({"success": False}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            UPDATE users SET survey_dismiss_count = COALESCE(survey_dismiss_count, 0) + 1
+            WHERE LOWER(email) = %s
+            RETURNING survey_dismiss_count
+        """, (email,))
+        row = cur.fetchone()
+        db.commit()
+        return jsonify({"success": True, "dismiss_count": row["survey_dismiss_count"] if row else 0})
+    finally:
+        db.close()
+
+
+@workout_bp.route("/submit-survey.php", methods=["POST", "OPTIONS"])
+def submit_survey():
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    email = (data.get("user_email") or "").lower().strip()
+    name = (data.get("user_name") or "").strip()
+    rating = data.get("rating")
+    improvements = (data.get("improvements") or "").strip()
+    likelihood = data.get("continue_likelihood")
+    comments = (data.get("comments") or "").strip()
+
+    if not email or not rating:
+        return jsonify({"success": False, "message": "Email and rating required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO transition_surveys (user_email, user_name, rating, improvements, continue_likelihood, comments)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (email, name, rating, improvements, likelihood, comments))
+
+        cur.execute("""
+            UPDATE users
+            SET survey_completed_at = NOW(),
+                grace_period_ends_at = CASE
+                    WHEN grace_period_ends_at IS NULL THEN NOW() + INTERVAL '2 weeks'
+                    ELSE grace_period_ends_at
+                END
+            WHERE LOWER(email) = %s
+            RETURNING grace_period_ends_at
+        """, (email,))
+        row = cur.fetchone()
+        db.commit()
+
+        grace_ends = row["grace_period_ends_at"].strftime("%B %d, %Y") if row and row["grace_period_ends_at"] else "4 weeks from now"
+
+        stars = "★" * (rating or 0) + "☆" * (5 - (rating or 0))
+        send_email(
+            TRAINER_EMAIL,
+            f"BSA Survey: {name or email} rated {rating}/5",
+            f"""
+            <h2>Transition Survey Response</h2>
+            <p><b>Client:</b> {name or 'N/A'} ({email})</p>
+            <p><b>Rating:</b> {stars} ({rating}/5)</p>
+            <p><b>Likelihood to continue:</b> {likelihood}/10</p>
+            <p><b>What would they improve:</b> {improvements or 'N/A'}</p>
+            <p><b>Comments:</b> {comments or 'N/A'}</p>
+            <p><b>Grace period ends:</b> {grace_ends}</p>
+            """,
+        )
+
+        return jsonify({
+            "success": True,
+            "grace_ends_at": row["grace_period_ends_at"].isoformat() if row and row["grace_period_ends_at"] else None,
         })
     finally:
         db.close()
@@ -847,17 +1030,28 @@ def save_program():
     name = data.get("programName", "Untitled")
     nickname = data.get("programNickname", "")
     program_data = data.get("programData", {})
+    # Optional: coach can choose the 4-digit access code instead of a random one.
+    desired = (data.get("desiredCode") or "").strip()
 
-    code = gen_access_code()
-    # Ensure unique
     db = get_db()
     try:
         cur = db.cursor()
-        for _ in range(10):
-            cur.execute("SELECT id FROM workout_programs WHERE access_code = %s", (code,))
-            if not cur.fetchone():
-                break
+        if desired:
+            # Validate format and uniqueness; reject collisions so a chosen
+            # code never silently overwrites or shadows an existing program.
+            if not (desired.isdigit() and len(desired) == 4):
+                return jsonify({"success": False, "message": "Access code must be exactly 4 digits"}), 400
+            cur.execute("SELECT id FROM workout_programs WHERE access_code = %s", (desired,))
+            if cur.fetchone():
+                return jsonify({"success": False, "message": f"Access code {desired} is already in use. Pick another."}), 409
+            code = desired
+        else:
             code = gen_access_code()
+            for _ in range(10):
+                cur.execute("SELECT id FROM workout_programs WHERE access_code = %s", (code,))
+                if not cur.fetchone():
+                    break
+                code = gen_access_code()
 
         cur.execute("""
             INSERT INTO workout_programs (access_code, user_email, program_name, program_nickname, program_data, created_by)
@@ -906,6 +1100,43 @@ def update_program():
             tuple(params),
         )
         db.commit()
+        return jsonify({"success": True, "accessCode": code})
+    finally:
+        db.close()
+
+
+@workout_bp.route("/delete-program.php", methods=["POST", "OPTIONS"])
+def delete_program():
+    """Soft-delete a program (is_active = FALSE) so it drops out of the coach's
+    Manage Programs list. Reversible at the DB level. Ownership-checked: a coach
+    can only delete a program tied to their own email."""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    code = (data.get("accessCode") or "").strip()
+    email = (data.get("email") or data.get("trainerEmail") or "").lower().strip()
+
+    if not code:
+        return jsonify({"success": False, "message": "Access code required"}), 400
+    if not email:
+        return jsonify({"success": False, "message": "Email required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            """
+            UPDATE workout_programs
+            SET is_active = FALSE, updated_at = NOW()
+            WHERE access_code = %s
+              AND (LOWER(user_email) = %s OR LOWER(optional_trainer_email) = %s)
+            """,
+            (code, email, email),
+        )
+        affected = cur.rowcount
+        db.commit()
+        if affected == 0:
+            return jsonify({"success": False, "message": "Program not found for this trainer"}), 404
         return jsonify({"success": True, "accessCode": code})
     finally:
         db.close()
