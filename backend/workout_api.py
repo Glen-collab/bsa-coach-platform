@@ -1142,6 +1142,65 @@ def delete_program():
         db.close()
 
 
+@workout_bp.route("/update-user-stats.php", methods=["POST", "OPTIONS"])
+def update_user_stats():
+    """In-app update of a user's 1RM maxes + body stats (height/weight/age/gender)
+    on their existing program position. Only writes fields that are explicitly
+    provided AND non-empty, so a blank input never clobbers a stored value
+    (load-program deliberately skips 1RMs on update to avoid a 0 wiping them).
+    Lets the tracker recalc prescribed weights live without a logout/login."""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    code = (data.get("accessCode") or data.get("code") or "").strip()
+    email = (data.get("email") or "").lower().strip()
+    if not code or not email:
+        return jsonify({"success": False, "message": "Access code and email required"}), 400
+
+    # request key -> column. Numeric fields only update when a real value is sent.
+    numeric_fields = [
+        ("benchMax", "one_rm_bench"),
+        ("squatMax", "one_rm_squat"),
+        ("deadliftMax", "one_rm_deadlift"),
+        ("cleanMax", "one_rm_clean"),
+        ("height", "height_inches"),
+        ("weight", "weight_lbs"),
+        ("age", "age"),
+    ]
+    set_clauses = []
+    params = []
+    for key, col in numeric_fields:
+        if key in data and data[key] not in (None, ""):
+            try:
+                params.append(float(data[key]))
+            except (TypeError, ValueError):
+                continue
+            set_clauses.append(f"{col} = %s")
+    if data.get("gender"):
+        set_clauses.append("gender = %s")
+        params.append(data["gender"])
+
+    if not set_clauses:
+        return jsonify({"success": True, "updated": 0})
+
+    set_clauses.append("updated_at = NOW()")
+    params.extend([code, email])
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            f"UPDATE workout_user_position SET {', '.join(set_clauses)} "
+            f"WHERE access_code = %s AND user_email = %s",
+            tuple(params),
+        )
+        affected = cur.rowcount
+        db.commit()
+        return jsonify({"success": True, "updated": affected})
+    finally:
+        db.close()
+
+
 @workout_bp.route("/list-programs.php", methods=["POST", "OPTIONS"])
 def list_programs():
     if request.method == "OPTIONS":
