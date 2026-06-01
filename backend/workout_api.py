@@ -138,7 +138,29 @@ def load_program():
             """, (bsa_user["id"],))
             has_sub = cur.fetchone() is not None
         is_privileged = bsa_user and bsa_user["role"] in ("coach", "admin")
-        if not has_sub and not is_privileged and not is_tv_display:
+
+        # Trainer-logging bypass: in 1-on-1 mode a coach logs ON BEHALF of a
+        # client (who may never have paid for the app). Skip the paywall only
+        # when the request carries trainer_logging + a coach referral code that
+        # actually OWNS this program (built it). Strictly additive — normal
+        # client self-serve loads are unaffected.
+        trainer_bypass = False
+        if data.get("trainer_logging"):
+            coach_code = (data.get("coach") or "").strip().upper()
+            if coach_code:
+                cur.execute(
+                    "SELECT email FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin')",
+                    (coach_code,),
+                )
+                crow = cur.fetchone()
+                if crow:
+                    owner = (crow["email"] or "").lower()
+                    prog_owner = (program.get("created_by") or "").lower()
+                    prog_trainer = (program.get("optional_trainer_email") or "").lower()
+                    if owner and owner in (prog_owner, prog_trainer):
+                        trainer_bypass = True
+
+        if not has_sub and not is_privileged and not is_tv_display and not trainer_bypass:
             cur.execute("""
                 SELECT 1 FROM workout_logs
                 WHERE LOWER(user_email) = %s

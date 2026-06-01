@@ -42,8 +42,10 @@ export default function CoachDashboard() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [connectLoading, setConnectLoading] = useState(false);
+  const [clientPage, setClientPage] = useState(1);
+  const CLIENTS_PER_PAGE = 10;
 
-  useEffect(() => {
+  const loadDashboard = () => {
     if (!user?.id) return;
     Promise.all([
       api.dashboard(user.id).catch(() => null),
@@ -57,7 +59,8 @@ export default function CoachDashboard() {
       if (tpl?.templates) setTemplates(tpl.templates);
       setLoading(false);
     });
-  }, [user?.id]);
+  };
+  useEffect(() => { loadDashboard(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleClone = async (tpl) => {
     if (!user?.email) return;
@@ -93,7 +96,7 @@ export default function CoachDashboard() {
 
   if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: '#888' }}>Loading dashboard...</div>;
 
-  const clients = data?.clients || [];
+  const clients = (data?.clients || []).sort((a, b) => (a.last_name || '').localeCompare(b.last_name || '') || (a.first_name || '').localeCompare(b.first_name || ''));
   const summary = data?.earnings || {};
   const treeData = tree?.tree || [];
 
@@ -153,6 +156,12 @@ export default function CoachDashboard() {
       <div style={s.card}>
         <div style={s.cardTitle}>Your Tools</div>
         <div style={s.toolsRow}>
+          {/* Trainer's digital clipboard: pick a 1-on-1 client and log their
+              workout on the iPad like a paper sheet. Opens the tracker scoped
+              to this coach's clients. Independent of Gym TV / kiosk. */}
+          <a href={`https://bestrongagain.netlify.app/?mode=1on1&coach=${encodeURIComponent(user?.referral_code || '')}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+            1-on-1 Training
+          </a>
           <a href={`https://workoutbuild.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #B37602, #8a5b00)' }}>
             Workout Builder
           </a>
@@ -176,6 +185,12 @@ export default function CoachDashboard() {
           </a>
           <a href={`https://leaderboard.bestrongagain.com?from=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #fbbf24, #d97706)' }}>
             Leaderboard
+          </a>
+          <a href="/admin?tab=challenges" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}>
+            Challenges
+          </a>
+          <a href="/member" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #64748b, #475569)' }}>
+            Member View
           </a>
         </div>
       </div>
@@ -255,54 +270,85 @@ export default function CoachDashboard() {
       </div>
 
       {/* Clients */}
-      <div style={s.card}>
-        <div style={s.cardTitle}>Your Clients</div>
+      <details style={s.card} open>
+        <summary style={{ ...s.cardTitle, cursor: 'pointer', userSelect: 'none' }}>Your Clients ({clients.length})</summary>
         {clients.length === 0 ? (
           <p style={{ color: '#999', fontSize: '14px' }}>No clients yet. Share your referral link to get started.</p>
-        ) : (
-          <div style={s.tableWrap}>
-          <table style={s.table}>
-            <thead>
-              <tr>
-                <th style={s.th}>Name</th>
-                <th style={s.th}>Tier</th>
-                <th style={s.th}>Goals</th>
-                <th style={s.th}>Status</th>
-                <th style={s.th}>Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map((c) => (
-                <tr key={c.id}>
-                  <td style={s.td}>{c.first_name} {c.last_name}</td>
-                  <td style={s.td}>{c.tier || '—'}</td>
-                  <td style={s.td}>
-                    {c.goals && c.goals.length > 0 ? (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', maxWidth: '200px' }}>
-                        {c.goals.map((g) => (
-                          <span key={g} style={{
-                            display: 'inline-block', background: '#fef3c7', color: '#92400e',
-                            padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap',
-                          }}>{g}</span>
-                        ))}
-                      </div>
+        ) : (<>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {clients.slice((clientPage - 1) * CLIENTS_PER_PAGE, clientPage * CLIENTS_PER_PAGE).map((c) => (
+              <div key={c.id || c.email} style={{
+                background: '#f9fafb', borderRadius: '10px', padding: '12px 14px',
+                border: '1px solid #e5e7eb',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                  <div>
+                    <div style={{ fontWeight: '700', fontSize: '14px', color: '#1a1a2e' }}>{c.first_name} {c.last_name}</div>
+                    <div style={{ fontSize: '12px', color: '#888' }}>{c.email}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {c.tier ? (
+                      <span style={{ display: 'inline-block', background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 700 }}>{c.tier}</span>
                     ) : (
-                      <span style={{ color: '#bbb' }}>—</span>
+                      <span style={{ display: 'inline-block', background: '#f3f4f6', color: '#888', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 700 }}>Free</span>
                     )}
-                  </td>
-                  <td style={s.td}>
-                    <span style={{ color: c.status === 'active' ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
+                    <span style={{ fontSize: '11px', color: c.status === 'active' ? '#16a34a' : '#d97706', fontWeight: 600 }}>
                       {c.status || 'pending'}
                     </span>
-                  </td>
-                  <td style={s.td}>{c.joined ? new Date(c.joined).toLocaleDateString() : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', fontSize: '11px', color: '#888', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {c.goals && c.goals.length > 0 && c.goals.map((g) => (
+                    <span key={g} style={{
+                      display: 'inline-block', background: '#fef3c7', color: '#92400e',
+                      padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 700,
+                    }}>{g}</span>
+                  ))}
+                  {c.joined && <span>Joined {new Date(c.joined).toLocaleDateString()}</span>}
+                  {c.workout_count > 0 && <span>{c.workout_count} workouts</span>}
+                  {c.last_workout && <span>Last: {new Date(c.last_workout).toLocaleDateString()}</span>}
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm(`Are you sure you want to delete ${c.first_name} ${c.last_name}?\n\nThis removes all their workout data, logs, and account. This cannot be undone.`)) return;
+                      try {
+                        if (c.programs?.length) {
+                          for (const p of c.programs) {
+                            await fetch((window.gwtConfig?.apiBase || 'https://app.bestrongagain.com/api/workout/') + 'delete-client.php', {
+                              method: 'POST', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ access_code: p.access_code, user_email: c.email }),
+                            });
+                          }
+                        }
+                        if (c.id) await api.deleteMember(c.id);
+                        loadDashboard();
+                      } catch (e) { alert(e.message || 'Could not delete.'); }
+                    }}
+                    style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', fontSize: '11px', fontWeight: '600', cursor: 'pointer', background: '#ef4444', color: '#fff' }}
+                  >Delete</button>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+          {clients.length > CLIENTS_PER_PAGE && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '14px', flexWrap: 'wrap' }}>
+              {Array.from({ length: Math.ceil(clients.length / CLIENTS_PER_PAGE) }, (_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setClientPage(i + 1)}
+                  style={{
+                    width: '36px', height: '36px', borderRadius: '8px', border: 'none',
+                    background: clientPage === i + 1 ? 'linear-gradient(135deg, #667eea, #764ba2)' : '#f3f4f6',
+                    color: clientPage === i + 1 ? '#fff' : '#666',
+                    fontSize: '14px', fontWeight: '700', cursor: 'pointer',
+                  }}
+                >{i + 1}</button>
+              ))}
+            </div>
+          )}
+        </>)}
+      </details>
 
       {/* Downline Tree */}
       <div style={s.card}>

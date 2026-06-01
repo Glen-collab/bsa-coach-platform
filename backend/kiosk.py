@@ -152,6 +152,7 @@ def tv_config():
     pi_id = (request.args.get("pi") or "").strip()
     coach_code = (request.args.get("coach") or request.args.get("code") or "").strip().upper()
     device_serial = (request.args.get("device") or "").strip()
+    available_systems = (request.args.get("systems") or "").strip()
     if not pi_id and not coach_code:
         return jsonify({"error": "pi (user id) or coach (referral code) required"}), 400
 
@@ -185,16 +186,20 @@ def tv_config():
             # Auto-register or update last_seen
             short = device_serial[-4:].upper() if len(device_serial) >= 4 else device_serial
             default_name = f"New device ({short})"
+            systems_update = available_systems if available_systems else None
             cur.execute("""
-                INSERT INTO coach_devices (coach_id, device_serial, display_name, active_program_id)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO coach_devices (coach_id, device_serial, display_name, active_program_id, available_systems)
+                VALUES (%s, %s, %s, %s, COALESCE(%s, 'nes,snes'))
                 ON CONFLICT (coach_id, device_serial) DO UPDATE
-                  SET last_seen_at = NOW()
+                  SET last_seen_at = NOW(),
+                      available_systems = COALESCE(%s, coach_devices.available_systems)
                 RETURNING id, display_name, active_program_id, layout,
                           view_week, view_start_day,
                           display_mode, display_metric_id,
-                          display_gender, display_group, display_year
-            """, (pi_id, device_serial, default_name, coach["active_kiosk_program_id"]))
+                          display_gender, display_group, display_year,
+                          available_systems
+            """, (pi_id, device_serial, default_name, coach["active_kiosk_program_id"],
+                  systems_update, systems_update))
             device_row = cur.fetchone()
             db.commit()
             active_program_id = device_row["active_program_id"]
@@ -244,6 +249,7 @@ def tv_config():
                     "group":     device_row["display_group"]     if device_row else None,
                     "year":      device_row["display_year"]      if device_row else None,
                 },
+                "available_systems": device_row["available_systems"] if device_row else "nes,snes",
             } if device_row else None,
             "active": {
                 "program_id": program["id"],
@@ -270,12 +276,13 @@ def my_devices():
                    d.layout, d.view_week, d.view_start_day,
                    d.display_mode, d.display_metric_id,
                    d.display_gender, d.display_group, d.display_year,
+                   d.available_systems,
                    d.last_seen_at, d.created_at,
                    wp.access_code, wp.program_name
             FROM coach_devices d
             LEFT JOIN workout_programs wp ON wp.id = d.active_program_id
             WHERE d.coach_id = %s
-            ORDER BY d.last_seen_at DESC
+            ORDER BY d.display_name ASC, d.created_at ASC
         """, (user_id,))
         devices = cur.fetchall()
         return jsonify({"devices": devices, "count": len(devices)})
@@ -459,6 +466,100 @@ def kiosk_members():
         db.close()
 
 
+# ── Coach: 1-on-1 client roster (returning clients) ───────────────────
+@kiosk_bp.route("/coach-clients", methods=["GET"])
+def coach_clients():
+    """
+    GET /api/kiosk/coach-clients?coach=<referral_code>
+
+    Powers the tracker's 1-on-1 picker. Returns clients who already have a
+    saved position under one of this coach's programs, so the trainer taps a
+    name and resumes that client's OWN program at their current week/day.
+    Public, gated by coach referral code (same trust model as /members).
+    """
+    coach_code = (request.args.get("coach") or "").strip().upper()
+    if not coach_code:
+        return jsonify({"error": "coach (referral_code) required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT email FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin')",
+            (coach_code,),
+        )
+        coach = cur.fetchone()
+        if not coach:
+            return jsonify({"error": "Coach not found"}), 404
+        coach_email = (coach["email"] or "").lower()
+        # One row per client (their most recent position across this coach's
+        # programs) so 1-on-1 resumes where the client left off.
+        cur.execute("""
+            SELECT DISTINCT ON (LOWER(pos.user_email))
+                   pos.user_email, pos.user_name, pos.access_code,
+                   pos.current_week, pos.current_day
+            FROM workout_user_position pos
+            JOIN workout_programs wp ON wp.access_code = pos.access_code
+            WHERE wp.is_active = TRUE
+              AND (LOWER(wp.created_by) = %s OR LOWER(wp.optional_trainer_email) = %s)
+              AND pos.user_email NOT IN ('tv-display@bestrongagain.com', 'kiosk@bestrongagain.com')
+            ORDER BY LOWER(pos.user_email), pos.updated_at DESC
+        """, (coach_email, coach_email))
+        rows = cur.fetchall()
+        clients = [{
+            "name":        (r["user_name"] or "").strip() or r["user_email"],
+            "email":       r["user_email"],
+            "access_code": r["access_code"],
+            "week":        r["current_week"],
+            "day":         r["current_day"],
+        } for r in rows]
+        clients.sort(key=lambda c: c["name"].lower())
+        return jsonify({"clients": clients, "count": len(clients)})
+    finally:
+        db.close()
+
+
+# ── Coach: programs list (for pairing a brand-new 1-on-1 client) ──────
+@kiosk_bp.route("/coach-programs", methods=["GET"])
+def coach_programs_public():
+    """
+    GET /api/kiosk/coach-programs?coach=<referral_code>
+
+    Lists this coach's programs so the 1-on-1 picker can pair a NEW client:
+    pick a program + enter name/email -> load, which creates that client's
+    position and surfaces them in /coach-clients thereafter. Public, gated by
+    coach referral code.
+    """
+    coach_code = (request.args.get("coach") or "").strip().upper()
+    if not coach_code:
+        return jsonify({"error": "coach (referral_code) required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT email FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin')",
+            (coach_code,),
+        )
+        coach = cur.fetchone()
+        if not coach:
+            return jsonify({"error": "Coach not found"}), 404
+        coach_email = (coach["email"] or "").lower()
+        cur.execute("""
+            SELECT access_code, program_name, program_nickname
+            FROM workout_programs
+            WHERE is_active = TRUE
+              AND (LOWER(created_by) = %s OR LOWER(optional_trainer_email) = %s OR LOWER(user_email) = %s)
+            ORDER BY updated_at DESC
+        """, (coach_email, coach_email, coach_email))
+        rows = cur.fetchall()
+        programs = [{
+            "access_code": r["access_code"],
+            "name": (r["program_nickname"] or r["program_name"] or r["access_code"]),
+        } for r in rows]
+        return jsonify({"programs": programs, "count": len(programs)})
+    finally:
+        db.close()
+
+
 # ── Coach: drive what's on the TV (phone-as-remote) ───────────────────
 @kiosk_bp.route("/device/set-view", methods=["POST"])
 @require_auth
@@ -529,7 +630,7 @@ def device_set_display():
     data = request.get_json(silent=True) or {}
     device_id = data.get("device_id")
     mode = (data.get("mode") or "").strip()
-    if not device_id or mode not in ("workout", "leaderboard", "game_nes", "game_snes"):
+    if not device_id or mode not in ("workout", "leaderboard", "game_nes", "game_snes", "game_n64", "game_gba"):
         return jsonify({"error": "device_id + valid mode required"}), 400
 
     metric_id = data.get("metric_id")
@@ -611,7 +712,7 @@ def exit_game_mode():
             UPDATE coach_devices
             SET display_mode = 'workout'
             WHERE coach_id = %s AND device_serial = %s
-              AND display_mode IN ('game_nes', 'game_snes')
+              AND display_mode LIKE 'game_%'
             RETURNING id, display_mode
         """, (coach["id"], device_serial))
         row = cur.fetchone()
