@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import MagicLogin from './pages/MagicLogin';
 import MemberDashboard from './pages/MemberDashboard';
 import CoachDashboard from './pages/CoachDashboard';
 import AdminDashboard from './pages/AdminDashboard';
@@ -30,7 +31,7 @@ function AppRoutes() {
 
   const getDashboard = () => {
     if (!user) return <Navigate to="/login" />;
-    if (user.role === 'admin') return <AdminDashboard />;
+    if (user.role === 'admin') return <CoachDashboard />;
     if (user.role === 'coach') return <CoachDashboard />;
     return <MemberDashboard />;
   };
@@ -44,10 +45,12 @@ function AppRoutes() {
       <Route path="/register/:referralCode" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/magic" element={<MagicLogin />} />
       <Route path="/dashboard" element={<ProtectedRoute>{getDashboard()}</ProtectedRoute>} />
       <Route path="/coach" element={<ProtectedRoute requiredRole="coach"><CoachDashboard /></ProtectedRoute>} />
       <Route path="/apply-coach" element={<ApplyCoach />} />
       <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
+      <Route path="/member" element={<ProtectedRoute><MemberDashboard /></ProtectedRoute>} />
       <Route path="/media-library" element={<ProtectedRoute><MediaLibrary /></ProtectedRoute>} />
       <Route path="/gym-tv" element={<ProtectedRoute><GymTV /></ProtectedRoute>} />
       <Route path="/gym-tv/remote/:deviceId" element={<ProtectedRoute><RemoteControl /></ProtectedRoute>} />

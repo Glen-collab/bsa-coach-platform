@@ -17,10 +17,16 @@ from flask import Blueprint, request, jsonify
 from psycopg2.extras import RealDictCursor
 import psycopg2
 import os
+import secrets
+from datetime import datetime, timedelta
 
 from auth import require_auth
 
 kiosk_bp = Blueprint("kiosk", __name__)
+
+# Where a 1-on-1 client's magic-link welcome lands them (their read-only
+# member dashboard), as opposed to TRACKER_URL which is the workout tracker.
+APP_URL = os.environ.get("APP_URL", "https://app.bestrongagain.com")
 
 
 def get_db():
@@ -492,26 +498,36 @@ def coach_clients():
             return jsonify({"error": "Coach not found"}), 404
         coach_email = (coach["email"] or "").lower()
         # One row per client (their most recent position across this coach's
-        # programs) so 1-on-1 resumes where the client left off.
+        # programs) so 1-on-1 resumes where the client left off. Join users so
+        # the display name comes from the canonical record, not whatever the
+        # tracker happened to stamp on the position ("User" / blank).
         cur.execute("""
             SELECT DISTINCT ON (LOWER(pos.user_email))
                    pos.user_email, pos.user_name, pos.access_code,
-                   pos.current_week, pos.current_day
+                   pos.current_week, pos.current_day,
+                   u.first_name, u.last_name
             FROM workout_user_position pos
             JOIN workout_programs wp ON wp.access_code = pos.access_code
+            LEFT JOIN users u ON LOWER(u.email) = LOWER(pos.user_email)
             WHERE wp.is_active = TRUE
               AND (LOWER(wp.created_by) = %s OR LOWER(wp.optional_trainer_email) = %s)
               AND pos.user_email NOT IN ('tv-display@bestrongagain.com', 'kiosk@bestrongagain.com')
             ORDER BY LOWER(pos.user_email), pos.updated_at DESC
         """, (coach_email, coach_email))
         rows = cur.fetchall()
-        clients = [{
-            "name":        (r["user_name"] or "").strip() or r["user_email"],
-            "email":       r["user_email"],
-            "access_code": r["access_code"],
-            "week":        r["current_week"],
-            "day":         r["current_day"],
-        } for r in rows]
+        clients = []
+        for r in rows:
+            full = f"{(r.get('first_name') or '').strip()} {(r.get('last_name') or '').strip()}".strip()
+            pos_name = (r["user_name"] or "").strip()
+            if pos_name.lower() == "user":   # tracker's placeholder, not a real name
+                pos_name = ""
+            clients.append({
+                "name":        full or pos_name or r["user_email"],
+                "email":       r["user_email"],
+                "access_code": r["access_code"],
+                "week":        r["current_week"],
+                "day":         r["current_day"],
+            })
         clients.sort(key=lambda c: c["name"].lower())
         return jsonify({"clients": clients, "count": len(clients)})
     finally:
@@ -556,6 +572,105 @@ def coach_programs_public():
             "name": (r["program_nickname"] or r["program_name"] or r["access_code"]),
         } for r in rows]
         return jsonify({"programs": programs, "count": len(programs)})
+    finally:
+        db.close()
+
+
+# ── Coach: invite a 1-on-1 client to their dashboard (magic-link welcome) ──
+@kiosk_bp.route("/invite-client", methods=["POST", "OPTIONS"])
+def invite_client():
+    """
+    POST /api/kiosk/invite-client   Body: { coach: <referral_code>, email, name }
+
+    Fired when a coach pairs a NEW 1-on-1 client in the tracker. Finds or
+    auto-creates the client as a member under this coach, then emails them a
+    one-tap magic-link welcome so they can open their read-only member
+    dashboard (coach notes, sessions logged, monthly challenge) — no password,
+    no app purchase. The link lands on APP_URL/magic, which consumes the token
+    and drops them on /member. Public, gated by coach referral code.
+    """
+    if request.method == "OPTIONS":
+        return "", 200
+    from auth import generate_referral_code
+    from email_helper import send_email
+
+    data = request.get_json(silent=True) or {}
+    coach_code = (data.get("coach") or "").strip().upper()
+    email = (data.get("email") or "").strip().lower()
+    name = (data.get("name") or "").strip()
+    if not coach_code:
+        return jsonify({"error": "coach required"}), 400
+    if not email or "@" not in email or len(email) > 200:
+        return jsonify({"error": "Valid client email required"}), 400
+
+    parts = name.split()
+    first_name = (parts[0] if parts else email.split("@")[0])[:40]
+    last_name = " ".join(parts[1:])[:60] if len(parts) > 1 else ""
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT id, first_name FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin')",
+            (coach_code,),
+        )
+        coach = cur.fetchone()
+        if not coach:
+            return jsonify({"error": "Coach not found"}), 404
+        coach_id = coach["id"]
+        coach_name = (coach["first_name"] or "Your trainer")
+
+        cur.execute("SELECT id FROM users WHERE LOWER(email) = %s", (email,))
+        row = cur.fetchone()
+        if row:
+            user_id = row["id"]
+            # Backfill name only if missing — never clobber an existing one.
+            if name:
+                cur.execute("""
+                    UPDATE users
+                    SET first_name = COALESCE(NULLIF(first_name, ''), %s),
+                        last_name  = COALESCE(NULLIF(last_name, ''),  %s)
+                    WHERE id = %s
+                """, (first_name, last_name, user_id))
+        else:
+            referral_code = generate_referral_code(first_name)
+            for _ in range(10):
+                cur.execute("SELECT 1 FROM users WHERE referral_code = %s", (referral_code,))
+                if not cur.fetchone():
+                    break
+                referral_code = generate_referral_code(first_name)
+            cur.execute("""
+                INSERT INTO users (email, first_name, last_name, role, referral_code,
+                                   password_hash, is_active, referred_by_id)
+                VALUES (%s, %s, %s, 'member', %s, '', TRUE, %s)
+                RETURNING id
+            """, (email, first_name, last_name, referral_code, coach_id))
+            user_id = cur.fetchone()["id"]
+
+        token = secrets.token_urlsafe(32)
+        expires = datetime.utcnow() + timedelta(days=7)  # welcome link valid a week
+        cur.execute(
+            "UPDATE users SET magic_token = %s, magic_expires_at = %s WHERE id = %s",
+            (token, expires, user_id),
+        )
+        db.commit()
+
+        link = f"{APP_URL}/magic?token={token}"
+        html = f"""
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+            <h2 style="color:#1a1a2e;margin:0 0 16px;">Your dashboard is ready 💪</h2>
+            <p style="color:#444;line-height:1.5;font-size:15px;">Hi {first_name}, {coach_name} set up your Be Strong Again dashboard. Tap below to open it — you'll see your coach's notes, the sessions you've logged together, and the gym's monthly challenge. No password needed.</p>
+            <p style="margin:24px 0;"><a href="{link}" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:14px 28px;border-radius:10px;font-weight:800;font-size:16px;text-decoration:none;display:inline-block;">Open my dashboard</a></p>
+            <p style="color:#888;font-size:12px;line-height:1.5;">Or paste this into your browser:<br><a href="{link}" style="color:#667eea;word-break:break-all;">{link}</a></p>
+            <p style="color:#aaa;font-size:11px;margin-top:32px;">This link works for 7 days. You can always come back and sign in with your email.</p>
+          </div>
+        """
+        try:
+            send_email(email, f"{coach_name} set up your Be Strong Again dashboard", html)
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Couldn't send email ({e})"}), 500
+
+        return jsonify({"success": True, "message": f"Welcome email sent to {email}."})
     finally:
         db.close()
 
