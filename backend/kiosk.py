@@ -675,6 +675,143 @@ def invite_client():
         db.close()
 
 
+# ── 1-on-1 folder: a coach's curated, pinned client list (+ groups) ───
+def _coach_id_from_code(cur, coach_code):
+    """Resolve a coach referral code to a coach/admin user id, or None."""
+    cur.execute(
+        "SELECT id FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin')",
+        ((coach_code or "").strip().upper(),),
+    )
+    row = cur.fetchone()
+    return row["id"] if row else None
+
+
+@kiosk_bp.route("/oneonone-folder", methods=["GET"])
+def oneonone_folder():
+    """GET ?coach=<referral_code> → the coach's pinned 1-on-1 clients, each with
+    their own program code + saved week/day, plus group_name. Public, gated by
+    coach code (same trust model as /coach-clients)."""
+    coach_code = (request.args.get("coach") or "").strip().upper()
+    if not coach_code:
+        return jsonify({"error": "coach required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        coach_id = _coach_id_from_code(cur, coach_code)
+        if not coach_id:
+            return jsonify({"error": "Coach not found"}), 404
+        cur.execute("""
+            SELECT f.client_email, f.client_name, f.access_code, f.group_name,
+                   pos.current_week, pos.current_day
+            FROM one_on_one_clients f
+            LEFT JOIN LATERAL (
+                SELECT current_week, current_day
+                FROM workout_user_position p
+                WHERE LOWER(p.user_email) = LOWER(f.client_email)
+                  AND (f.access_code IS NULL OR p.access_code = f.access_code)
+                ORDER BY p.updated_at DESC LIMIT 1
+            ) pos ON TRUE
+            WHERE f.coach_id = %s
+            ORDER BY LOWER(COALESCE(f.client_name, f.client_email))
+        """, (coach_id,))
+        clients = [{
+            "name":        (r["client_name"] or "").strip() or r["client_email"],
+            "email":       r["client_email"],
+            "access_code": r["access_code"],
+            "group":       r["group_name"] or "",
+            "week":        r["current_week"],
+            "day":         r["current_day"],
+        } for r in cur.fetchall()]
+        return jsonify({"clients": clients, "count": len(clients)})
+    finally:
+        db.close()
+
+
+@kiosk_bp.route("/oneonone-folder/add", methods=["POST", "OPTIONS"])
+def oneonone_folder_add():
+    """Body: { coach, email, name, access_code } → pin a client to the folder."""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.get_json(silent=True) or {}
+    coach_code = (data.get("coach") or "").strip().upper()
+    email = (data.get("email") or "").strip().lower()
+    name = (data.get("name") or "").strip()
+    access_code = (data.get("access_code") or "").strip() or None
+    if not coach_code or not email:
+        return jsonify({"error": "coach and email required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        coach_id = _coach_id_from_code(cur, coach_code)
+        if not coach_id:
+            return jsonify({"error": "Coach not found"}), 404
+        cur.execute("""
+            INSERT INTO one_on_one_clients (coach_id, client_email, client_name, access_code)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (coach_id, client_email) DO UPDATE
+              SET client_name = COALESCE(NULLIF(EXCLUDED.client_name, ''), one_on_one_clients.client_name),
+                  access_code = COALESCE(EXCLUDED.access_code, one_on_one_clients.access_code)
+        """, (coach_id, email, name, access_code))
+        db.commit()
+        return jsonify({"success": True})
+    finally:
+        db.close()
+
+
+@kiosk_bp.route("/oneonone-folder/remove", methods=["POST", "OPTIONS"])
+def oneonone_folder_remove():
+    """Body: { coach, email } → un-pin a client from the folder."""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.get_json(silent=True) or {}
+    coach_code = (data.get("coach") or "").strip().upper()
+    email = (data.get("email") or "").strip().lower()
+    if not coach_code or not email:
+        return jsonify({"error": "coach and email required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        coach_id = _coach_id_from_code(cur, coach_code)
+        if not coach_id:
+            return jsonify({"error": "Coach not found"}), 404
+        cur.execute(
+            "DELETE FROM one_on_one_clients WHERE coach_id = %s AND LOWER(client_email) = %s",
+            (coach_id, email),
+        )
+        db.commit()
+        return jsonify({"success": True})
+    finally:
+        db.close()
+
+
+@kiosk_bp.route("/oneonone-group", methods=["POST", "OPTIONS"])
+def oneonone_group():
+    """Body: { coach, group_name, emails: [...] } → tag those folder clients as a
+    group (rows sharing group_name render together). Pass group_name='' to ungroup."""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.get_json(silent=True) or {}
+    coach_code = (data.get("coach") or "").strip().upper()
+    group_name = (data.get("group_name") or "").strip() or None
+    emails = [e.strip().lower() for e in (data.get("emails") or []) if e and e.strip()]
+    if not coach_code or not emails:
+        return jsonify({"error": "coach and emails required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        coach_id = _coach_id_from_code(cur, coach_code)
+        if not coach_id:
+            return jsonify({"error": "Coach not found"}), 404
+        cur.execute(
+            "UPDATE one_on_one_clients SET group_name = %s WHERE coach_id = %s AND LOWER(client_email) = ANY(%s)",
+            (group_name, coach_id, emails),
+        )
+        db.commit()
+        return jsonify({"success": True, "grouped": len(emails)})
+    finally:
+        db.close()
+
+
 # ── Coach: drive what's on the TV (phone-as-remote) ───────────────────
 @kiosk_bp.route("/device/set-view", methods=["POST"])
 @require_auth
