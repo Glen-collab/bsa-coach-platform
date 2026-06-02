@@ -36,6 +36,10 @@ export default function GymTvPowerCard({ isMobile, s }) {
   const [busy, setBusy] = useState({});
   // per-row status messages
   const [msgs, setMsgs] = useState({});
+  // device_serial -> epoch ms a shutdown was queued, so the row shows
+  // "shutting down…" instead of the stale "online" (a Pi can't report that
+  // it powered off — its heartbeat just goes quiet and ages out after 2 min).
+  const [shutdownAt, setShutdownAt] = useState({});
   // Default-collapsed so the power tools don't take up screen real estate
   // on the daily dashboard view. Coach taps the header to expand when
   // they actually need to shutdown / reboot a Pi.
@@ -85,6 +89,21 @@ export default function GymTvPowerCard({ isMobile, s }) {
             ? 'Shutdown queued. Give it 10–15 seconds, then unplug.'
             : 'Reboot queued. TV will come back up in about a minute.',
         }));
+        if (kind === 'shutdown') {
+          // Optimistically flag affected device(s) as shutting down. For an
+          // All broadcast (no serial), flag every currently-online Pi.
+          setShutdownAt((sd) => {
+            const now = Date.now();
+            if (deviceSerial) return { ...sd, [deviceSerial]: now };
+            const next = { ...sd };
+            devices.forEach((d) => {
+              if (d.last_seen_at && (now - new Date(d.last_seen_at).getTime()) / 60000 < 2) {
+                next[d.device_serial] = now;
+              }
+            });
+            return next;
+          });
+        }
       } else {
         setMsgs((m) => ({ ...m, [key]: res?.message || 'Command failed.' }));
       }
@@ -212,10 +231,14 @@ export default function GymTvPowerCard({ isMobile, s }) {
           <div key={d.id} style={rowStyle}>
             <div>
               <div style={{ fontWeight: 600, color: '#111827' }}>{label}</div>
-              <div style={{ fontSize: 12, color: lastSeenColor(d.last_seen_at) }}>
-                {lastSeenLabel(d.last_seen_at)}
-                {d.program_name ? ` · ${d.program_name}` : ''}
-              </div>
+              {(shutdownAt[key] && Date.now() - shutdownAt[key] < 180000) ? (
+                <div style={{ fontSize: 12, color: '#b45309' }}>shutting down…</div>
+              ) : (
+                <div style={{ fontSize: 12, color: lastSeenColor(d.last_seen_at) }}>
+                  {lastSeenLabel(d.last_seen_at)}
+                  {d.program_name ? ` · ${d.program_name}` : ''}
+                </div>
+              )}
               {msgs[key] && (
                 <div style={{ fontSize: 12, color: '#065f46', background: '#ecfdf5', padding: '6px 10px', borderRadius: 6, marginTop: 6 }}>
                   {msgs[key]}
