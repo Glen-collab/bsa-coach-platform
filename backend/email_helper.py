@@ -45,7 +45,7 @@ def send_email(to, subject, html_body, reply_to=None):
         return False
 
 
-def notify_admin_new_signup(first_name, last_name, email, referral_code, referred_by=None, goals=None, starter_program=None, is_update=False, previous_goals=None):
+def notify_admin_new_signup(first_name, last_name, email, referral_code, referred_by=None, goals=None, starter_program=None, is_update=False, previous_goals=None, dob=None):
     """Email Glen when someone new registers OR updates their goals.
     Goals make this email actionable — Glen can draft a personalized
     reply on the spot instead of cold-emailing for context. Goals can
@@ -66,6 +66,16 @@ def notify_admin_new_signup(first_name, last_name, email, referral_code, referre
     if is_update and previous_goals:
         previous_block = f'<p style="margin-top:14px;color:#888;font-size:13px;"><strong>Previously:</strong></p><div style="margin:6px 0;opacity:0.7;">{_chips(previous_goals)}</div>'
     program_line = f"<p><strong>Starter assigned:</strong> {starter_program}</p>" if starter_program else ""
+    dob_block = ""
+    if dob:
+        try:
+            import datetime as _dt
+            d = dob if isinstance(dob, _dt.date) else _dt.date.fromisoformat(str(dob)[:10])
+            today = _dt.date.today()
+            age = today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+            dob_block = f'<p><strong>DOB:</strong> {d.isoformat()} (age {age})</p>'
+        except Exception:
+            dob_block = f'<p><strong>DOB:</strong> {dob}</p>'
     heading = "Goals Updated" if is_update else "New User Registration"
     subject_prefix = "Goals Updated" if is_update else "New Signup"
     reply_subject = "Following up on your goals" if is_update else "Welcome to BSA — let's talk about your goals"
@@ -77,6 +87,7 @@ def notify_admin_new_signup(first_name, last_name, email, referral_code, referre
         <h2>{heading}</h2>
         <p><strong>Name:</strong> {first_name} {last_name}</p>
         <p><strong>Email:</strong> <a href="{reply_link}">{email}</a></p>
+        {dob_block}
         <p><strong>Referral Code:</strong> {referral_code}</p>
         {referred_text}
         {program_line}

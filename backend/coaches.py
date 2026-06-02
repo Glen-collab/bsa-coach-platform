@@ -40,7 +40,7 @@ def coach_dashboard(coach_id):
         # Clients who signed up via this coach's referral code
         cur.execute("""
             SELECT u.id, u.first_name, u.last_name, u.email, u.created_at,
-                   s.tier, s.status as sub_status, s.amount_cents, u.goals
+                   s.tier, s.status as sub_status, s.amount_cents, u.goals, u.dob
             FROM users u
             LEFT JOIN subscriptions s ON s.user_id = u.id AND s.status = 'active'
             WHERE u.referred_by_id = %s AND u.role = 'member'
@@ -48,41 +48,44 @@ def coach_dashboard(coach_id):
         """, (coach_id,))
         platform_clients = cur.fetchall()
 
-        # Also get workout tracking data for these clients
-        client_emails = [c["email"] for c in platform_clients]
+        # Also get workout tracking data — pull ALL tracker users on the
+        # coach's programs, not just registered platform users. This catches
+        # people who entered a code in the tracker but never signed up on
+        # the platform.
+        platform_emails = {c["email"].lower() for c in platform_clients}
 
-        # Get workout data for referred clients
-        workout_clients = []
-        if client_emails:
-            placeholders = ','.join(['%s'] * len(client_emails))
-            cur.execute(f"""
-                SELECT up.user_email, up.user_name, up.access_code, up.current_week, up.current_day,
-                       up.one_rm_bench, up.one_rm_squat, up.one_rm_deadlift, up.one_rm_clean,
-                       p.program_name,
-                       (SELECT COUNT(*) FROM workout_logs wl WHERE wl.access_code = up.access_code AND wl.user_email = up.user_email) as workout_count,
-                       (SELECT MAX(workout_date) FROM workout_logs wl WHERE wl.access_code = up.access_code AND wl.user_email = up.user_email) as last_workout
-                FROM workout_user_position up
-                LEFT JOIN workout_programs p ON up.access_code = p.access_code
-                WHERE up.user_email IN ({placeholders})
-                ORDER BY up.user_email
-            """, client_emails)
-            workout_clients = cur.fetchall()
+        cur.execute("""
+            SELECT up.user_email, up.user_name, up.access_code, up.current_week, up.current_day,
+                   up.one_rm_bench, up.one_rm_squat, up.one_rm_deadlift, up.one_rm_clean,
+                   p.program_name,
+                   (SELECT COUNT(*) FROM workout_logs wl WHERE wl.access_code = up.access_code AND LOWER(wl.user_email) = LOWER(up.user_email)) as workout_count,
+                   (SELECT MAX(workout_date) FROM workout_logs wl WHERE wl.access_code = up.access_code AND LOWER(wl.user_email) = LOWER(up.user_email)) as last_workout
+            FROM workout_user_position up
+            LEFT JOIN workout_programs p ON up.access_code = p.access_code
+            WHERE LOWER(p.user_email) = LOWER(%s) OR LOWER(p.optional_trainer_email) = LOWER(%s) OR LOWER(p.created_by) = LOWER(%s)
+            ORDER BY up.user_email
+        """, (coach_email, coach_email, coach_email))
+        all_tracker_clients = cur.fetchall()
 
         # Merge platform + workout data
         clients = []
+        seen_emails = set()
         for pc in platform_clients:
-            # Find matching workout data
-            workouts = [w for w in workout_clients if w["user_email"] == pc["email"]]
+            workouts = [w for w in all_tracker_clients if w["user_email"] and w["user_email"].lower() == pc["email"].lower()]
             client = {
                 "id": str(pc["id"]),
                 "first_name": pc["first_name"],
                 "last_name": pc["last_name"],
                 "email": pc["email"],
+                "dob": str(pc["dob"]) if pc["dob"] else None,
                 "joined": str(pc["created_at"]) if pc["created_at"] else None,
                 "tier": pc["tier"],
                 "sub_status": pc["sub_status"],
                 "monthly_value": (pc["amount_cents"] or 0) / 100,
                 "goals": pc["goals"] or [],
+                "status": pc["sub_status"] or "pending",
+                "workout_count": sum(w["workout_count"] or 0 for w in workouts),
+                "last_workout": max((str(w["last_workout"]) for w in workouts if w["last_workout"]), default=None),
                 "programs": [{
                     "access_code": w["access_code"],
                     "program_name": w["program_name"],
@@ -93,6 +96,45 @@ def coach_dashboard(coach_id):
                 } for w in workouts],
             }
             clients.append(client)
+            seen_emails.add(pc["email"].lower())
+
+        # Add tracker-only clients (not registered on platform)
+        tracker_only = {}
+        for w in all_tracker_clients:
+            e = (w["user_email"] or "").lower()
+            if e in seen_emails or e == coach_email.lower():
+                continue
+            if e not in tracker_only:
+                tracker_only[e] = {
+                    "id": None,
+                    "first_name": (w["user_name"] or e.split("@")[0]).split(" ")[0],
+                    "last_name": " ".join((w["user_name"] or "").split(" ")[1:]) or "",
+                    "email": w["user_email"],
+                    "joined": None,
+                    "tier": None,
+                    "sub_status": None,
+                    "monthly_value": 0,
+                    "goals": [],
+                    "status": "tracker-only",
+                    "workout_count": 0,
+                    "last_workout": None,
+                    "programs": [],
+                }
+            t = tracker_only[e]
+            t["workout_count"] += w["workout_count"] or 0
+            if w["last_workout"]:
+                lw = str(w["last_workout"])
+                if not t["last_workout"] or lw > t["last_workout"]:
+                    t["last_workout"] = lw
+            t["programs"].append({
+                "access_code": w["access_code"],
+                "program_name": w["program_name"],
+                "current_week": w["current_week"],
+                "current_day": w["current_day"],
+                "workout_count": w["workout_count"],
+                "last_workout": str(w["last_workout"]) if w["last_workout"] else None,
+            })
+        clients.extend(tracker_only.values())
 
         # Earnings summary. Tiles on the coach dashboard show total EARNED
         # (paid + pending) so a coach who hasn't onboarded Stripe Connect

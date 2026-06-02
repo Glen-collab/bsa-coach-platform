@@ -101,6 +101,17 @@ def register():
     last_name = data.get("last_name", "")
     referral_code = data.get("referral_code", "").upper().strip()
 
+    # Optional date of birth (YYYY-MM-DD). Validated lightly; bad/blank → NULL.
+    dob = (data.get("dob") or "").strip() or None
+    if dob:
+        try:
+            import datetime as _dt
+            d = _dt.date.fromisoformat(dob)
+            if d.year < 1900 or d > _dt.date.today():
+                dob = None
+        except ValueError:
+            dob = None
+
     # Members only — coaches go through application process
     role = "member"
 
@@ -125,11 +136,11 @@ def register():
             cur.execute("""
                 INSERT INTO users (
                     id, email, password_hash, first_name, last_name,
-                    role, referred_by_id, referral_code
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    role, referred_by_id, referral_code, dob
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 user_id, email, password_hash, first_name, last_name,
-                role, referred_by_id, my_referral_code
+                role, referred_by_id, my_referral_code, dob
             ))
             auto_friend_admin(cur, user_id)
             auto_accept_messaging_consent(cur, user_id)
@@ -257,7 +268,7 @@ def submit_goals():
             # Pull the fields needed for the admin notification email
             cur.execute("""
                 SELECT u.first_name, u.last_name, u.email, u.referral_code,
-                       ref.first_name, ref.last_name
+                       ref.first_name, ref.last_name, u.dob
                 FROM users u
                 LEFT JOIN users ref ON ref.id = u.referred_by_id
                 WHERE u.id = %s
@@ -273,6 +284,7 @@ def submit_goals():
                     referral_code=r[3], referred_by=referred_by,
                     goals=goals, starter_program=starter_program_name,
                     is_update=is_update, previous_goals=previous_goals,
+                    dob=r[6],
                 )
             except Exception:
                 pass  # Don't fail goal-submission if the admin email is flaky

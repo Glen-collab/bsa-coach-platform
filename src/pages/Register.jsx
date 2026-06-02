@@ -101,6 +101,7 @@ export default function Register() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState(presetEmail);
   const [password, setPassword] = useState('');
+  const [dob, setDob] = useState('');
   const [referralCode, setReferralCode] = useState(urlReferral || '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -125,6 +126,7 @@ export default function Register() {
         last_name: lastName,
         email,
         password,
+        dob: dob || null,
         referral_code: referralCode || null,
       });
       login(res.user, res.token);
@@ -217,6 +219,8 @@ export default function Register() {
               <input style={s.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               <label style={s.label}>Password</label>
               <input style={s.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 characters" required />
+              <label style={s.label}>Date of Birth</label>
+              <input style={s.input} type="date" value={dob} onChange={(e) => setDob(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
               <label style={s.label}>Referral Code (optional)</label>
               <input style={s.input} type="text" value={referralCode} onChange={(e) => setReferralCode(e.target.value.toUpperCase())} placeholder="e.g. GLEN12ABC" />
               <button style={{ ...s.btn, opacity: loading ? 0.6 : 1 }} disabled={loading}>

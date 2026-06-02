@@ -5,6 +5,18 @@ import useMediaQuery from '../hooks/useMediaQuery';
 import BroadcastCard from '../components/BroadcastCard';
 import GymTvPowerCard from '../components/GymTvPowerCard';
 
+// Current age from a YYYY-MM-DD date of birth (null if missing/invalid).
+function ageFromDob(dob) {
+  if (!dob) return null;
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age >= 0 && age < 120 ? age : null;
+}
+
 const buildStyles = (isMobile) => ({
   page: { maxWidth: '900px', margin: '0 auto', padding: isMobile ? '16px 12px' : '32px 24px' },
   title: { fontSize: isMobile ? '20px' : '24px', fontWeight: '700', marginBottom: '6px' },
@@ -283,7 +295,12 @@ export default function CoachDashboard() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                   <div>
-                    <div style={{ fontWeight: '700', fontSize: '14px', color: '#1a1a2e' }}>{c.first_name} {c.last_name}</div>
+                    <div style={{ fontWeight: '700', fontSize: '14px', color: '#1a1a2e' }}>
+                      {c.first_name} {c.last_name}
+                      {ageFromDob(c.dob) != null && (
+                        <span style={{ fontWeight: 500, color: '#888', fontSize: '12px' }}> · {ageFromDob(c.dob)} yo</span>
+                      )}
+                    </div>
                     <div style={{ fontSize: '12px', color: '#888' }}>{c.email}</div>
                   </div>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
