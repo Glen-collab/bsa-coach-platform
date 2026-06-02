@@ -5,8 +5,10 @@
 //
 // Coach-recruitment pitch is preserved at /become-a-coach (CoachPitch.jsx).
 
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useMediaQuery from '../hooks/useMediaQuery';
+import { formatScore } from '../utils/challengeFormat';
 
 const REFERRAL_CODE = 'GLENM7NUS'; // Glen's own — all direct signups
 const startLink = (tier = 'basic') => `/register/${REFERRAL_CODE}?tier=${tier}`;
@@ -140,6 +142,160 @@ const buildStyles = (isMobile) => ({
   footer: { padding: '28px 24px', textAlign: 'center', fontSize: '12px', color: '#aaa', background: '#0a0f1f' },
   footerLink: { color: '#9ca3af', textDecoration: 'none', borderBottom: '1px dotted #555' },
 });
+
+function ChallengeLeaderboard({ s, isMobile, startLink }) {
+  const [challenges, setChallenges] = useState([]);
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    fetch('https://app.bestrongagain.com/api/challenges/all-public')
+      .then(r => r.json())
+      .then(d => { if (d.success && d.challenges?.length) setChallenges(d.challenges); })
+      .catch(() => {});
+  }, []);
+
+  if (!challenges.length) return null;
+
+  const data = challenges[idx];
+  const hasPrev = idx < challenges.length - 1;
+  const hasNext = idx > 0;
+  const medals = ['🥇', '🥈', '🥉'];
+
+  return (
+    <section style={{
+      background: 'linear-gradient(135deg, #1a1a2e 0%, #0f1729 100%)',
+      padding: isMobile ? '56px 20px' : '80px 24px',
+      textAlign: 'center',
+    }}>
+      <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+        {/* GET IN THE GAME badge */}
+        <div style={{
+          display: 'inline-block',
+          background: 'linear-gradient(135deg, #fbbf24, #d97706)',
+          padding: isMobile ? '10px 24px' : '12px 32px',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          boxShadow: '0 4px 20px rgba(251,191,36,0.35)',
+        }}>
+          <span style={{
+            fontSize: isMobile ? '18px' : '24px',
+            fontWeight: 900,
+            color: '#1a1a2e',
+            letterSpacing: '3px',
+            textTransform: 'uppercase',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Impact, sans-serif',
+          }}>🔥 GET IN THE GAME</span>
+        </div>
+
+        {/* Arrow navigation */}
+        {challenges.length > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
+            <button
+              onClick={() => setIdx(i => i + 1)}
+              disabled={!hasPrev}
+              style={{
+                width: '36px', height: '36px', borderRadius: '50%',
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: hasPrev ? 'rgba(255,255,255,0.1)' : 'transparent',
+                color: hasPrev ? '#fff' : 'rgba(255,255,255,0.2)',
+                fontSize: '18px', cursor: hasPrev ? 'pointer' : 'default',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >◀</button>
+            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', fontWeight: 600, minWidth: '80px' }}>
+              {data.status === 'active' ? '🟢 ACTIVE' : `${new Date(data.start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`}
+            </span>
+            <button
+              onClick={() => setIdx(i => i - 1)}
+              disabled={!hasNext}
+              style={{
+                width: '36px', height: '36px', borderRadius: '50%',
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: hasNext ? 'rgba(255,255,255,0.1)' : 'transparent',
+                color: hasNext ? '#fff' : 'rgba(255,255,255,0.2)',
+                fontSize: '18px', cursor: hasNext ? 'pointer' : 'default',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >▶</button>
+          </div>
+        )}
+
+        <h2 style={{
+          fontSize: isMobile ? '24px' : '32px', fontWeight: 900,
+          color: '#fff', margin: '0 0 6px', letterSpacing: '-0.3px',
+        }}>{data.title}</h2>
+        {data.description && (
+          <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.7)', margin: '0 0 8px', lineHeight: 1.5 }}>
+            {data.description}
+          </p>
+        )}
+        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '24px' }}>
+          {data.status === 'active' && data.days_left != null ? `${data.days_left} days left · ` : ''}
+          {data.unit} · {data.lower_is_better ? 'Lowest wins' : 'Highest wins'}
+          {data.total_participants > 0 && ` · ${data.total_participants} competed`}
+        </div>
+
+        {/* Standings */}
+        {data.standings && data.standings.length > 0 ? (
+          <div style={{
+            background: 'rgba(255,255,255,0.05)',
+            borderRadius: '16px',
+            border: '1px solid rgba(251,191,36,0.2)',
+            overflow: 'hidden',
+            marginBottom: '24px',
+          }}>
+            {data.standings.map((row, i) => (
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '14px 20px',
+                borderBottom: i < data.standings.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                background: i === 0 ? 'rgba(251,191,36,0.08)' : 'transparent',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '20px', width: '28px', textAlign: 'center' }}>
+                    {medals[i] || <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', fontWeight: 700 }}>#{row.rank}</span>}
+                  </span>
+                  <span style={{
+                    fontSize: '15px', fontWeight: 700, color: '#fff',
+                  }}>{row.first_name}</span>
+                </div>
+                <span style={{
+                  fontSize: '16px', fontWeight: 800,
+                  color: i === 0 ? '#fbbf24' : 'rgba(255,255,255,0.8)',
+                }}>{formatScore(row.score, data.unit)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            background: 'rgba(255,255,255,0.05)',
+            borderRadius: '16px',
+            padding: '30px 20px',
+            marginBottom: '24px',
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: '15px',
+          }}>
+            No entries yet — be the first to post a score!
+          </div>
+        )}
+
+        <Link to={startLink('basic')} style={{
+          display: 'inline-block',
+          padding: '14px 36px',
+          background: 'linear-gradient(135deg, #fbbf24, #d97706)',
+          color: '#1a1a2e',
+          borderRadius: '12px',
+          fontSize: '16px',
+          fontWeight: 800,
+          textDecoration: 'none',
+          boxShadow: '0 6px 20px rgba(251,191,36,0.3)',
+        }}>Join the Challenge — $20/mo</Link>
+        <div style={{ marginTop: '10px', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
+          Subscribe to submit your score and compete.
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function Landing() {
   const isMobile = useMediaQuery('(max-width: 720px)');
@@ -325,6 +481,9 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* CHALLENGE LEADERBOARD — public */}
+      <ChallengeLeaderboard s={s} isMobile={isMobile} startLink={startLink} />
 
       {/* FINAL CTA */}
       <section style={s.finalBlock}>

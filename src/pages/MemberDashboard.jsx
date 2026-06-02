@@ -2,6 +2,7 @@ import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
 import { useState, useEffect } from 'react';
 import useMediaQuery from '../hooks/useMediaQuery';
+import { formatScore } from '../utils/challengeFormat';
 
 const TRACKER_URL = 'https://bestrongagain.netlify.app/';
 
@@ -92,6 +93,7 @@ export default function MemberDashboard() {
   const [goalsEditing, setGoalsEditing] = useState(false);
   const [goalsDraft, setGoalsDraft] = useState([]);
   const [goalsSaving, setGoalsSaving] = useState(false);
+  const [customGoalText, setCustomGoalText] = useState('');
   useEffect(() => {
     api.me().then((m) => { setMe(m); setGoalsDraft(m?.goals || []); }).catch(() => { /* fall back to localStorage user */ });
     api.memberDashboard().then(setDash).catch(() => setDash({ error: true }));
@@ -135,10 +137,106 @@ export default function MemberDashboard() {
   const trackerHref = `${TRACKER_URL}?${trackerParams.toString()}`;
   const currentTier = me?.tier || 'Free';
 
+  // ── Challenge state ───────────────────────────────────────────────
+  const [challenge, setChallenge] = useState(null);
+  const [challengeLoading, setChallengeLoading] = useState(true);
+  // Challenge data loaded on mount -- members submit scores from the
+  // tracker, so we just show standings here (no join button).
+  useEffect(() => {
+    api.activeChallenge()
+      .then((res) => setChallenge(res?.active || null))
+      .catch(() => setChallenge(null))
+      .finally(() => setChallengeLoading(false));
+  }, []);
+
   return (
     <div style={s.page}>
       <h1 style={s.welcome}>Hey, {user?.first_name || 'there'}!</h1>
       <p style={s.sub}>Let's get to work.</p>
+
+      {/* ── Active Challenge Card ───────────────────────────────────── */}
+      {!challengeLoading && (
+        <div style={{
+          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+          borderRadius: '16px',
+          padding: isMobile ? '18px 16px' : '24px',
+          marginBottom: '18px',
+          color: '#fff',
+          boxShadow: '0 8px 24px rgba(26,26,46,0.35)',
+          borderLeft: '4px solid #fbbf24',
+        }}>
+          {challenge ? (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>Active Challenge</div>
+                  <div style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 800 }}>{challenge.title}</div>
+                </div>
+                {challenge.days_left != null && (
+                  <div style={{
+                    background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)',
+                    borderRadius: '10px', padding: '8px 14px', textAlign: 'center', flexShrink: 0,
+                  }}>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#fbbf24' }}>{challenge.days_left}</div>
+                    <div style={{ fontSize: '10px', fontWeight: 600, color: '#fbbf24', opacity: 0.8 }}>DAYS LEFT</div>
+                  </div>
+                )}
+              </div>
+              {challenge.description && (
+                <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 14px', lineHeight: 1.5 }}>{challenge.description}</p>
+              )}
+              <div style={{ fontSize: '11px', opacity: 0.6, marginBottom: '12px' }}>
+                {challenge.unit ? `Unit: ${challenge.unit}` : ''}
+                {challenge.lower_is_better ? ' (lower wins)' : ''}
+                {challenge.total_participants != null && `${challenge.unit ? ' · ' : ''}${challenge.total_participants} participant${challenge.total_participants === 1 ? '' : 's'}`}
+              </div>
+
+              {/* User's rank + score */}
+              {(challenge.my_rank != null || challenge.my_score != null) && (
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                  <div style={{ background: 'rgba(22,163,74,0.2)', border: '1px solid rgba(22,163,74,0.3)', borderRadius: '10px', padding: '10px 16px', minWidth: '100px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#86efac', textTransform: 'uppercase' }}>Your Rank</div>
+                    <div style={{ fontSize: '22px', fontWeight: 800 }}>#{challenge.my_rank || '--'}</div>
+                  </div>
+                  <div style={{ background: 'rgba(102,126,234,0.2)', border: '1px solid rgba(102,126,234,0.3)', borderRadius: '10px', padding: '10px 16px', minWidth: '100px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#a5b4fc', textTransform: 'uppercase' }}>Your Score</div>
+                    <div style={{ fontSize: '22px', fontWeight: 800 }}>
+                      {challenge.my_score != null ? formatScore(challenge.my_score, challenge.unit) : '--'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Top 5 standings */}
+              {challenge.standings && challenge.standings.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#fbbf24', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Leaderboard</div>
+                  {challenge.standings.slice(0, 5).map((row, i) => (
+                    <div key={i} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '7px 10px', borderRadius: '8px', marginBottom: '4px',
+                      background: i === 0 ? 'rgba(251,191,36,0.12)' : 'rgba(255,255,255,0.04)',
+                    }}>
+                      <span style={{ fontSize: '13px' }}>
+                        <span style={{ fontWeight: 800, color: i === 0 ? '#fbbf24' : '#ccc', marginRight: '8px' }}>#{i + 1}</span>
+                        {row.first_name}
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#86efac' }}>
+                        {formatScore(row.score, challenge.unit)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <div style={{ fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>No challenge running</div>
+              <div style={{ fontSize: '13px', opacity: 0.6 }}>Check back soon -- your coach may launch one any day!</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* PRIMARY CTA — top, front, center */}
       <div style={s.primaryCard}>
@@ -252,6 +350,40 @@ export default function MemberDashboard() {
                   </button>
                 );
               })}
+            </div>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '14px' }}>
+              <input
+                type="text"
+                value={customGoalText}
+                onChange={(e) => setCustomGoalText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && customGoalText.trim()) {
+                    const g = customGoalText.trim();
+                    if (!goalsDraft.includes(g)) setGoalsDraft((d) => [...d, g]);
+                    setCustomGoalText('');
+                  }
+                }}
+                placeholder="Write your own goal..."
+                style={{
+                  flex: 1, padding: '10px 12px', border: '2px solid #e0e0e0', borderRadius: '10px',
+                  fontSize: '13px', outline: 'none',
+                }}
+              />
+              <button
+                onClick={() => {
+                  const g = customGoalText.trim();
+                  if (g && !goalsDraft.includes(g)) setGoalsDraft((d) => [...d, g]);
+                  setCustomGoalText('');
+                }}
+                disabled={!customGoalText.trim()}
+                style={{
+                  padding: '10px 16px', border: 'none', borderRadius: '10px',
+                  background: customGoalText.trim() ? 'linear-gradient(135deg, #B37602, #8a5b00)' : '#e0e0e0',
+                  color: customGoalText.trim() ? '#fff' : '#999', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                Add
+              </button>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button

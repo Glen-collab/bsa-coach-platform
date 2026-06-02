@@ -3,6 +3,7 @@ import { api } from '../utils/api';
 import useMediaQuery from '../hooks/useMediaQuery';
 import BroadcastCard from '../components/BroadcastCard';
 import GymTvPowerCard from '../components/GymTvPowerCard';
+import { formatScore } from '../utils/challengeFormat';
 
 // Compact goal chips for the admin tables. Empty array → em-dash so
 // the column reads "this member never told us" rather than blank.
@@ -88,8 +89,19 @@ export default function AdminDashboard() {
   const [proposals, setProposals] = useState(null);  // null = not loaded yet
   const [proposalsLoading, setProposalsLoading] = useState(false);
   const [proposalsFilter, setProposalsFilter] = useState('pending');
+  // Challenges admin
+  const [challenges, setChallenges] = useState(null);
+  const [challengesLoading, setChallengesLoading] = useState(false);
+  const [challengeFormOpen, setChallengeFormOpen] = useState(false);
+  const [challengeForm, setChallengeForm] = useState({ title: '', description: '', unit: '', lower_is_better: false, start_date: '', end_date: '', duration_weeks: '' });
+  const [challengeCreating, setChallengeCreating] = useState(false);
+  const [expandedChallenge, setExpandedChallenge] = useState(null);
+  const [challengeStandings, setChallengeStandings] = useState({});
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get('tab') || 'overview';
+  });
   const [myPrograms, setMyPrograms] = useState([]);
   const [togglingId, setTogglingId] = useState(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -116,6 +128,65 @@ export default function AdminDashboard() {
       setProposals([]);
     }
     setProposalsLoading(false);
+  };
+
+  const loadChallenges = async () => {
+    setChallengesLoading(true);
+    try {
+      const res = await api.adminChallenges();
+      setChallenges(res.challenges || []);
+    } catch (err) {
+      alert('Failed to load challenges: ' + err.message);
+      setChallenges([]);
+    }
+    setChallengesLoading(false);
+  };
+
+  const handleCreateChallenge = async () => {
+    if (!challengeForm.title || !challengeForm.start_date || !challengeForm.end_date) {
+      alert('Title, start date, and end date are required.');
+      return;
+    }
+    setChallengeCreating(true);
+    try {
+      const payload = {
+        ...challengeForm,
+        duration_weeks: challengeForm.duration_weeks ? Number(challengeForm.duration_weeks) : null,
+      };
+      await api.createChallenge(payload);
+      setChallengeForm({ title: '', description: '', unit: '', lower_is_better: false, start_date: '', end_date: '', duration_weeks: '' });
+      setChallengeFormOpen(false);
+      loadChallenges();
+    } catch (err) {
+      alert(err.message || 'Could not create challenge.');
+    }
+    setChallengeCreating(false);
+  };
+
+  const handleDeleteChallenge = async (id, title) => {
+    if (!confirm(`Delete challenge "${title}"? This cannot be undone.`)) return;
+    try {
+      await api.deleteChallenge(id);
+      loadChallenges();
+    } catch (err) {
+      alert(err.message || 'Could not delete challenge.');
+    }
+  };
+
+  const toggleChallengeStandings = async (id) => {
+    if (expandedChallenge === id) {
+      setExpandedChallenge(null);
+      return;
+    }
+    setExpandedChallenge(id);
+    if (!challengeStandings[id]) {
+      try {
+        const res = await api.challengeStandings(id);
+        setChallengeStandings((prev) => ({ ...prev, [id]: res.standings || [] }));
+      } catch {
+        setChallengeStandings((prev) => ({ ...prev, [id]: [] }));
+      }
+    }
   };
 
   const handleDecideProposal = async (id, name, status) => {
@@ -170,6 +241,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === 'cloudflare' && cfVideos === null && !cfLoading) loadCloudflare();
     if (activeTab === 'proposals' && proposals === null && !proposalsLoading) loadProposals();
+    if (activeTab === 'challenges' && challenges === null && !challengesLoading) loadChallenges();
   }, [activeTab]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleApproveCoach = async (id) => {
@@ -237,6 +309,7 @@ export default function AdminDashboard() {
     { id: 'videos', label: `Coach Uploads (${videos.length})` },
     { id: 'cloudflare', label: 'Cloudflare Library' },
     { id: 'proposals', label: `Exercise Requests${proposals ? ` (${proposals.filter(p => p.status === 'pending').length})` : ''}` },
+    { id: 'challenges', label: 'Challenges' },
   ];
 
   return (
@@ -469,44 +542,34 @@ export default function AdminDashboard() {
                     {(!c.clients || c.clients.length === 0) ? (
                       <p style={{ color: '#999', fontSize: '13px', fontStyle: 'italic' }}>No clients yet</p>
                     ) : (
-                      <div style={s.tableWrap}>
-                      <table style={{ ...s.table, fontSize: '13px' }}>
-                        <thead>
-                          <tr>
-                            <th style={{ ...s.th, fontSize: '11px' }}>Client</th>
-                            <th style={{ ...s.th, fontSize: '11px' }}>Email</th>
-                            <th style={{ ...s.th, fontSize: '11px' }}>Tier</th>
-                            <th style={{ ...s.th, fontSize: '11px' }}>Monthly</th>
-                            <th style={{ ...s.th, fontSize: '11px' }}>Goals</th>
-                            <th style={{ ...s.th, fontSize: '11px' }}>Joined</th>
-                            <th style={{ ...s.th, fontSize: '11px' }}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {c.clients.map(cl => (
-                            <tr key={cl.id}>
-                              <td style={s.td}>{cl.first_name} {cl.last_name}</td>
-                              <td style={s.td}>{cl.email}</td>
-                              <td style={s.td}>
-                                {cl.tier ? (
-                                  <span style={{ ...s.badge, background: '#dcfce7', color: '#16a34a' }}>{cl.tier}</span>
-                                ) : (
-                                  <span style={{ ...s.badge, background: '#f3f4f6', color: '#888' }}>Free</span>
-                                )}
-                              </td>
-                              <td style={s.td}>{cl.monthly ? `$${cl.monthly}` : '—'}</td>
-                              <td style={s.td}>{renderGoals(cl.goals)}</td>
-                              <td style={s.td}>{cl.joined ? new Date(cl.joined).toLocaleDateString() : '—'}</td>
-                              <td style={s.td}>
-                                <div style={{ display: 'flex', gap: '4px' }}>
-                                  <button onClick={(e) => { e.stopPropagation(); handleDeactivateMember(cl.id, `${cl.first_name} ${cl.last_name}`); }} style={{ ...s.btnSmall, background: '#f59e0b', color: '#fff', fontSize: '11px' }}>Inactive</button>
-                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteMember(cl.id, `${cl.first_name} ${cl.last_name}`); }} style={{ ...s.btnSmall, background: '#ef4444', color: '#fff', fontSize: '11px' }}>Delete</button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {c.clients.map(cl => (
+                          <div key={cl.id} style={{
+                            background: '#f9fafb', borderRadius: '10px', padding: '12px 14px',
+                            border: '1px solid #e5e7eb',
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                              <div>
+                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#1a1a2e' }}>{cl.first_name} {cl.last_name}</div>
+                                <div style={{ fontSize: '12px', color: '#888' }}>{cl.email}</div>
+                              </div>
+                              {cl.tier ? (
+                                <span style={{ ...s.badge, background: '#dcfce7', color: '#16a34a' }}>{cl.tier}</span>
+                              ) : (
+                                <span style={{ ...s.badge, background: '#f3f4f6', color: '#888' }}>Free</span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', fontSize: '11px', color: '#888', marginBottom: '8px', flexWrap: 'wrap' }}>
+                              {cl.goals?.length > 0 && <span>{renderGoals(cl.goals)}</span>}
+                              {cl.joined && <span>Joined {new Date(cl.joined).toLocaleDateString()}</span>}
+                              {cl.monthly && <span>${cl.monthly}/mo</span>}
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button onClick={(e) => { e.stopPropagation(); handleDeactivateMember(cl.id, `${cl.first_name} ${cl.last_name}`); }} style={{ ...s.btnSmall, background: '#f59e0b', color: '#fff', fontSize: '11px' }}>Inactive</button>
+                              <button onClick={(e) => { e.stopPropagation(); handleDeleteMember(cl.id, `${cl.first_name} ${cl.last_name}`); }} style={{ ...s.btnSmall, background: '#ef4444', color: '#fff', fontSize: '11px' }}>Delete</button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -715,6 +778,235 @@ export default function AdminDashboard() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Challenges */}
+      {activeTab === 'challenges' && (
+        <div style={s.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ fontSize: '13px', color: '#666' }}>
+              Create and manage member challenges. Active challenges appear on every member dashboard.
+            </div>
+            <button
+              onClick={() => setChallengeFormOpen(!challengeFormOpen)}
+              style={{ ...s.btnSmall, background: challengeFormOpen ? '#ef4444' : '#16a34a', color: '#fff' }}
+            >
+              {challengeFormOpen ? 'Cancel' : '+ Create Challenge'}
+            </button>
+          </div>
+
+          {/* Inline create form */}
+          {challengeFormOpen && (
+            <div style={{
+              background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px',
+              padding: isMobile ? '14px' : '20px', marginBottom: '18px',
+            }}>
+              <div style={{ fontSize: '15px', fontWeight: 700, marginBottom: '14px', color: '#1a1a2e' }}>New Challenge</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#666', display: 'block', marginBottom: '4px' }}>Title</label>
+                  <input
+                    type="text"
+                    value={challengeForm.title}
+                    onChange={(e) => setChallengeForm({ ...challengeForm, title: e.target.value })}
+                    placeholder="e.g. June Tonnage War"
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#666', display: 'block', marginBottom: '4px' }}>Description</label>
+                  <textarea
+                    value={challengeForm.description}
+                    onChange={(e) => setChallengeForm({ ...challengeForm, description: e.target.value })}
+                    placeholder="Who can move the most weight this month?"
+                    rows={3}
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#666', display: 'block', marginBottom: '4px' }}>Unit of measurement</label>
+                    <input
+                      type="text"
+                      list="challenge-units"
+                      value={challengeForm.unit}
+                      onChange={(e) => setChallengeForm({ ...challengeForm, unit: e.target.value })}
+                      placeholder="e.g. mm:ss, reps, lbs, miles"
+                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+                    />
+                    <datalist id="challenge-units">
+                      <option value="mm:ss" />
+                      <option value="reps" />
+                      <option value="lbs" />
+                      <option value="miles" />
+                      <option value="meters" />
+                    </datalist>
+                    <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
+                      Timed event? Use <b>mm:ss</b> — results enter & display as a clock (8:30 → 08:30.00).
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#666', display: 'block', marginBottom: '4px' }}>Duration (weeks)</label>
+                    <input
+                      type="number"
+                      value={challengeForm.duration_weeks}
+                      onChange={(e) => setChallengeForm({ ...challengeForm, duration_weeks: e.target.value })}
+                      placeholder="Optional"
+                      min="1"
+                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                  <input
+                    type="checkbox"
+                    id="lower_is_better"
+                    checked={challengeForm.lower_is_better}
+                    onChange={(e) => setChallengeForm({ ...challengeForm, lower_is_better: e.target.checked })}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="lower_is_better" style={{ fontSize: '13px', color: '#444', cursor: 'pointer' }}>
+                    Lower score wins (check for time-based challenges)
+                  </label>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#666', display: 'block', marginBottom: '4px' }}>Start Date</label>
+                    <input
+                      type="date"
+                      value={challengeForm.start_date}
+                      onChange={(e) => setChallengeForm({ ...challengeForm, start_date: e.target.value })}
+                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#666', display: 'block', marginBottom: '4px' }}>End Date</label>
+                    <input
+                      type="date"
+                      value={challengeForm.end_date}
+                      onChange={(e) => setChallengeForm({ ...challengeForm, end_date: e.target.value })}
+                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={handleCreateChallenge}
+                  disabled={challengeCreating}
+                  style={{
+                    padding: '12px 24px', border: 'none', borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+                    fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+                    opacity: challengeCreating ? 0.6 : 1, marginTop: '4px',
+                  }}
+                >
+                  {challengeCreating ? 'Creating...' : 'Create Challenge'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Challenges list */}
+          {challengesLoading && <p style={{ textAlign: 'center', color: '#888' }}>Loading challenges...</p>}
+          {!challengesLoading && challenges && challenges.length === 0 && (
+            <p style={{ textAlign: 'center', color: '#888' }}>No challenges yet. Create one to get started.</p>
+          )}
+          {!challengesLoading && challenges && challenges.length > 0 && (
+            <div style={s.tableWrap}>
+              <table style={s.table}>
+                <thead>
+                  <tr>
+                    <th style={s.th}>Title</th>
+                    <th style={s.th}>Unit</th>
+                    <th style={s.th}>Dates</th>
+                    <th style={s.th}>Status</th>
+                    <th style={s.th}>Participants</th>
+                    <th style={s.th}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {challenges.map((ch) => {
+                    const statusColors = { upcoming: '#3b82f6', active: '#16a34a', completed: '#9ca3af' };
+                    const statusBg = { upcoming: '#eff6ff', active: '#dcfce7', completed: '#f3f4f6' };
+                    const status = ch.status || 'upcoming';
+                    return (
+                      <tr key={ch.id} style={{ cursor: 'pointer' }} onClick={() => toggleChallengeStandings(ch.id)}>
+                        <td style={s.td}>
+                          <div style={{ fontWeight: 600 }}>{ch.title}</div>
+                          {ch.description && <div style={{ fontSize: '11px', color: '#888', marginTop: '2px', whiteSpace: 'normal', maxWidth: '200px' }}>{ch.description}</div>}
+                        </td>
+                        <td style={s.td}>{ch.unit || '--'}</td>
+                        <td style={s.td}>
+                          <div style={{ fontSize: '12px' }}>{ch.start_date}</div>
+                          <div style={{ fontSize: '11px', color: '#888' }}>to {ch.end_date}</div>
+                        </td>
+                        <td style={s.td}>
+                          <span style={{
+                            ...s.badge,
+                            background: statusBg[status] || '#f3f4f6',
+                            color: statusColors[status] || '#888',
+                          }}>{status}</span>
+                        </td>
+                        <td style={s.td}>{ch.participant_count ?? 0}</td>
+                        <td style={s.td}>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleChallengeStandings(ch.id); }}
+                              style={{ ...s.btnSmall, background: '#667eea', color: '#fff' }}
+                            >
+                              {expandedChallenge === ch.id ? 'Hide' : 'Standings'}
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteChallenge(ch.id, ch.title); }}
+                              style={{ ...s.btnSmall, background: '#ef4444', color: '#fff' }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Expanded standings under the table */}
+              {expandedChallenge && (
+                <div style={{
+                  background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '10px',
+                  padding: '16px', marginTop: '12px',
+                }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#1a1a2e', marginBottom: '10px' }}>
+                    Standings: {challenges.find(c => c.id === expandedChallenge)?.title}
+                  </div>
+                  {!challengeStandings[expandedChallenge] ? (
+                    <p style={{ color: '#888', fontSize: '13px' }}>Loading standings...</p>
+                  ) : challengeStandings[expandedChallenge].length === 0 ? (
+                    <p style={{ color: '#888', fontSize: '13px' }}>No participants yet.</p>
+                  ) : (
+                    <table style={{ ...s.table, minWidth: 'auto' }}>
+                      <thead>
+                        <tr>
+                          <th style={s.th}>#</th>
+                          <th style={s.th}>Name</th>
+                          <th style={s.th}>Score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {challengeStandings[expandedChallenge].map((row, i) => (
+                          <tr key={i}>
+                            <td style={{ ...s.td, fontWeight: 700, color: i === 0 ? '#d97706' : '#333' }}>{i + 1}</td>
+                            <td style={s.td}>{row.first_name} {row.last_name || ''}</td>
+                            <td style={{ ...s.td, fontWeight: 700, color: '#16a34a' }}>{formatScore(row.score, challenges.find(c => c.id === expandedChallenge)?.unit)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
