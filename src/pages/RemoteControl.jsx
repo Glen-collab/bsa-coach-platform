@@ -244,6 +244,7 @@ export default function RemoteControl() {
       from:   window.location.href,
     });
     if (coachCode) params.set('coach', coachCode);
+    if (layout === 'wod') params.set('layout', 'wod');
     const url = `${TRACKER_BASE}/tv/static?${params.toString()}`;
     window.open(url, '_blank', 'noopener');
   };
@@ -409,6 +410,10 @@ export default function RemoteControl() {
       {isLeaderboardMode && (
         <div style={s.metricBlock}>
           <div style={s.metricLabel}>What's on the TV</div>
+          <div style={{ fontSize: '12px', color: '#94a3b8', margin: '0 2px 8px', lineHeight: 1.4 }}>
+            <b>Auto-rotate</b> cycles every metric showing the top 7. Tap a metric to
+            <b> lock</b> the TV to it and scroll its full list.
+          </div>
           <div style={s.metricChipRow}>
             <button
               type="button"
