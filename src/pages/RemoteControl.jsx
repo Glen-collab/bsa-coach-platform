@@ -134,8 +134,15 @@ const buildStyles = (isMobile) => ({
     color: 'rgba(255,255,255,0.55)', fontWeight: 700, marginBottom: '8px',
   },
   metricChipRow: { display: 'flex', flexWrap: 'wrap', gap: '6px' },
+  // Fixed 3-across grid for the (long) metric list — even columns, long
+  // labels ellipsis rather than wrap/cut off.
+  metricChipGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' },
+  metricChipFill: {
+    width: '100%', boxSizing: 'border-box', textAlign: 'center',
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
+  },
   metricChip: {
-    padding: '8px 12px', borderRadius: '999px',
+    padding: '8px 10px', borderRadius: '999px',
     background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)',
     border: '1px solid rgba(255,255,255,0.18)',
     fontSize: '12px', fontWeight: 700, cursor: 'pointer',
@@ -414,11 +421,11 @@ export default function RemoteControl() {
             <b>Auto-rotate</b> cycles every metric showing the top 7. Tap a metric to
             <b> lock</b> the TV to it and scroll its full list.
           </div>
-          <div style={s.metricChipRow}>
+          <div style={s.metricChipGrid}>
             <button
               type="button"
               onClick={() => setDisplay({ metric_id: null })}
-              style={{ ...s.metricChip, ...(!lockedMetricId ? s.metricChipActive : {}) }}
+              style={{ ...s.metricChip, ...s.metricChipFill, ...(!lockedMetricId ? s.metricChipActive : {}) }}
             >
               ⟳ Auto-rotate
             </button>
@@ -426,8 +433,9 @@ export default function RemoteControl() {
               <button
                 key={m.id}
                 type="button"
+                title={m.label}
                 onClick={() => setDisplay({ metric_id: m.id })}
-                style={{ ...s.metricChip, ...(String(lockedMetricId) === String(m.id) ? s.metricChipActive : {}) }}
+                style={{ ...s.metricChip, ...s.metricChipFill, ...(String(lockedMetricId) === String(m.id) ? s.metricChipActive : {}) }}
               >
                 {m.label}
               </button>
