@@ -60,11 +60,11 @@ def auto_accept_messaging_consent(cur, user_id):
     )
 
 
-def make_token(user_id: str, role: str) -> str:
+def make_token(user_id: str, role: str, days: int = 30) -> str:
     return jwt.encode({
         "user_id": user_id,
         "role": role,
-        "exp": datetime.utcnow() + timedelta(days=30)
+        "exp": datetime.utcnow() + timedelta(days=days)
     }, os.environ.get("SECRET_KEY"), algorithm="HS256")
 
 
@@ -393,16 +393,24 @@ def check_member():
     try:
         with db.cursor() as cur:
             cur.execute(
-                """
-                SELECT 1
-                FROM users u
-                JOIN subscriptions s ON s.user_id = u.id
-                WHERE LOWER(u.email) = %s AND s.status = 'active'
-                LIMIT 1
-                """,
+                "SELECT role FROM users WHERE LOWER(email) = %s LIMIT 1",
                 (email,),
             )
-            is_member = cur.fetchone() is not None
+            user_row = cur.fetchone()
+            if user_row and user_row[0] in ("admin", "coach"):
+                is_member = True
+            else:
+                cur.execute(
+                    """
+                    SELECT 1
+                    FROM users u
+                    JOIN subscriptions s ON s.user_id = u.id
+                    WHERE LOWER(u.email) = %s AND s.status = 'active'
+                    LIMIT 1
+                    """,
+                    (email,),
+                )
+                is_member = cur.fetchone() is not None
         return jsonify({"is_member": is_member})
     finally:
         db.close()
@@ -608,6 +616,7 @@ def application_status():
 import secrets as _secrets
 
 TRACKER_URL = os.environ.get("TRACKER_URL", "https://bestrongagain.netlify.app")
+APP_URL = os.environ.get("APP_URL", "https://app.bestrongagain.com")
 
 @auth_bp.route("/magic-link/request", methods=["POST", "OPTIONS"])
 def magic_link_request():
@@ -646,26 +655,48 @@ def magic_link_request():
             auto_friend_admin(cur, user_id)
             auto_accept_messaging_consent(cur, user_id)
 
+        # dest=app → sign in to the member DASHBOARD (app.bestrongagain.com),
+        # used by the "Email me a sign-in link" button. A casual client may not
+        # open the email immediately, so give the dashboard link a 7-day window
+        # (vs the 10-minute FriendChat/tracker link).
+        dest = (data.get("dest") or "").strip().lower()
         token = _secrets.token_urlsafe(32)
-        expires = datetime.utcnow() + timedelta(minutes=10)
+        if dest == "app":
+            expires = datetime.utcnow() + timedelta(days=7)
+        else:
+            expires = datetime.utcnow() + timedelta(minutes=10)
         cur.execute(
             "UPDATE users SET magic_token = %s, magic_expires_at = %s WHERE id = %s",
             (token, expires, user_id),
         )
         db.commit()
 
-        link = f"{TRACKER_URL}/magic?token={token}"
-        html = f"""
-          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:24px;">
-            <h2 style="color:#1a1a2e;margin:0 0 16px;">Sign in to Be Strong Again</h2>
-            <p style="color:#444;line-height:1.5;font-size:15px;">Hi {first_name}, tap the button below to sign in to the tracker and message your friends. The link expires in <strong>10 minutes</strong>.</p>
-            <p style="margin:24px 0;"><a href="{link}" style="background:linear-gradient(135deg,#ff9a3c,#ffd200);color:#1a1a2e;padding:14px 28px;border-radius:10px;font-weight:800;font-size:16px;text-decoration:none;display:inline-block;">Sign in</a></p>
-            <p style="color:#888;font-size:12px;line-height:1.5;">Or paste this into your browser:<br><a href="{link}" style="color:#667eea;word-break:break-all;">{link}</a></p>
-            <p style="color:#aaa;font-size:11px;margin-top:32px;">If you didn't request this, you can ignore the email.</p>
-          </div>
-        """
+        if dest == "app":
+            link = f"{APP_URL}/magic?token={token}"
+            subject = "Sign in to your dashboard"
+            html = f"""
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+                <h2 style="color:#1a1a2e;margin:0 0 16px;">Open your dashboard 💪</h2>
+                <p style="color:#444;line-height:1.5;font-size:15px;">Hi {first_name}, tap below to open your Be Strong Again dashboard — your coach's notes, sessions logged, and the gym's monthly challenge. No password needed.</p>
+                <p style="margin:24px 0;"><a href="{link}" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:14px 28px;border-radius:10px;font-weight:800;font-size:16px;text-decoration:none;display:inline-block;">Open my dashboard</a></p>
+                <p style="color:#888;font-size:12px;line-height:1.5;">Or paste this into your browser:<br><a href="{link}" style="color:#667eea;word-break:break-all;">{link}</a></p>
+                <p style="color:#aaa;font-size:11px;margin-top:32px;">This link works for 7 days. If you didn't request this, you can ignore the email.</p>
+              </div>
+            """
+        else:
+            link = f"{TRACKER_URL}/magic?token={token}"
+            subject = "Sign in to Be Strong Again"
+            html = f"""
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+                <h2 style="color:#1a1a2e;margin:0 0 16px;">Sign in to Be Strong Again</h2>
+                <p style="color:#444;line-height:1.5;font-size:15px;">Hi {first_name}, tap the button below to sign in to the tracker and message your friends. The link expires in <strong>10 minutes</strong>.</p>
+                <p style="margin:24px 0;"><a href="{link}" style="background:linear-gradient(135deg,#ff9a3c,#ffd200);color:#1a1a2e;padding:14px 28px;border-radius:10px;font-weight:800;font-size:16px;text-decoration:none;display:inline-block;">Sign in</a></p>
+                <p style="color:#888;font-size:12px;line-height:1.5;">Or paste this into your browser:<br><a href="{link}" style="color:#667eea;word-break:break-all;">{link}</a></p>
+                <p style="color:#aaa;font-size:11px;margin-top:32px;">If you didn't request this, you can ignore the email.</p>
+              </div>
+            """
         try:
-            send_email(email, "Sign in to Be Strong Again", html)
+            send_email(email, subject, html)
         except Exception as e:
             # Don't leak SMTP errors — but return a warning hint for debugging
             return jsonify({"success": False, "error": f"Couldn't send email ({e})"}), 500
@@ -700,7 +731,10 @@ def magic_link_consume():
         # Invalidate token immediately (one-shot)
         cur.execute("UPDATE users SET magic_token = NULL, magic_expires_at = NULL WHERE id = %s", (row[0],))
         db.commit()
-        jwt_token = make_token(user_id, row[2])
+        # Members get a long session (≈1 year) so a casual client who signed in
+        # via a magic link stays signed in and rarely needs a new one — like the
+        # leaderboard. Coach/admin keep the default 30 days for tighter security.
+        jwt_token = make_token(user_id, row[2], days=365 if row[2] == "member" else 30)
         return jsonify({
             "success": True,
             "token": jwt_token,

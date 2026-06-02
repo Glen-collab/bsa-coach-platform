@@ -28,6 +28,30 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const [magicMsg, setMagicMsg] = useState('');
+  const [magicLoading, setMagicLoading] = useState(false);
+
+  // Passwordless sign-in for members (e.g. 1-on-1 clients who never set a
+  // password). Emails a magic link to their dashboard. dest:'app' so the link
+  // lands on app.bestrongagain.com/magic → /member.
+  const handleMagicLink = async () => {
+    if (!email) { setError('Enter your email above first.'); return; }
+    setError(''); setMagicMsg(''); setMagicLoading(true);
+    try {
+      const res = await fetch('/api/auth/magic-link/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, dest: 'app' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) setMagicMsg(`Check ${email} for a sign-in link.`);
+      else setError(data.error || 'Could not send a link. Try again.');
+    } catch {
+      setError('Network error — please try again.');
+    }
+    setMagicLoading(false);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -83,6 +107,31 @@ export default function Login() {
         </form>
         <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px' }}>
           <Link to="/forgot-password" style={{ color: '#15803d' }}>Forgot password?</Link>
+        </div>
+
+        {/* Passwordless sign-in — for members/1-on-1 clients with no password. */}
+        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #eee', textAlign: 'center' }}>
+          {magicMsg ? (
+            <div style={{ color: '#15803d', fontSize: '14px', fontWeight: 600 }}>{magicMsg}</div>
+          ) : (
+            <>
+              <div style={{ fontSize: '13px', color: '#888', marginBottom: '8px' }}>
+                No password? Enter your email above and we’ll send a sign-in link.
+              </div>
+              <button
+                type="button"
+                onClick={handleMagicLink}
+                disabled={magicLoading}
+                style={{
+                  width: '100%', padding: '12px', border: '2px solid #B37602', borderRadius: '10px',
+                  background: '#fff', color: '#B37602', fontSize: '15px', fontWeight: 700,
+                  cursor: 'pointer', opacity: magicLoading ? 0.6 : 1,
+                }}
+              >
+                {magicLoading ? 'Sending…' : 'Email me a sign-in link'}
+              </button>
+            </>
+          )}
         </div>
         <div style={s.footer}>
           Don't have an account? <Link to="/register">Sign up</Link>
