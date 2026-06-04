@@ -451,18 +451,29 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* Free trial — secondary to the paid tiers so it doesn't undercut the
-            $20 funnel. No tier param => no checkout, just a 1-week free trial
-            with the starter program (no card required). */}
-        <div style={{ textAlign: 'center', marginTop: '30px', padding: '20px', background: '#f6fbf7', border: '1px dashed #16a34a', borderRadius: '14px' }}>
-          <div style={{ fontSize: '16px', fontWeight: 800, marginBottom: '4px' }}>Not ready to commit?</div>
-          <p style={{ fontSize: '14px', color: '#566', margin: '0 0 14px' }}>
-            Try it <strong>free for a week</strong> — full tracker access and a starter program. No card required.
+        {/* Free trial — prominent. It's only a week with no card, so it's a
+            low-risk top-of-funnel grab; the paid tiers above still lead. No tier
+            param => no checkout, just the 1-week trial + starter program. */}
+        <div style={{
+          textAlign: 'center', marginTop: '36px',
+          padding: isMobile ? '30px 22px' : '40px 32px',
+          background: 'linear-gradient(135deg, #16a34a, #15803d)',
+          borderRadius: '18px', boxShadow: '0 14px 36px rgba(22,163,74,0.28)', color: '#fff',
+        }}>
+          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', opacity: 0.9, marginBottom: '8px' }}>
+            No card. No catch.
+          </div>
+          <div style={{ fontSize: isMobile ? '28px' : '36px', fontWeight: 900, lineHeight: 1.1, marginBottom: '10px' }}>
+            Try it free for a week
+          </div>
+          <p style={{ fontSize: isMobile ? '15px' : '17px', opacity: 0.95, maxWidth: '520px', margin: '0 auto 22px', lineHeight: 1.5 }}>
+            Full tracker access and a starter program — on the house. See if it's for you before you pay a dime.
           </p>
           <Link to={`/register/${REFERRAL_CODE}`} style={{
-            display: 'inline-block', padding: '12px 24px', borderRadius: '10px',
-            background: '#fff', color: '#15803d', border: '2px solid #16a34a',
-            fontWeight: 800, textDecoration: 'none', fontSize: '15px',
+            display: 'inline-block', padding: isMobile ? '16px 30px' : '18px 40px', borderRadius: '12px',
+            background: '#fff', color: '#15803d', fontWeight: 900,
+            textDecoration: 'none', fontSize: isMobile ? '17px' : '19px',
+            boxShadow: '0 8px 20px rgba(0,0,0,0.18)',
           }}>Start my free week →</Link>
         </div>
       </section>
