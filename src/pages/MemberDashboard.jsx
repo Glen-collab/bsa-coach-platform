@@ -267,6 +267,18 @@ export default function MemberDashboard() {
             {upgrading ? '...' : 'Elite — $400/mo'}
           </button>
         </div>
+        {/* Budget option — tracker only, no coaching. A quiet link under the
+            tiers so it doesn't compete with the coached plans. */}
+        <div style={{ textAlign: 'center', marginTop: '10px' }}>
+          <button
+            type="button"
+            disabled={upgrading}
+            onClick={() => handleUpgrade('tracker')}
+            style={{ background: 'none', border: 'none', color: '#667eea', fontSize: '13px', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            {upgrading ? '...' : 'Or just the Workout Tracker — $5.99/mo (no coaching)'}
+          </button>
+        </div>
 
         {/* Self-serve subscription management. Only show when they
             actually have something to manage. Opens Stripe-hosted

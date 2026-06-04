@@ -62,7 +62,7 @@ export default function Login() {
 
       // If they bounced over from /register intending to upgrade to a paid
       // tier, send them straight into Stripe checkout once authenticated.
-      if (reason === 'upgrade' && tier && ['basic', 'coached', 'elite'].includes(tier)) {
+      if (reason === 'upgrade' && tier && ['tracker', 'basic', 'coached', 'elite'].includes(tier)) {
         try {
           const co = await api.checkout(tier);
           if (co?.checkout_url) { window.location.href = co.checkout_url; return; }

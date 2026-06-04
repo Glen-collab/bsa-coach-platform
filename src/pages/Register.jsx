@@ -159,7 +159,7 @@ export default function Register() {
       if (res?.starter_access_code) setStarterCode(res.starter_access_code);
       // Paid tier was preset — they came in meaning to subscribe, send
       // them to Stripe checkout now that we have their goals.
-      if (presetTier && ['basic', 'coached', 'elite'].includes(presetTier)) {
+      if (presetTier && ['tracker', 'basic', 'coached', 'elite'].includes(presetTier)) {
         try {
           const co = await api.checkout(presetTier);
           if (co?.checkout_url) {
@@ -192,10 +192,11 @@ export default function Register() {
                 <p style={s.referralText}>You were referred by a coach! Their code <strong>{urlReferral}</strong> has been applied.</p>
               </div>
             )}
-            {presetTier && ['basic', 'coached', 'elite'].includes(presetTier) && (
+            {presetTier && ['tracker', 'basic', 'coached', 'elite'].includes(presetTier) && (
               <div style={{ background: '#ecfdf5', border: '1px solid #86efac', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px' }}>
                 <p style={{ fontSize: '13px', color: '#065f46', margin: 0 }}>
-                  Subscribing to <strong style={{ textTransform: 'capitalize' }}>{presetTier}</strong> tier
+                  Subscribing to <strong style={{ textTransform: 'capitalize' }}>{presetTier === 'tracker' ? 'Tracker Only' : presetTier}</strong> tier
+                  {presetTier === 'tracker' && ' ($5.99/mo)'}
                   {presetTier === 'basic' && ' ($20/mo)'}
                   {presetTier === 'coached' && ' ($200/mo)'}
                   {presetTier === 'elite' && ' ($400/mo)'}
