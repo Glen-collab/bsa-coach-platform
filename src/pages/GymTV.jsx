@@ -131,6 +131,8 @@ export default function GymTV() {
   const [loading, setLoading] = useState(true);
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
+  const [powerBusy, setPowerBusy] = useState({});   // device_serial -> 'shutdown'|'reboot'
+  const [powerMsg, setPowerMsg] = useState({});      // device_serial -> status message
 
   const load = async () => {
     try {
@@ -183,6 +185,28 @@ export default function GymTV() {
       load();
     } catch (e) { alert(e.message); }
   };
+  // Per-device shutdown / reboot (queues a command the Pi pulls on its next
+  // poll). Mirrors the Gym TV Power card, just scoped to one device here.
+  const sendPower = async (kind, dev) => {
+    const serial = dev.device_serial;
+    const name = dev.display_name || 'this TV';
+    const ok = window.confirm(kind === 'shutdown'
+      ? `Shut down “${name}” now? It halts within ~10s — power it back on to use it again.`
+      : `Reboot “${name}” now? It comes back up on its own in about a minute.`);
+    if (!ok) return;
+    setPowerBusy((b) => ({ ...b, [serial]: kind }));
+    setPowerMsg((m) => ({ ...m, [serial]: null }));
+    try {
+      const res = await (kind === 'shutdown' ? api.kioskShutdown(serial) : api.kioskPiReboot(serial));
+      setPowerMsg((m) => ({ ...m, [serial]: res?.success
+        ? (kind === 'shutdown' ? 'Shutdown queued — give it 10–15s, then unplug.' : 'Reboot queued — back up in about a minute.')
+        : (res?.message || 'Command failed.') }));
+    } catch (e) {
+      setPowerMsg((m) => ({ ...m, [serial]: e.message || 'Network error.' }));
+    } finally {
+      setPowerBusy((b) => ({ ...b, [serial]: null }));
+    }
+  };
   const setDeviceLayout = async (deviceId, layout) => {
     try {
       await api.kioskDeviceSetLayout(deviceId, layout);
@@ -209,8 +233,38 @@ export default function GymTV() {
         {devices.length === 0 ? (
           <div style={s.empty}>No devices registered yet. Boot a Pi pointed at the URL above and it'll show up here.</div>
         ) : (
-          devices.map((dev) => {
+          [...devices].sort((a, b) => {
+            const aOn = a.last_seen_at && (Date.now() - new Date(a.last_seen_at).getTime()) < 120000;
+            const bOn = b.last_seen_at && (Date.now() - new Date(b.last_seen_at).getTime()) < 120000;
+            if (aOn && !bOn) return -1;
+            if (!aOn && bOn) return 1;
+            return 0;
+          }).map((dev) => {
             const isRenaming = renamingId === dev.id;
+            const isOnline = dev.last_seen_at && (Date.now() - new Date(dev.last_seen_at).getTime()) < 120000;
+            if (!isOnline) {
+              return (
+                <details key={dev.id} style={{ ...s.deviceCard, opacity: 0.6, borderColor: '#e5e7eb' }}>
+                  <summary style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />
+                      <span style={s.deviceName}>{dev.display_name}</span>
+                      <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '700' }}>Not Connected</span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#888' }}>last seen {timeAgo(dev.last_seen_at)}</span>
+                  </summary>
+                  <div style={{ paddingTop: '12px' }}>
+                    <div style={s.deviceMeta}>
+                      <span>serial: {dev.device_serial?.slice(-8) || 'unknown'}</span>
+                    </div>
+                    <div style={{ ...s.deviceActions, marginTop: '8px' }}>
+                      <button style={{ ...s.smallBtn, ...s.btnGhost }} onClick={() => startRename(dev)}>Rename</button>
+                      <button style={{ ...s.smallBtn, ...s.btnDanger }} onClick={() => deleteDevice(dev)}>Delete</button>
+                    </div>
+                  </div>
+                </details>
+              );
+            }
             return (
               <div key={dev.id} style={s.deviceCard}>
                 <div style={s.deviceHeader}>
@@ -228,7 +282,11 @@ export default function GymTV() {
                         <button style={{ ...s.smallBtn, ...s.btnGhost }} onClick={cancelRename}>Cancel</button>
                       </div>
                     ) : (
-                      <div style={s.deviceName}>{dev.display_name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e' }} />
+                        <span style={s.deviceName}>{dev.display_name}</span>
+                        <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: '700' }}>Connected</span>
+                      </div>
                     )}
                     <div style={s.deviceMeta}>
                       <span>serial: {dev.device_serial?.slice(-8) || 'unknown'}</span>
@@ -243,7 +301,15 @@ export default function GymTV() {
                   )}
                 </div>
 
-                {dev.access_code ? (
+                {dev.display_mode === 'leaderboard' ? (
+                  <div style={{ ...s.activeBanner, background: 'linear-gradient(135deg, #fef3c7, #fde68a)', border: '1px solid #fbbf24' }}>
+                    <span><span style={{ ...s.activeLabel, color: '#92400e' }}>On TV now:</span> 📊 Leaderboard{dev.display_metric_id ? ' (locked metric)' : ' (auto-rotating)'}</span>
+                  </div>
+                ) : dev.display_mode && dev.display_mode.startsWith('game_') ? (
+                  <div style={{ ...s.activeBanner, background: 'linear-gradient(135deg, #ede9fe, #ddd6fe)', border: '1px solid #8b5cf6' }}>
+                    <span><span style={{ ...s.activeLabel, color: '#5b21b6' }}>On TV now:</span> 🎮 {dev.display_mode.replace('game_', '').toUpperCase()} Arcade</span>
+                  </div>
+                ) : dev.access_code ? (
                   <div style={s.activeBanner}>
                     <span><span style={s.activeLabel}>On TV now:</span> {dev.program_name} <span style={{ color: '#888' }}>(Code {dev.access_code})</span></span>
                     <button style={{ ...s.smallBtn, ...s.btnGhost }} onClick={() => setDeviceProgram(dev.id, null)}>Clear</button>
@@ -265,6 +331,31 @@ export default function GymTV() {
                   </button>
                 )}
 
+                {/* Per-device power — shut down or reboot just this Pi. */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    disabled={!!powerBusy[dev.device_serial]}
+                    onClick={() => sendPower('shutdown', dev)}
+                    style={{ ...s.smallBtn, flex: 1, color: '#fff', background: 'linear-gradient(135deg,#1a1a2e,#2d2d4a)', opacity: powerBusy[dev.device_serial] ? 0.6 : 1 }}
+                  >
+                    {powerBusy[dev.device_serial] === 'shutdown' ? 'Sending…' : '⏻ Shutdown'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!!powerBusy[dev.device_serial]}
+                    onClick={() => sendPower('reboot', dev)}
+                    style={{ ...s.smallBtn, flex: 1, color: '#fff', background: 'linear-gradient(135deg,#667eea,#764ba2)', opacity: powerBusy[dev.device_serial] ? 0.6 : 1 }}
+                  >
+                    {powerBusy[dev.device_serial] === 'reboot' ? 'Sending…' : '↻ Reboot'}
+                  </button>
+                </div>
+                {powerMsg[dev.device_serial] && (
+                  <div style={{ fontSize: '12px', color: '#065f46', background: '#ecfdf5', padding: '6px 10px', borderRadius: 6, marginBottom: '12px' }}>
+                    {powerMsg[dev.device_serial]}
+                  </div>
+                )}
+
                 {/* Layout picker — how the TV arranges the workout on screen */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '12px', fontWeight: '700', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>View Mode:</span>
@@ -274,8 +365,8 @@ export default function GymTV() {
                     style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '13px', background: '#fff' }}
                   >
                     <option value="two_day">Two-Day View (today + tomorrow)</option>
-                    <option value="wod">WOD Only (single day, fullwidth)</option>
-                    <option value="wod_scaled">WOD + Scaled (Rx + regression)</option>
+                    <option value="wod">Today's Grind (single day, fullwidth)</option>
+                    <option value="wod_scaled">Grind + Scaled (Rx + regression)</option>
                   </select>
                 </div>
 
