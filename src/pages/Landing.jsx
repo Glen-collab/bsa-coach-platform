@@ -450,6 +450,21 @@ export default function Landing() {
             <Link to={startLink('elite')} style={{ ...s.tierBtn, ...s.tierBtnQuiet }}>Go Elite</Link>
           </div>
         </div>
+
+        {/* Free trial — secondary to the paid tiers so it doesn't undercut the
+            $20 funnel. No tier param => no checkout, just a 1-week free trial
+            with the starter program (no card required). */}
+        <div style={{ textAlign: 'center', marginTop: '30px', padding: '20px', background: '#f6fbf7', border: '1px dashed #16a34a', borderRadius: '14px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 800, marginBottom: '4px' }}>Not ready to commit?</div>
+          <p style={{ fontSize: '14px', color: '#566', margin: '0 0 14px' }}>
+            Try it <strong>free for a week</strong> — full tracker access and a starter program. No card required.
+          </p>
+          <Link to={`/register/${REFERRAL_CODE}`} style={{
+            display: 'inline-block', padding: '12px 24px', borderRadius: '10px',
+            background: '#fff', color: '#15803d', border: '2px solid #16a34a',
+            fontWeight: 800, textDecoration: 'none', fontSize: '15px',
+          }}>Start my free week →</Link>
+        </div>
       </section>
 
       {/* FAQ */}
