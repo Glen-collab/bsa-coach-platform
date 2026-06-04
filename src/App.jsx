@@ -17,6 +17,7 @@ import GymTV from './pages/GymTV';
 import RemoteControl from './pages/RemoteControl';
 import Branding from './pages/Branding';
 import ChatbotVoice from './pages/ChatbotVoice';
+import GymFlyer from './pages/GymFlyer';
 
 function ProtectedRoute({ children, requiredRole }) {
   const { user, loading } = useAuth();
@@ -56,6 +57,7 @@ function AppRoutes() {
       <Route path="/gym-tv/remote/:deviceId" element={<ProtectedRoute><RemoteControl /></ProtectedRoute>} />
       <Route path="/brand" element={<ProtectedRoute><Branding /></ProtectedRoute>} />
       <Route path="/chatbot-voice" element={<ProtectedRoute><ChatbotVoice /></ProtectedRoute>} />
+      <Route path="/gym-flyer" element={<ProtectedRoute><GymFlyer /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
