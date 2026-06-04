@@ -21,12 +21,14 @@ WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
 
 # Stripe Price IDs - set these after creating products in Stripe
 PRICE_IDS = {
+    "tracker": os.environ.get("STRIPE_PRICE_TRACKER"),  # $5.99/mo — tracker only, no coaching
     "basic":   os.environ.get("STRIPE_PRICE_BASIC"),    # $20/mo
     "coached": os.environ.get("STRIPE_PRICE_COACHED"),  # $200/mo
     "elite":   os.environ.get("STRIPE_PRICE_ELITE"),    # $400/mo
 }
 
 TIER_AMOUNTS = {
+    "tracker": 599,
     "basic":   2000,
     "coached": 20000,
     "elite":   40000,
