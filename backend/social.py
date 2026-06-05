@@ -540,10 +540,14 @@ def admin_recent_messages():
 import uuid as _uuid
 
 
-def _coach_client_ids(cur, coach_id, coach_email):
+def _coach_client_ids(cur, coach_id, coach_email, tier=None):
     """Return a set of user UUIDs that count as this coach's clients.
     Includes every direct referral (members + coaches in their immediate
-    downline) + tracker users on the coach's programs."""
+    downline) + tracker users on the coach's programs.
+
+    tier: optional. When set (e.g. 'tracker' for the $5.99 crew), the result is
+    narrowed to clients whose most relevant active subscription is that tier —
+    lets the coach text just that group."""
     ids = set()
     # 1. Direct referrals — members AND coaches (immediate downline)
     cur.execute(
@@ -572,7 +576,25 @@ def _coach_client_ids(cur, coach_id, coach_email):
         )
         for r in cur.fetchall():
             ids.add(str(r["id"]))
+
+    # Optional tier narrowing (e.g. only the $5.99 'tracker' crew).
+    if tier and ids:
+        cur.execute(
+            "SELECT DISTINCT user_id FROM subscriptions "
+            "WHERE status = 'active' AND tier = %s AND user_id = ANY(%s::uuid[])",
+            (tier, list(ids)),
+        )
+        keep = {str(r["user_id"]) for r in cur.fetchall()}
+        ids = ids & keep
     return ids
+
+
+def _audience_tier(req):
+    """Map the request's 'audience' param to a tier filter. 'tracker' -> the
+    $5.99 crew; anything else (or 'all') -> no filter."""
+    aud = (req.args.get("audience") if req.method == "GET"
+           else (req.get_json(silent=True) or {}).get("audience")) or "all"
+    return "tracker" if aud == "tracker" else None
 
 
 @social_bp.route("/broadcast/audience", methods=["GET"])
@@ -587,7 +609,7 @@ def broadcast_audience():
         row = cur.fetchone()
         if not row or row["role"] not in ("coach", "admin"):
             return jsonify({"count": 0, "error": "Coaches only"}), 403
-        ids = _coach_client_ids(cur, me, row["email"])
+        ids = _coach_client_ids(cur, me, row["email"], tier=_audience_tier(request))
         return jsonify({"count": len(ids)})
     finally:
         db.close()
@@ -614,7 +636,7 @@ def broadcast_send():
         if not row or row["role"] not in ("coach", "admin"):
             return jsonify({"error": "Coaches only"}), 403
 
-        recipient_ids = _coach_client_ids(cur, me, row["email"])
+        recipient_ids = _coach_client_ids(cur, me, row["email"], tier=_audience_tier(request))
         if not recipient_ids:
             return jsonify({"success": True, "sent": 0, "message": "No clients with accounts yet."})
 

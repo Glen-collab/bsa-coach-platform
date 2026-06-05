@@ -56,8 +56,8 @@ export const api = {
   myPrograms: (email) => request('/workout/list-programs.php', { method: 'POST', body: JSON.stringify({ email }) }),
 
   // Coach broadcast
-  broadcastAudience: () => request('/social/broadcast/audience'),
-  broadcastSend: (body) => request('/social/broadcast', { method: 'POST', body: JSON.stringify({ body }) }),
+  broadcastAudience: (audience = 'all') => request(`/social/broadcast/audience?audience=${encodeURIComponent(audience)}`),
+  broadcastSend: (body, audience = 'all') => request('/social/broadcast', { method: 'POST', body: JSON.stringify({ body, audience }) }),
 
   // Admin
   overview: () => request('/admin/overview'),
@@ -115,6 +115,15 @@ export const api = {
   kioskTvConfig: (pi, device) => request(`/kiosk/tv-config?pi=${encodeURIComponent(pi)}${device ? '&device=' + encodeURIComponent(device) : ''}`),
 
   // Per-device kiosk control
+  // Challenges
+  activeChallenge:    () => request('/challenges/active'),
+  challengeStandings: (id) => request(`/challenges/${id}/standings`),
+  joinChallenge:      (id) => request(`/challenges/${id}/join`, { method: 'POST' }),
+  createChallenge:    (body) => request('/challenges/create', { method: 'POST', body: JSON.stringify(body) }),
+  updateChallenge:    (id, body) => request(`/challenges/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteChallenge:    (id) => request(`/challenges/${id}`, { method: 'DELETE' }),
+  adminChallenges:    () => request('/challenges/admin/list'),
+
   kioskMyDevices: () => request('/kiosk/my-devices'),
   kioskRenameDevice: (deviceId, displayName) => request('/kiosk/device/rename', { method: 'POST', body: JSON.stringify({ device_id: deviceId, display_name: displayName }) }),
   kioskDeviceSetActive: (deviceId, programId) => request('/kiosk/device/set-active', { method: 'POST', body: JSON.stringify({ device_id: deviceId, program_id: programId }) }),

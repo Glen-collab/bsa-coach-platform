@@ -605,10 +605,43 @@ def share_summary():
         )
         new_row = cur.fetchone()
         db.commit()
+
+        # Ping the member in chat so they know to look at their dashboard.
+        # Best-effort: the summary is already saved, so a chat failure must not
+        # break the response. Auto-accept the coach<->member friendship so the
+        # message lands in their FriendChat thread.
+        chat_pinged = False
+        try:
+            cur.execute(
+                """
+                INSERT INTO user_friendships (requester_id, recipient_id, status, accepted_at)
+                VALUES (%s, %s, 'accepted', NOW())
+                ON CONFLICT (requester_id, recipient_id) DO UPDATE SET
+                    status = CASE WHEN user_friendships.status IN ('declined','blocked')
+                                  THEN user_friendships.status ELSE 'accepted' END,
+                    accepted_at = COALESCE(user_friendships.accepted_at, NOW()),
+                    updated_at = NOW()
+                """,
+                (coach_id, member_id),
+            )
+            cur.execute(
+                """
+                INSERT INTO user_messages (from_user_id, to_user_id, body, is_broadcast)
+                VALUES (%s, %s, %s, FALSE)
+                """,
+                (coach_id, member_id,
+                 f"\U0001F4CB Coach left you a note — check your dashboard for this {period} summary."),
+            )
+            db.commit()
+            chat_pinged = True
+        except Exception:
+            db.rollback()  # keep the saved summary; just skip the ping
+
         return jsonify({
             "success": True,
             "id": str(new_row["id"]),
             "created_at": new_row["created_at"].isoformat(),
+            "chat_pinged": chat_pinged,
         })
     finally:
         db.close()

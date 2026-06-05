@@ -11,19 +11,23 @@ export default function BroadcastCard({ isMobile }) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState(null);
+  const [audience, setAudience] = useState('all'); // 'all' | 'tracker' ($5.99 crew)
 
-  const refreshCount = () => {
-    api.broadcastAudience().then((r) => setCount(r.count ?? 0)).catch(() => setCount(0));
+  const refreshCount = (aud = audience) => {
+    setCount(null);
+    api.broadcastAudience(aud).then((r) => setCount(r.count ?? 0)).catch(() => setCount(0));
   };
-  useEffect(() => { refreshCount(); }, []);
+  useEffect(() => { refreshCount(audience); }, [audience]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const audienceLabel = audience === 'tracker' ? 'Tracker-only ($5.99)' : 'all clients';
 
   const send = async () => {
     const txt = body.trim();
     if (!txt) { setStatus({ ok: false, msg: 'Type a message first.' }); return; }
-    if (!confirm(`Send this to all ${count} of your clients?`)) return;
+    if (!confirm(`Send this to ${count} ${audienceLabel}?`)) return;
     setSending(true); setStatus(null);
     try {
-      const r = await api.broadcastSend(txt);
+      const r = await api.broadcastSend(txt, audience);
       if (r.success) {
         setStatus({ ok: true, msg: `Sent to ${r.sent} client${r.sent === 1 ? '' : 's'}. They'll see it in their tracker chat.` });
         setBody('');
@@ -66,9 +70,34 @@ export default function BroadcastCard({ isMobile }) {
       </button>
       {open && (
         <div style={{ marginTop: '14px' }}>
+          {/* Audience picker — text everyone, or just the $5.99 tracker crew. */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+            {[
+              { key: 'all', label: 'All clients' },
+              { key: 'tracker', label: 'Tracker-only · $5.99' },
+            ].map((a) => {
+              const active = audience === a.key;
+              return (
+                <button
+                  key={a.key}
+                  type="button"
+                  onClick={() => setAudience(a.key)}
+                  style={{
+                    flex: 1, padding: '9px 10px', borderRadius: '8px', cursor: 'pointer',
+                    fontSize: '13px', fontWeight: 700,
+                    border: active ? '2px solid #0284c7' : '1.5px solid #d1d5db',
+                    background: active ? '#0284c7' : '#fff',
+                    color: active ? '#fff' : '#555',
+                  }}
+                >{a.label}</button>
+              );
+            })}
+          </div>
           <p style={{ fontSize: '13px', color: '#555', margin: '0 0 10px', lineHeight: 1.5 }}>
-            This sends one message to <strong>every client on your roster with an account</strong> (referred members + tracker users signed in via email link).
-            Each will see it in their 💬 chat bubble with a "from your coach" badge and can reply.
+            {audience === 'tracker'
+              ? <>Sends one message to your <strong>$5.99 tracker-only clients</strong> — your gym crew who just log workouts.</>
+              : <>Sends one message to <strong>every client on your roster with an account</strong> (referred members + tracker users signed in via email link).</>}
+            {' '}Each sees it in their 💬 chat bubble with a "from your coach" badge and can reply.
           </p>
           <textarea
             style={s.textarea}
