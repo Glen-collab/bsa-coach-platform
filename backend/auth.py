@@ -405,25 +405,34 @@ def check_member():
     try:
         with db.cursor() as cur:
             cur.execute(
-                "SELECT role FROM users WHERE LOWER(email) = %s LIMIT 1",
+                "SELECT id, role FROM users WHERE LOWER(email) = %s LIMIT 1",
                 (email,),
             )
             user_row = cur.fetchone()
-            if user_row and user_row[0] in ("admin", "coach"):
-                is_member = True
-            else:
-                cur.execute(
-                    """
-                    SELECT 1
-                    FROM users u
-                    JOIN subscriptions s ON s.user_id = u.id
-                    WHERE LOWER(u.email) = %s AND s.status = 'active'
-                    LIMIT 1
-                    """,
-                    (email,),
-                )
-                is_member = cur.fetchone() is not None
-        return jsonify({"is_member": is_member})
+            if not user_row:
+                return jsonify({"is_member": False, "tier": None})
+            role = user_row[1]
+            if role in ("admin", "coach"):
+                return jsonify({"is_member": True, "tier": role})
+
+            # Most relevant active subscription tier (most recent if several).
+            cur.execute(
+                """
+                SELECT tier FROM subscriptions
+                WHERE user_id = %s AND status = 'active'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (user_row[0],),
+            )
+            sub = cur.fetchone()
+            tier = sub[0] if sub else None
+            # "Full" members (basic/coached/elite) get the real dashboard.
+            # Tracker-only ($5.99) is paid but tracker-only — NOT a full
+            # member, so the Dashboard button still shows the upsell that
+            # nudges them up to a membership.
+            is_member = tier in ("basic", "coached", "elite")
+        return jsonify({"is_member": is_member, "tier": tier})
     finally:
         db.close()
 
