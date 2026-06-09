@@ -112,7 +112,7 @@ export default function GameModeCard({ devices = [], isMobile, onChange }) {
   // Maps the UI label to the backend mode. The Stop button reverts the
   // device to 'workout' which both clears game mode and restores the
   // normal workout-TV behavior.
-  const SYSTEM_TO_MODE = { NES: 'game_nes', SNES: 'game_snes' };
+  const SYSTEM_TO_MODE = { NES: 'game_nes', SNES: 'game_snes', N64: 'game_n64', GBA: 'game_gba' };
 
   const setMode = async (device, mode, label) => {
     setBusyDeviceId(device.id);
@@ -158,7 +158,7 @@ export default function GameModeCard({ devices = [], isMobile, onChange }) {
       {!open && (<></>)}
       {open && (<>
       <p style={s.sub}>
-        Flip a kiosk Pi from the workout TV into a retro arcade (NES / SNES).
+        Flip a kiosk Pi from the workout TV into a retro arcade.
         Use during gym off-hours or when kids need a break between sets.
       </p>
 
@@ -166,10 +166,12 @@ export default function GameModeCard({ devices = [], isMobile, onChange }) {
         <div style={s.empty}>No Pi devices registered yet.</div>
       ) : (
         devices.map((dev) => {
-          const inGameMode = dev.display_mode === 'game_nes' || dev.display_mode === 'game_snes';
+          const inGameMode = dev.display_mode?.startsWith('game_');
+          const MODE_LABELS = { game_nes: 'NES', game_snes: 'SNES', game_n64: 'N64', game_gba: 'GBA' };
           const nowShowing = inGameMode
-            ? (dev.display_mode === 'game_nes' ? '🎮 NES' : '🎮 SNES')
+            ? `🎮 ${MODE_LABELS[dev.display_mode] || dev.display_mode}`
             : (dev.program_name || 'Idle');
+          const systems = (dev.available_systems || 'nes,snes').split(',').map(s => s.trim().toUpperCase());
           return (
           <div key={dev.id} style={s.deviceRow}>
             <div style={s.deviceName}>{dev.display_name}</div>
@@ -177,16 +179,14 @@ export default function GameModeCard({ devices = [], isMobile, onChange }) {
               Now showing: <b>{nowShowing}</b> · serial …{dev.device_serial?.slice(-6) || '????'}
             </div>
             <div style={s.buttonRow}>
-              <button
-                style={s.systemBtn}
-                disabled={busyDeviceId === dev.id}
-                onClick={() => handleLaunch(dev, 'NES')}
-              >▶ NES</button>
-              <button
-                style={s.systemBtn}
-                disabled={busyDeviceId === dev.id}
-                onClick={() => handleLaunch(dev, 'SNES')}
-              >▶ SNES</button>
+              {systems.map(sys => (
+                <button
+                  key={sys}
+                  style={s.systemBtn}
+                  disabled={busyDeviceId === dev.id}
+                  onClick={() => handleLaunch(dev, sys)}
+                >▶ {sys}</button>
+              ))}
               <button
                 style={s.pickerBtn}
                 disabled={busyDeviceId === dev.id || !inGameMode}
