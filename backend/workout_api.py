@@ -1973,3 +1973,119 @@ def admin_toggle_template():
         return jsonify({"success": True, "id": row["id"], "program_name": row["program_name"], "is_template": row["is_template"]})
     finally:
         db.close()
+
+
+# ── Coach custom / combo exercises (builder-facing, email-keyed) ──────────
+# The builder identifies coaches by email (no JWT), so these mirror the
+# JWT-auth'd /api/media/custom-exercises endpoints but key off email. They
+# read/write the SAME custom_exercises table, so a coach's saved combos also
+# flow into the admin propose/approve + MediaLibrary video pipeline (status
+# 'approved' = immediately reusable + filmable). video_uid carries a filmed
+# Cloudflare demo when one is attached.
+
+def _user_id_for_email(cur, email):
+    if not email:
+        return None
+    cur.execute("SELECT id FROM users WHERE LOWER(email) = %s LIMIT 1", (email.lower().strip(),))
+    row = cur.fetchone()
+    return row["id"] if row else None
+
+
+@workout_bp.route("/list-custom-exercises.php", methods=["POST", "OPTIONS"])
+def list_custom_exercises():
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    email = (data.get("email") or "").lower().strip()
+    if not email:
+        return jsonify({"success": False, "message": "email required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        uid = _user_id_for_email(cur, email)
+        if not uid:
+            return jsonify({"success": True, "exercises": []})
+        cur.execute("""
+            SELECT id, name, video_uid, status, created_at
+            FROM custom_exercises
+            WHERE proposed_by_user_id = %s AND status <> 'removed'
+            ORDER BY LOWER(name)
+        """, (uid,))
+        return jsonify({"success": True, "exercises": cur.fetchall()})
+    finally:
+        db.close()
+
+
+@workout_bp.route("/save-custom-exercise.php", methods=["POST", "OPTIONS"])
+def save_custom_exercise():
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    email = (data.get("email") or "").lower().strip()
+    name = (data.get("name") or "").strip()
+    video_uid = (data.get("video_uid") or "").strip() or None
+    if not email or not name:
+        return jsonify({"success": False, "message": "email and name required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        uid = _user_id_for_email(cur, email)
+        if not uid:
+            return jsonify({"success": False, "message": "coach not found"}), 404
+        try:
+            cur.execute("""
+                INSERT INTO custom_exercises
+                  (proposed_by_user_id, name, source_library, status, video_uid)
+                VALUES (%s, %s, 'custom', 'approved', %s)
+                RETURNING id, name, video_uid, status, created_at
+            """, (uid, name, video_uid))
+            row = cur.fetchone()
+            db.commit()
+            return jsonify({"success": True, "exercise": row})
+        except psycopg2.errors.UniqueViolation:
+            db.rollback()
+            # Same name already exists — return it, updating the video if given.
+            cur.execute("""
+                SELECT id FROM custom_exercises
+                WHERE LOWER(name) = LOWER(%s) AND source_library = 'custom'
+                  AND status IN ('pending','approved')
+                LIMIT 1
+            """, (name,))
+            existing = cur.fetchone()
+            if not existing:
+                return jsonify({"success": False, "message": "could not save"}), 500
+            if video_uid:
+                cur.execute("UPDATE custom_exercises SET video_uid = %s WHERE id = %s", (video_uid, existing["id"]))
+                db.commit()
+            cur.execute("""
+                SELECT id, name, video_uid, status, created_at
+                FROM custom_exercises WHERE id = %s
+            """, (existing["id"],))
+            return jsonify({"success": True, "exercise": cur.fetchone(), "existing": True})
+    finally:
+        db.close()
+
+
+@workout_bp.route("/delete-custom-exercise.php", methods=["POST", "OPTIONS"])
+def delete_custom_exercise():
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    email = (data.get("email") or "").lower().strip()
+    ex_id = data.get("id")
+    if not email or not ex_id:
+        return jsonify({"success": False, "message": "email and id required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        uid = _user_id_for_email(cur, email)
+        if not uid:
+            return jsonify({"success": False, "message": "coach not found"}), 404
+        cur.execute(
+            "UPDATE custom_exercises SET status = 'removed' WHERE id = %s AND proposed_by_user_id = %s",
+            (ex_id, uid),
+        )
+        db.commit()
+        return jsonify({"success": True})
+    finally:
+        db.close()
