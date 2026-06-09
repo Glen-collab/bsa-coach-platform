@@ -71,6 +71,14 @@ export default function Navbar() {
     <nav style={s.nav}>
       <Link to="/" style={s.brand}>{brandLabel}</Link>
       <div style={s.links}>
+        <a
+          href="https://bestrongagain.com"
+          style={s.link}
+          rel="noopener noreferrer"
+          title="Learn more about Glen and Be Strong Again"
+        >
+          Home
+        </a>
         {user ? (
           <>
             <Link to="/dashboard" style={s.link}>Dashboard</Link>
