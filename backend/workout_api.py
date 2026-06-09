@@ -1577,6 +1577,11 @@ def get_client_details():
                 "day_number": log["day_number"],
                 "workout_date": str(log["workout_date"]) if log["workout_date"] else None,
                 "parsed_data": wd,
+                # volume_stats lives in its own column, not inside workout_data.
+                # The dashboard's weekly/monthly summary reads w.volume_stats to
+                # total tonnage/calories/cardio — without this it summed 0 and the
+                # AI reported "Data not available".
+                "volume_stats": vs,
             })
 
         # Total count
