@@ -1849,6 +1849,32 @@ def send_session_recap():
     if not client_email:
         return jsonify({"success": False, "message": "client_email required"}), 400
 
+    # Anti-abuse: this endpoint SENDS EMAIL, so it must never be usable as an
+    # open spam/phishing relay. Require a valid coach referral code AND that the
+    # recipient is a real client in the system (a registered user or someone
+    # with a program) — not an arbitrary external address.
+    coach_code = (data.get("coach") or "").strip().upper()
+    if not coach_code:
+        return jsonify({"success": False, "message": "coach required"}), 403
+    _g = get_db()
+    try:
+        _c = _g.cursor()
+        _c.execute(
+            "SELECT 1 FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin') LIMIT 1",
+            (coach_code,),
+        )
+        if not _c.fetchone():
+            return jsonify({"success": False, "message": "Invalid coach"}), 403
+        _c.execute(
+            "SELECT 1 FROM users WHERE LOWER(email) = %s "
+            "UNION SELECT 1 FROM workout_programs WHERE LOWER(user_email) = %s LIMIT 1",
+            (client_email, client_email),
+        )
+        if not _c.fetchone():
+            return jsonify({"success": False, "message": "Unknown client"}), 403
+    finally:
+        _g.close()
+
     def esc(s):
         return (str(s or "")).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
