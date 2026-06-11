@@ -1862,16 +1862,8 @@ def send_session_recap():
             <div style="font-size:14px;color:#333;line-height:1.6;white-space:pre-wrap;">{esc(coach_notes)}</div>
         </div>"""
 
-    rows = ""
-    for it in items:
-        nm = esc(it.get("name"))
-        summ = esc(it.get("summary"))
-        note = esc(it.get("note"))
-        rows += f'<tr><td style="padding:7px 0;font-weight:600;color:#1a1a2e;">{nm}</td><td style="padding:7px 0;text-align:right;color:#444;font-family:monospace;">{summ}</td></tr>'
-        if note:
-            rows += f'<tr><td colspan="2" style="padding:0 0 7px 0;color:#667eea;font-size:13px;">↳ {note}</td></tr>'
-
-    items_html = f'<table style="width:100%;font-size:14px;border-collapse:collapse;">{rows}</table>' if rows else ''
+    # The exercise list is intentionally omitted — the recap is the coach's
+    # notes + any reference photos (kept short; not a redundant weekly dump).
 
     # Optional reference photos (data URLs from the recap modal) → email attachments.
     # Coach-side resized already; cap count + per-image size for safety.
@@ -1901,9 +1893,8 @@ def send_session_recap():
             {f'<div style="color:#e0e7ff;font-size:13px;margin-top:4px;">{esc(program_name)} · {wd}</div>' if wd else ''}
         </div>
         <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 12px 12px;">
-            <p style="font-size:15px;color:#444;margin-top:0;">Hey {esc(client_name)}, here's what we worked through today:</p>
+            <p style="font-size:15px;color:#444;margin-top:0;">Hey {esc(client_name)}, here's a recap from today's session:</p>
             {notes_html}
-            {items_html}
             {photos_note}
             <p style="font-size:15px;color:#444;margin:20px 0 0;">— {esc(coach_name)}</p>
         </div>
