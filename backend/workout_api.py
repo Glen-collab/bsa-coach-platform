@@ -1805,6 +1805,74 @@ def send_code_to_client():
     return jsonify({"success": True, "message": f"Code sent to {client_email}"})
 
 
+@workout_bp.route("/send-session-recap.php", methods=["POST", "OPTIONS"])
+def send_session_recap():
+    """
+    1-on-1 session recap → emailed to the CLIENT, with the coach's notes.
+    The coach reviews/edits this in the tracker before sending (1-on-1 mode only),
+    so it never fires for normal client logging.
+
+    Body: { client_email, client_name, coach_name, program_name, week, day,
+            items: [{name, summary, note}], coach_notes }
+    """
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    client_email = (data.get("client_email") or "").lower().strip()
+    client_name = data.get("client_name") or "there"
+    coach_name = data.get("coach_name") or "Your Coach"
+    program_name = data.get("program_name") or "Your Workout"
+    week = data.get("week")
+    day = data.get("day")
+    items = data.get("items") or []
+    coach_notes = (data.get("coach_notes") or "").strip()
+
+    if not client_email:
+        return jsonify({"success": False, "message": "client_email required"}), 400
+
+    def esc(s):
+        return (str(s or "")).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    wd = f"W{week} D{day}" if (week and day) else ""
+
+    notes_html = ""
+    if coach_notes:
+        notes_html = f"""
+        <div style="background:#eef2ff;border-left:4px solid #667eea;border-radius:8px;padding:14px 16px;margin-bottom:18px;">
+            <div style="font-size:12px;font-weight:700;color:#667eea;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Coach Notes</div>
+            <div style="font-size:14px;color:#333;line-height:1.6;white-space:pre-wrap;">{esc(coach_notes)}</div>
+        </div>"""
+
+    rows = ""
+    for it in items:
+        nm = esc(it.get("name"))
+        summ = esc(it.get("summary"))
+        note = esc(it.get("note"))
+        rows += f'<tr><td style="padding:7px 0;font-weight:600;color:#1a1a2e;">{nm}</td><td style="padding:7px 0;text-align:right;color:#444;font-family:monospace;">{summ}</td></tr>'
+        if note:
+            rows += f'<tr><td colspan="2" style="padding:0 0 7px 0;color:#667eea;font-size:13px;">↳ {note}</td></tr>'
+
+    items_html = f'<table style="width:100%;font-size:14px;border-collapse:collapse;">{rows}</table>' if rows else ''
+
+    html = f"""
+    <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:linear-gradient(135deg,#667eea,#764ba2);padding:22px;text-align:center;border-radius:12px 12px 0 0;">
+            <h1 style="color:#fff;margin:0;font-size:20px;">Your Session Recap</h1>
+            {f'<div style="color:#e0e7ff;font-size:13px;margin-top:4px;">{esc(program_name)} · {wd}</div>' if wd else ''}
+        </div>
+        <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 12px 12px;">
+            <p style="font-size:15px;color:#444;margin-top:0;">Hey {esc(client_name)}, here's what we worked through today:</p>
+            {notes_html}
+            {items_html}
+            <p style="font-size:15px;color:#444;margin:20px 0 0;">— {esc(coach_name)}</p>
+        </div>
+        <p style="text-align:center;color:#999;font-size:12px;margin-top:12px;">Be Strong Again</p>
+    </div>
+    """
+    send_email(client_email, f"Your session recap — {program_name}", html, reply_to=TRAINER_EMAIL)
+    return jsonify({"success": True, "message": f"Recap sent to {client_email}"})
+
+
 @workout_bp.route("/delete-client.php", methods=["POST", "OPTIONS"])
 def delete_client():
     if request.method == "OPTIONS":
