@@ -15,6 +15,9 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+import base64
 from datetime import datetime
 import random
 import string
@@ -63,21 +66,37 @@ def _resolve_coach_uuid(cur, created_by):
         return None
 
 
-def send_email(to, subject, html_body, reply_to=None):
-    """Send email via SMTP. Falls back silently on failure."""
+def send_email(to, subject, html_body, reply_to=None, attachments=None):
+    """Send email via SMTP. Falls back silently on failure.
+    attachments: optional list of (filename, content_bytes, mimetype) to attach."""
     try:
         gmail_user = os.environ.get("GMAIL_USER", TRAINER_EMAIL)
         gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
         if not gmail_pass:
             return False
 
-        msg = MIMEMultipart("alternative")
+        if attachments:
+            # mixed wrapper so files ride alongside the HTML body
+            msg = MIMEMultipart("mixed")
+            alt = MIMEMultipart("alternative")
+            alt.attach(MIMEText(html_body, "html"))
+            msg.attach(alt)
+            for (filename, content_bytes, mimetype) in attachments:
+                maintype, _, subtype = (mimetype or "application/octet-stream").partition("/")
+                part = MIMEBase(maintype or "application", subtype or "octet-stream")
+                part.set_payload(content_bytes)
+                encoders.encode_base64(part)
+                part.add_header("Content-Disposition", "attachment", filename=filename)
+                msg.attach(part)
+        else:
+            msg = MIMEMultipart("alternative")
+            msg.attach(MIMEText(html_body, "html"))
+
         msg["Subject"] = subject
         msg["From"] = f"Workout Tracker <{gmail_user}>"
         msg["To"] = to
         if reply_to:
             msg["Reply-To"] = reply_to
-        msg.attach(MIMEText(html_body, "html"))
 
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(gmail_user, gmail_pass)
@@ -1854,6 +1873,27 @@ def send_session_recap():
 
     items_html = f'<table style="width:100%;font-size:14px;border-collapse:collapse;">{rows}</table>' if rows else ''
 
+    # Optional reference photos (data URLs from the recap modal) → email attachments.
+    # Coach-side resized already; cap count + per-image size for safety.
+    attachments = []
+    for i, p in enumerate((data.get("photos") or [])[:6]):
+        try:
+            mt = "image/jpeg"
+            if isinstance(p, str) and p.startswith("data:") and ";" in p:
+                mt = p[5:p.index(";")] or "image/jpeg"
+            b64 = p.split(",", 1)[1] if (isinstance(p, str) and "," in p) else p
+            raw = base64.b64decode(b64)
+            if len(raw) > 6 * 1024 * 1024:
+                continue
+            ext = "jpg" if ("jpeg" in mt or "jpg" in mt) else (mt.split("/")[-1] or "jpg")
+            attachments.append((f"session-photo-{i+1}.{ext}", raw, mt))
+        except Exception:
+            continue
+
+    photos_note = ""
+    if attachments:
+        photos_note = f'<p style="font-size:13px;color:#667eea;margin:16px 0 0;">📎 {len(attachments)} reference photo(s) attached — save them for your records.</p>'
+
     html = f"""
     <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;">
         <div style="background:linear-gradient(135deg,#667eea,#764ba2);padding:22px;text-align:center;border-radius:12px 12px 0 0;">
@@ -1864,12 +1904,13 @@ def send_session_recap():
             <p style="font-size:15px;color:#444;margin-top:0;">Hey {esc(client_name)}, here's what we worked through today:</p>
             {notes_html}
             {items_html}
+            {photos_note}
             <p style="font-size:15px;color:#444;margin:20px 0 0;">— {esc(coach_name)}</p>
         </div>
         <p style="text-align:center;color:#999;font-size:12px;margin-top:12px;">Be Strong Again</p>
     </div>
     """
-    send_email(client_email, f"Your session recap — {program_name}", html, reply_to=TRAINER_EMAIL)
+    send_email(client_email, f"Your session recap — {program_name}", html, reply_to=TRAINER_EMAIL, attachments=attachments)
     return jsonify({"success": True, "message": f"Recap sent to {client_email}"})
 
 
