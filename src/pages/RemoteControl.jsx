@@ -261,6 +261,8 @@ export default function RemoteControl() {
   // test day while the other gym TVs keep showing workouts.
   const isLeaderboardMode = device?.display_mode === 'leaderboard';
   const lockedMetricId = device?.display_metric_id || null;
+  // Multi-metric rotation subset (CSV in the device row → number array). Empty = auto-rotate all.
+  const selectedMetricIds = (device?.display_metric_ids || '').split(',').map(Number).filter(Boolean);
   const lockedGender   = device?.display_gender   || null;  // 'M' | 'F' | 'A' | null
   const lockedGroup    = device?.display_group    || null;
   const lockedYear     = device?.display_year     || null;  // '2026' | null (= all-time)
@@ -273,19 +275,21 @@ export default function RemoteControl() {
   // the previous gender — same trap for group/metric_id.
   const setDisplay = async (patch) => {
     const next = {
-      mode:      'mode'      in patch ? patch.mode      : (device?.display_mode      ?? 'workout'),
-      metric_id: 'metric_id' in patch ? patch.metric_id : (device?.display_metric_id ?? null),
-      gender:    'gender'    in patch ? patch.gender    : (device?.display_gender    ?? null),
-      group:     'group'     in patch ? patch.group     : (device?.display_group     ?? null),
-      year:      'year'      in patch ? patch.year      : (device?.display_year      ?? null),
+      mode:       'mode'       in patch ? patch.mode       : (device?.display_mode      ?? 'workout'),
+      metric_id:  'metric_id'  in patch ? patch.metric_id  : (device?.display_metric_id ?? null),
+      metric_ids: 'metric_ids' in patch ? patch.metric_ids : selectedMetricIds,
+      gender:     'gender'     in patch ? patch.gender     : (device?.display_gender    ?? null),
+      group:      'group'      in patch ? patch.group      : (device?.display_group     ?? null),
+      year:       'year'       in patch ? patch.year       : (device?.display_year      ?? null),
     };
     setDevice((prev) => prev ? {
       ...prev,
-      display_mode:      next.mode,
-      display_metric_id: next.metric_id,
-      display_gender:    next.gender,
-      display_group:     next.group,
-      display_year:      next.year,
+      display_mode:       next.mode,
+      display_metric_id:  next.metric_id,
+      display_metric_ids: (next.metric_ids || []).join(','),
+      display_gender:     next.gender,
+      display_group:      next.group,
+      display_year:       next.year,
     } : prev);
     try {
       await api.kioskDeviceSetDisplay(deviceId, next);
@@ -418,28 +422,37 @@ export default function RemoteControl() {
         <div style={s.metricBlock}>
           <div style={s.metricLabel}>What's on the TV</div>
           <div style={{ fontSize: '12px', color: '#94a3b8', margin: '0 2px 8px', lineHeight: 1.4 }}>
-            <b>Auto-rotate</b> cycles every metric showing the top 7. Tap a metric to
-            <b> lock</b> the TV to it and scroll its full list.
+            <b>Auto-rotate</b> cycles every metric (top 7 each). Tap metrics to light them
+            up and show <b>only those</b> — one locks to it (full list), several rotate
+            through your picks.
           </div>
           <div style={s.metricChipGrid}>
             <button
               type="button"
-              onClick={() => setDisplay({ metric_id: null })}
-              style={{ ...s.metricChip, ...s.metricChipFill, ...(!lockedMetricId ? s.metricChipActive : {}) }}
+              onClick={() => setDisplay({ metric_ids: [], metric_id: null })}
+              style={{ ...s.metricChip, ...s.metricChipFill, ...(selectedMetricIds.length === 0 ? s.metricChipActive : {}) }}
             >
               ⟳ Auto-rotate
             </button>
-            {metrics.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                title={m.label}
-                onClick={() => setDisplay({ metric_id: m.id })}
-                style={{ ...s.metricChip, ...s.metricChipFill, ...(String(lockedMetricId) === String(m.id) ? s.metricChipActive : {}) }}
-              >
-                {m.label}
-              </button>
-            ))}
+            {metrics.map((m) => {
+              const on = selectedMetricIds.includes(m.id);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  title={m.label}
+                  onClick={() => {
+                    const nextIds = on
+                      ? selectedMetricIds.filter((x) => x !== m.id)
+                      : [...selectedMetricIds, m.id];
+                    setDisplay({ metric_ids: nextIds, metric_id: null });
+                  }}
+                  style={{ ...s.metricChip, ...s.metricChipFill, ...(on ? s.metricChipActive : {}) }}
+                >
+                  {on ? '✓ ' : ''}{m.label}
+                </button>
+              );
+            })}
             {metrics.length === 0 && (
               <span style={s.metricEmpty}>(loading metrics from leaderboard…)</span>
             )}

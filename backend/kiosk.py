@@ -201,7 +201,7 @@ def tv_config():
                       available_systems = COALESCE(%s, coach_devices.available_systems)
                 RETURNING id, display_name, active_program_id, layout,
                           view_week, view_start_day,
-                          display_mode, display_metric_id,
+                          display_mode, display_metric_id, display_metric_ids,
                           display_gender, display_group, display_year,
                           available_systems
             """, (pi_id, device_serial, default_name, coach["active_kiosk_program_id"],
@@ -251,6 +251,8 @@ def tv_config():
                 "display": {
                     "mode":      device_row["display_mode"]      if device_row else "workout",
                     "metric_id": device_row["display_metric_id"] if device_row else None,
+                    # Multi-metric rotation subset (CSV in DB → list out). Empty = all.
+                    "metric_ids": [int(x) for x in (device_row["display_metric_ids"] or "").split(",") if x.strip().isdigit()] if device_row else [],
                     "gender":    device_row["display_gender"]    if device_row else None,
                     "group":     device_row["display_group"]     if device_row else None,
                     "year":      device_row["display_year"]      if device_row else None,
@@ -280,7 +282,7 @@ def my_devices():
         cur.execute("""
             SELECT d.id, d.device_serial, d.display_name, d.active_program_id,
                    d.layout, d.view_week, d.view_start_day,
-                   d.display_mode, d.display_metric_id,
+                   d.display_mode, d.display_metric_id, d.display_metric_ids,
                    d.display_gender, d.display_group, d.display_year,
                    d.available_systems,
                    d.last_seen_at, d.created_at,
@@ -889,6 +891,14 @@ def device_set_display():
     if metric_id is not None:
         try: metric_id = int(metric_id)
         except (TypeError, ValueError): metric_id = None
+    # Multi-metric rotation subset: list of ids → CSV. Empty list / absent = clear.
+    metric_ids_csv = None
+    if isinstance(data.get("metric_ids"), list):
+        ids = []
+        for x in data["metric_ids"]:
+            try: ids.append(str(int(x)))
+            except (TypeError, ValueError): pass
+        metric_ids_csv = ",".join(ids)   # '' when cleared
     gender = data.get("gender")
     # 'A' = "all" — show everyone in one combined list on the TV. NULL =
     # auto-rotate between Boys and Girls (the default).
@@ -908,15 +918,16 @@ def device_set_display():
         cur = db.cursor()
         cur.execute("""
             UPDATE coach_devices
-            SET display_mode      = %s,
-                display_metric_id = %s,
-                display_gender    = %s,
-                display_group     = %s,
-                display_year      = %s
+            SET display_mode       = %s,
+                display_metric_id  = %s,
+                display_metric_ids = COALESCE(%s, display_metric_ids),
+                display_gender     = %s,
+                display_group      = %s,
+                display_year       = %s
             WHERE id = %s AND coach_id = %s
-            RETURNING id, display_mode, display_metric_id,
+            RETURNING id, display_mode, display_metric_id, display_metric_ids,
                       display_gender, display_group, display_year
-        """, (mode, metric_id, gender, group, year, device_id, user_id))
+        """, (mode, metric_id, metric_ids_csv, gender, group, year, device_id, user_id))
         row = cur.fetchone()
         db.commit()
         if not row:
