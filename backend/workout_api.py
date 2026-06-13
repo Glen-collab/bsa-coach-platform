@@ -628,6 +628,10 @@ def log_workout():
     program_name = data.get("program_name", "")
     week = data.get("current_week", 1)
     day = data.get("current_day", 1)
+    # 1-on-1 "pen to paper" mode: the trainer picks the day and logs it in
+    # place. We still save the workout to its week/day, but do NOT roll the
+    # client's program position forward — the trainer controls navigation.
+    advance_position = data.get("advance_position", True)
     workout_data = data.get("workout_data")
     volume_stats = data.get("volume_stats")
     chatbot_data = data.get("chatbot_data")
@@ -706,30 +710,36 @@ def log_workout():
 
             next_day = day + 1
             next_week = week
-            if next_day > days_per_week:
+            crossed_week = next_day > days_per_week
+            if crossed_week:
                 next_day = 1
                 next_week = week + 1
 
+            # 1-on-1 pen-to-paper: the workout was saved to its week/day above,
+            # but the trainer drives navigation — so leave the client's position
+            # (and cumulative weeks) untouched.
+            if advance_position:
                 # Increment cumulative weeks on last day of week
-                cur.execute("""
-                    UPDATE workout_user_position SET cumulative_weeks = cumulative_weeks + 1
-                    WHERE access_code = %s AND user_email = %s
-                """, (code, email))
+                if crossed_week:
+                    cur.execute("""
+                        UPDATE workout_user_position SET cumulative_weeks = cumulative_weeks + 1
+                        WHERE access_code = %s AND user_email = %s
+                    """, (code, email))
 
-            if next_week <= total_weeks:
-                cur.execute("""
-                    UPDATE workout_user_position
-                    SET current_week = %s, current_day = %s, last_workout_date = CURRENT_DATE,
-                        program_name = %s
-                    WHERE access_code = %s AND user_email = %s
-                """, (next_week, next_day, program_name, code, email))
-            else:
-                cur.execute("""
-                    UPDATE workout_user_position
-                    SET current_week = %s, current_day = %s, last_workout_date = CURRENT_DATE,
-                        program_name = %s
-                    WHERE access_code = %s AND user_email = %s
-                """, (total_weeks, days_per_week, program_name, code, email))
+                if next_week <= total_weeks:
+                    cur.execute("""
+                        UPDATE workout_user_position
+                        SET current_week = %s, current_day = %s, last_workout_date = CURRENT_DATE,
+                            program_name = %s
+                        WHERE access_code = %s AND user_email = %s
+                    """, (next_week, next_day, program_name, code, email))
+                else:
+                    cur.execute("""
+                        UPDATE workout_user_position
+                        SET current_week = %s, current_day = %s, last_workout_date = CURRENT_DATE,
+                            program_name = %s
+                        WHERE access_code = %s AND user_email = %s
+                    """, (total_weeks, days_per_week, program_name, code, email))
 
         db.commit()
 
@@ -861,6 +871,73 @@ def load_user_override():
             return jsonify({"success": True, "data": {"workoutData": wd, "overrideReason": row.get("override_reason", "")}})
         else:
             return jsonify({"success": True, "data": None})
+    finally:
+        db.close()
+
+
+@workout_bp.route("/session-notes.php", methods=["POST", "OPTIONS"])
+def session_notes():
+    """Return the coach/client notes already logged for each day of a client's
+    program, so the 1-on-1 scratch pad can back-fill its running sheet from
+    history (block notes + per-exercise notes, on the correct week/day)."""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    email = (data.get("user_email") or data.get("email") or "").lower().strip()
+    code = (data.get("access_code") or data.get("program_code") or "").strip()
+    program_name = (data.get("program_name") or "").strip()
+    if not email or not code:
+        return jsonify({"success": False, "message": "email and access code required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        if program_name:
+            cur.execute("""
+                SELECT week_number, day_number, workout_date, workout_data
+                FROM workout_logs
+                WHERE access_code = %s AND LOWER(user_email) = LOWER(%s) AND program_name = %s
+                ORDER BY week_number, day_number
+            """, (code, email, program_name))
+        else:
+            cur.execute("""
+                SELECT week_number, day_number, workout_date, workout_data
+                FROM workout_logs
+                WHERE access_code = %s AND LOWER(user_email) = LOWER(%s)
+                ORDER BY week_number, day_number
+            """, (code, email))
+        rows = cur.fetchall()
+
+        entries = []
+        for r in rows:
+            wd = r["workout_data"]
+            if isinstance(wd, str):
+                wd = json.loads(wd)
+            lines = []
+            for block in (wd.get("blocks") or []):
+                bn = (block.get("clientNotes") or "").strip()
+                if bn:
+                    lines.append(f"• {bn}")
+                for ex in (block.get("exercises") or []):
+                    en = (ex.get("clientNote") or "").strip()
+                    if en:
+                        nm = ex.get("name") or ex.get("prescribedName") or "Exercise"
+                        lines.append(f"• {nm}: {en}")
+            if not lines:
+                continue
+            d = r["workout_date"]
+            try:
+                date_str = d.strftime("%-m/%-d") if d else ""
+            except Exception:
+                date_str = str(d)[5:] if d else ""
+            entries.append({
+                "week": r["week_number"],
+                "day": r["day_number"],
+                "date": date_str,
+                "text": "\n".join(lines),
+            })
+
+        return jsonify({"success": True, "data": entries})
     finally:
         db.close()
 
