@@ -22,6 +22,22 @@ export default function GymFlyer() {
       .catch(() => setQr(''));
   }, [link, code]);
 
+  // Scale the fixed 8.5in flyer DOWN to fit the screen so it never overflows
+  // sideways (which made the page scroll horizontally and the header float).
+  // The frame reserves the scaled height; print resets it (see @media print).
+  const FLYER_W = 8.5 * 96;   // 816px — Letter width
+  const FLYER_H = 11 * 96;    // 1056px — Letter height
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const fit = () => {
+      const avail = Math.min(window.innerWidth - 24, 900);
+      setScale(Math.min(1, avail / FLYER_W));
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [FLYER_W]);
+
   return (
     <div style={st.screen}>
       {/* Print-only CSS: hide chrome, show just the flyer at full page. */}
@@ -41,8 +57,14 @@ export default function GymFlyer() {
             height: 11in !important;
             overflow: hidden !important;
           }
+          /* The screen scaler must not clip/shrink the printed page. */
+          .flyer-frame {
+            height: auto !important;
+            overflow: visible !important;
+            display: block !important;
+            margin: 0 !important;
+          }
         }
-        @media screen { .flyer { transform: scale(0.86); transform-origin: top center; } }
       `}</style>
 
       <div className="no-print" style={st.bar}>
@@ -57,8 +79,14 @@ export default function GymFlyer() {
         </div>
       )}
 
-      {/* The flyer — Letter sized */}
-      <div className="flyer" style={st.page}>
+      {/* Scaler frame — reserves the scaled height + clips the fixed-width
+          flyer so the page never scrolls sideways. Reset in @media print. */}
+      <div
+        className="flyer-frame"
+        style={{ width: '100%', overflow: 'hidden', display: 'flex', justifyContent: 'center', height: `${FLYER_H * scale}px`, marginTop: '16px' }}
+      >
+      {/* The flyer — Letter sized, scaled to fit screen */}
+      <div className="flyer" style={{ ...st.page, transform: `scale(${scale})`, transformOrigin: 'top center' }}>
         <div style={st.brand}>Be Strong Again</div>
         <div style={st.exclusive}>★ Gym Members Only</div>
         <h1 style={st.h1}>Track Every<br />Workout</h1>
@@ -90,19 +118,20 @@ export default function GymFlyer() {
           <small style={st.footSmall}>Ask the front desk if you need a hand.</small>
         </div>
       </div>
+      </div>
     </div>
   );
 }
 
 const st = {
-  screen: { minHeight: '100vh', background: '#eef1f4', paddingBottom: '40px' },
+  screen: { minHeight: '100vh', background: '#eef1f4', paddingBottom: '40px', overflowX: 'hidden' },
   bar: { position: 'sticky', top: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '12px 16px', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.08)' },
   barTitle: { fontWeight: 800, fontSize: '15px', color: '#333' },
   back: { background: 'none', border: 'none', color: '#667eea', fontWeight: 700, fontSize: '15px', cursor: 'pointer' },
   print: { background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 16px', fontWeight: 800, fontSize: '14px', cursor: 'pointer' },
   warn: { maxWidth: '600px', margin: '16px auto', background: '#fef3c7', border: '1px solid #fde68a', color: '#92400e', padding: '12px 16px', borderRadius: '10px', fontSize: '14px', textAlign: 'center' },
 
-  page: { width: '8.5in', minHeight: '11in', margin: '20px auto', padding: '0.6in 0.7in', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', fontFamily: "'Segoe UI', Arial, sans-serif", boxShadow: '0 18px 50px rgba(0,0,0,0.18)', background: 'linear-gradient(160deg, #16a34a 0%, #15803d 42%, #ffffff 42%, #ffffff 100%)' },
+  page: { width: '8.5in', minHeight: '11in', margin: 0, padding: '0.6in 0.7in', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', fontFamily: "'Segoe UI', Arial, sans-serif", boxShadow: '0 18px 50px rgba(0,0,0,0.18)', background: 'linear-gradient(160deg, #16a34a 0%, #15803d 42%, #ffffff 42%, #ffffff 100%)' },
   brand: { color: '#eafff0', fontSize: '15px', fontWeight: 800, letterSpacing: '4px', textTransform: 'uppercase', marginBottom: '6px' },
   exclusive: { display: 'inline-block', background: '#0b3d23', color: '#fff', fontSize: '12px', fontWeight: 800, letterSpacing: '2px', padding: '6px 14px', borderRadius: '999px', textTransform: 'uppercase', marginBottom: '14px' },
   h1: { color: '#fff', fontSize: '44px', fontWeight: 900, margin: '2px 0 4px', lineHeight: 1.05 },
