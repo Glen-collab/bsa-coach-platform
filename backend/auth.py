@@ -223,6 +223,24 @@ def register():
         db.close()
 
 
+# Goal chip → starter program access code. Auto-assigns the closest-matching
+# program Glen has already built instead of always Beginner Adult, so a new
+# member lands on something relevant to what they picked (the $5.99 "floor").
+# First matching goal wins; anything unmatched falls back to Beginner Adult.
+# Keep these keys EXACTLY in sync with GOAL_OPTIONS in src/pages/Register.jsx.
+GOAL_PROGRAM_CODES = {
+    "Get Jacked":              "8165",  # High Volume Ball Buster
+    "Build Muscle":            "5503",  # 4 Week Strength
+    "Focus on Form":           "7741",  # Beginner Adult
+    "Aging Gracefully":        "7928",  # Body weight Mobility
+    "Weight Loss":             "6073",  # Moderate Fitness
+    "Hyrox / Competition":     "9310",  # hyrox
+    "Martial Arts":            "5765",  # Warrior Strength (TKD Hybrid)
+    "Coming Back from Injury": "6707",  # Back in Shape
+}
+STARTER_FALLBACK_CODE = "7741"  # Beginner Adult
+
+
 @auth_bp.route("/submit-goals", methods=["POST"])
 @require_auth
 def submit_goals():
@@ -256,15 +274,30 @@ def submit_goals():
             # program has been assigned yet — don't clobber a coach's pick or
             # a paid-tier webhook assignment.
             starter_program_name = None
+            starter_access_code = None
             cur.execute("SELECT active_kiosk_program_id FROM users WHERE id = %s", (me,))
             row = cur.fetchone()
             current_prog = row[0] if row else None
             if not current_prog:
-                cur.execute("SELECT id, program_name FROM workout_programs WHERE access_code = '7741' LIMIT 1")
+                # Pick the closest-matching starter from the goals (first match
+                # wins); fall back to Beginner Adult for no match.
+                matched_code = STARTER_FALLBACK_CODE
+                for g in goals:
+                    if g in GOAL_PROGRAM_CODES:
+                        matched_code = GOAL_PROGRAM_CODES[g]
+                        break
+                cur.execute("SELECT id, program_name FROM workout_programs WHERE access_code = %s LIMIT 1", (matched_code,))
                 p = cur.fetchone()
+                if not p and matched_code != STARTER_FALLBACK_CODE:
+                    # Matched code missing/inactive — don't leave them with no
+                    # program; fall back to Beginner Adult.
+                    matched_code = STARTER_FALLBACK_CODE
+                    cur.execute("SELECT id, program_name FROM workout_programs WHERE access_code = %s LIMIT 1", (STARTER_FALLBACK_CODE,))
+                    p = cur.fetchone()
                 if p:
                     cur.execute("UPDATE users SET active_kiosk_program_id = %s WHERE id = %s", (p[0], me))
                     starter_program_name = p[1]
+                    starter_access_code = matched_code
             # Pull the fields needed for the admin notification email
             cur.execute("""
                 SELECT u.first_name, u.last_name, u.email, u.referral_code,
@@ -293,7 +326,7 @@ def submit_goals():
             "ok": True,
             "goals": goals,
             "starter_program": starter_program_name,
-            "starter_access_code": "7741" if starter_program_name else None,
+            "starter_access_code": starter_access_code,
         })
     finally:
         db.close()
