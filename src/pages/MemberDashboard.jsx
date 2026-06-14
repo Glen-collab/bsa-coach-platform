@@ -137,6 +137,29 @@ export default function MemberDashboard() {
   const trackerHref = `${TRACKER_URL}?${trackerParams.toString()}`;
   const currentTier = me?.tier || 'Free';
 
+  // ── 2-week check-in / upsell ──────────────────────────────────────
+  // Once a non-coaching member (Free or $5.99 tracker) has trained for ~2
+  // weeks, nudge them toward the $20 plan where Glen personally tunes their
+  // program. Reads as coaching ("Glen's been watching"), not a paywall.
+  const isPaidCoaching = ['basic', 'coached', 'elite'].includes(String(me?.tier || '').toLowerCase());
+  const daysSinceSignup = me?.created_at
+    ? Math.floor((Date.now() - new Date(me.created_at).getTime()) / 86400000)
+    : 0;
+  const [checkInDismissed, setCheckInDismissed] = useState(() => {
+    try {
+      const ts = parseInt(localStorage.getItem('bsa_checkin_dismissed') || '0', 10);
+      return !!ts && (Date.now() - ts) < 7 * 86400000;   // snooze a week
+    } catch { return false; }
+  });
+  const dismissCheckIn = () => {
+    try { localStorage.setItem('bsa_checkin_dismissed', String(Date.now())); } catch { /* ignore */ }
+    setCheckInDismissed(true);
+  };
+  const showCheckIn = !isPaidCoaching
+    && (me?.workout_count || 0) >= 1
+    && daysSinceSignup >= 14
+    && !checkInDismissed;
+
   // ── Challenge state ───────────────────────────────────────────────
   const [challenge, setChallenge] = useState(null);
   const [challengeLoading, setChallengeLoading] = useState(true);
@@ -153,6 +176,48 @@ export default function MemberDashboard() {
     <div style={s.page}>
       <h1 style={s.welcome}>Hey, {user?.first_name || 'there'}!</h1>
       <p style={s.sub}>Let's get to work.</p>
+
+      {/* ── 2-week check-in / $20 upsell ──────────────────────────────── */}
+      {showCheckIn && (
+        <div style={{
+          position: 'relative',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: '16px',
+          padding: isMobile ? '18px 16px' : '22px 24px',
+          marginBottom: '18px',
+          color: '#fff',
+          boxShadow: '0 8px 24px rgba(102,126,234,0.3)',
+        }}>
+          <button
+            onClick={dismissCheckIn}
+            aria-label="Dismiss"
+            style={{
+              position: 'absolute', top: '10px', right: '12px', background: 'rgba(255,255,255,0.18)',
+              border: 'none', color: '#fff', width: '26px', height: '26px', borderRadius: '50%',
+              cursor: 'pointer', fontSize: '14px', lineHeight: '26px', padding: 0,
+            }}
+          >✕</button>
+          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', opacity: 0.85, marginBottom: '6px' }}>
+            You're 2 weeks in 💪
+          </div>
+          <div style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 800, marginBottom: '8px', lineHeight: 1.35 }}>
+            Glen's been watching your logs.
+          </div>
+          <p style={{ fontSize: '13.5px', opacity: 0.92, margin: '0 0 14px', lineHeight: 1.5 }}>
+            Want him to tailor your next block to <b>your</b> goal — and keep adjusting it as you progress — instead of a template? That's the Basic plan.
+          </p>
+          <button
+            disabled={upgrading}
+            onClick={() => handleUpgrade('basic')}
+            style={{
+              background: '#fff', color: '#5a3fc0', border: 'none', borderRadius: '10px',
+              padding: '11px 20px', fontSize: '14.5px', fontWeight: 800, cursor: 'pointer',
+            }}
+          >
+            {upgrading ? '…' : 'Let Glen tune my program — $20/mo'}
+          </button>
+        </div>
+      )}
 
       {/* ── Active Challenge Card ───────────────────────────────────── */}
       {!challengeLoading && (

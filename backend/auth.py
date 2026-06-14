@@ -350,7 +350,9 @@ def me():
                        wp.program_name AS program_name,
                        s.tier AS sub_tier,
                        s.status AS sub_status,
-                       u.goals
+                       u.goals,
+                       u.created_at,
+                       (SELECT COUNT(*) FROM workout_logs wl WHERE LOWER(wl.user_email) = LOWER(u.email)) AS workout_count
                 FROM users u
                 LEFT JOIN workout_programs wp ON wp.id = u.active_kiosk_program_id
                 LEFT JOIN LATERAL (
@@ -377,6 +379,8 @@ def me():
                 "tier":          row[10],
                 "subscription_status": row[11],
                 "goals":         row[12] or [],
+                "created_at":    row[13].isoformat() if row[13] else None,
+                "workout_count": row[14] or 0,
             })
     finally:
         db.close()
