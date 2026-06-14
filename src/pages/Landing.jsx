@@ -451,6 +451,21 @@ export default function Landing() {
           </div>
         </div>
 
+        {/* Budget option — tracker only, $5.99/mo. A quiet line under the tiers
+            so it's findable (it's the gym-flyer tier) without competing with
+            the coaching plans that lead. */}
+        <div style={{ textAlign: 'center', marginTop: '20px' }}>
+          <span style={{ fontSize: isMobile ? '14px' : '15px', color: '#556' }}>
+            Just want to log your own workouts?{' '}
+          </span>
+          <Link
+            to={startLink('tracker')}
+            style={{ color: '#15803d', fontWeight: 800, textDecoration: 'underline', fontSize: isMobile ? '14px' : '15px' }}
+          >
+            Get the tracker for $5.99/mo — no coaching →
+          </Link>
+        </div>
+
         {/* Free trial — prominent. It's only a week with no card, so it's a
             low-risk top-of-funnel grab; the paid tiers above still lead. No tier
             param => no checkout, just the 1-week trial + starter program. */}

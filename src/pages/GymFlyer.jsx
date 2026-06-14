@@ -28,9 +28,19 @@ export default function GymFlyer() {
       <style>{`
         @media print {
           @page { size: letter; margin: 0; }
-          body { margin: 0; }
+          html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
           .no-print { display: none !important; }
-          .flyer { box-shadow: none !important; margin: 0 !important; }
+          /* Pin the flyer to one exact Letter page and undo the screen-only
+             scale — otherwise mobile "Save as PDF" can apply the 0.86 transform
+             and print it shrunk/shifted. overflow:hidden guarantees one page. */
+          .flyer {
+            box-shadow: none !important;
+            margin: 0 !important;
+            transform: none !important;
+            width: 8.5in !important;
+            height: 11in !important;
+            overflow: hidden !important;
+          }
         }
         @media screen { .flyer { transform: scale(0.86); transform-origin: top center; } }
       `}</style>
