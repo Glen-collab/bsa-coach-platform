@@ -451,18 +451,22 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* Budget option — tracker only, $5.99/mo. A quiet line under the tiers
-            so it's findable (it's the gym-flyer tier) without competing with
-            the coaching plans that lead. */}
-        <div style={{ textAlign: 'center', marginTop: '20px' }}>
-          <span style={{ fontSize: isMobile ? '14px' : '15px', color: '#556' }}>
-            Just want to log your own workouts?{' '}
+        {/* Tracker-only $5.99 — framed as a Gym Members exclusive (matches the
+            flyer). Stays a quiet line so it never competes with the coaching
+            tiers that lead, but the "members only" framing protects the $20
+            price and makes it feel like a perk, not a budget tier. */}
+        <div style={{ textAlign: 'center', marginTop: '22px' }}>
+          <span style={{ fontSize: isMobile ? '13.5px' : '14px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: '#15803d' }}>
+            ★ Gym Members Only{'  '}
+          </span>
+          <span style={{ fontSize: isMobile ? '13.5px' : '14px', color: '#667' }}>
+            — just want to track?{' '}
           </span>
           <Link
             to={startLink('tracker')}
-            style={{ color: '#15803d', fontWeight: 800, textDecoration: 'underline', fontSize: isMobile ? '14px' : '15px' }}
+            style={{ color: '#15803d', fontWeight: 800, textDecoration: 'underline', fontSize: isMobile ? '13.5px' : '14px' }}
           >
-            Get the tracker for $5.99/mo — no coaching →
+            $5.99/mo, no coaching →
           </Link>
         </div>
 
