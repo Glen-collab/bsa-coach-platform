@@ -30,6 +30,9 @@ export default function Login() {
 
   const [magicMsg, setMagicMsg] = useState('');
   const [magicLoading, setMagicLoading] = useState(false);
+  // Password login is secondary now (coaches/admins or anyone who set one).
+  // Members / 1-on-1 clients have no password, so the email sign-in link leads.
+  const [showPassword, setShowPassword] = useState(false);
 
   // Passwordless sign-in for members (e.g. 1-on-1 clients who never set a
   // password). Emails a magic link to their dashboard. dest:'app' so the link
@@ -79,7 +82,7 @@ export default function Login() {
     <div style={s.page}>
       <div style={s.card}>
         <h1 style={s.title}>Welcome Back</h1>
-        <p style={s.subtitle}>Log in to your account</p>
+        <p style={s.subtitle}>Enter your email — we’ll send you a one-tap sign-in link. No password needed.</p>
 
         {reason === 'upgrade' && (
           <div style={{
@@ -87,52 +90,55 @@ export default function Login() {
             color: '#065f46', padding: '12px 14px', borderRadius: '10px',
             fontSize: '13px', marginBottom: '16px', lineHeight: 1.5,
           }}>
-            We found your account. Log in to continue — your existing email and
-            history are already on file. Forgot your password?{' '}
-            <Link to={`/forgot-password${prefilledEmail ? '?email=' + encodeURIComponent(prefilledEmail) : ''}`} style={{ color: '#15803d', fontWeight: 700 }}>
-              Reset it →
-            </Link>
+            We found your account — enter your email below and we’ll send you a sign-in link.
           </div>
         )}
 
         {error && <div style={s.error}>{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <label style={s.label}>Email</label>
-          <input style={s.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <label style={s.label}>Password</label>
-          <input style={s.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          <button style={{ ...s.btn, opacity: loading ? 0.6 : 1 }} disabled={loading}>
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
-        <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px' }}>
-          <Link to="/forgot-password" style={{ color: '#15803d' }}>Forgot password?</Link>
-        </div>
 
-        {/* Passwordless sign-in — for members/1-on-1 clients with no password. */}
-        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #eee', textAlign: 'center' }}>
+        {/* PRIMARY: email → one-tap sign-in link (members / 1-on-1 clients have
+            no password, so this leads. Enter on the email field sends it too). */}
+        <form onSubmit={(e) => { e.preventDefault(); handleMagicLink(); }}>
+          <label style={s.label}>Email</label>
+          <input style={s.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
           {magicMsg ? (
-            <div style={{ color: '#15803d', fontSize: '14px', fontWeight: 600 }}>{magicMsg}</div>
+            <div style={{
+              background: '#ecfdf5', border: '1px solid #86efac', color: '#065f46',
+              padding: '12px 14px', borderRadius: '10px', fontSize: '14px', textAlign: 'center', lineHeight: 1.5,
+            }}>
+              <b>{magicMsg}</b><br />Tap the link in that email to get into your dashboard.
+            </div>
           ) : (
-            <>
-              <div style={{ fontSize: '13px', color: '#888', marginBottom: '8px' }}>
-                No password? Enter your email above and we’ll send a sign-in link.
-              </div>
-              <button
-                type="button"
-                onClick={handleMagicLink}
-                disabled={magicLoading}
-                style={{
-                  width: '100%', padding: '12px', border: '2px solid #B37602', borderRadius: '10px',
-                  background: '#fff', color: '#B37602', fontSize: '15px', fontWeight: 700,
-                  cursor: 'pointer', opacity: magicLoading ? 0.6 : 1,
-                }}
-              >
-                {magicLoading ? 'Sending…' : 'Email me a sign-in link'}
+            <button style={{ ...s.btn, opacity: magicLoading ? 0.6 : 1 }} disabled={magicLoading} type="submit">
+              {magicLoading ? 'Sending…' : 'Email me a sign-in link'}
+            </button>
+          )}
+        </form>
+
+        {/* SECONDARY: password login for coaches/admins (or anyone who set one). */}
+        <div style={{ textAlign: 'center', marginTop: '18px', paddingTop: '14px', borderTop: '1px solid #eee' }}>
+          {!showPassword ? (
+            <button
+              type="button"
+              onClick={() => setShowPassword(true)}
+              style={{ background: 'none', border: 'none', color: '#15803d', fontSize: '13px', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              I have a password →
+            </button>
+          ) : (
+            <form onSubmit={handleSubmit} style={{ textAlign: 'left', marginTop: '4px' }}>
+              <label style={s.label}>Password</label>
+              <input style={s.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />
+              <button style={{ ...s.btn, background: 'linear-gradient(135deg, #15803d, #0f5c2c)', opacity: loading ? 0.6 : 1 }} disabled={loading} type="submit">
+                {loading ? 'Logging in...' : 'Log in with password'}
               </button>
-            </>
+              <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '13px' }}>
+                <Link to="/forgot-password" style={{ color: '#15803d' }}>Forgot password?</Link>
+              </div>
+            </form>
           )}
         </div>
+
         <div style={s.footer}>
           Don't have an account? <Link to="/register">Sign up</Link>
         </div>
