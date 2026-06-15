@@ -814,6 +814,36 @@ def oneonone_group():
         db.close()
 
 
+@kiosk_bp.route("/oneonone-group/set-program", methods=["POST", "OPTIONS"])
+def oneonone_group_set_program():
+    """Body: { coach, group_name, access_code } → put the WHOLE group on one
+    program (each member's one_on_one_clients.access_code). The group then 'owns'
+    that workout the way an individual client does — every member is on it, and
+    it loads directly next session. Changeable any time by calling again."""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.get_json(silent=True) or {}
+    coach_code = (data.get("coach") or "").strip().upper()
+    group_name = (data.get("group_name") or "").strip()
+    access_code = (data.get("access_code") or "").strip()
+    if not coach_code or not group_name or not access_code:
+        return jsonify({"error": "coach, group_name, access_code required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        coach_id = _coach_id_from_code(cur, coach_code)
+        if not coach_id:
+            return jsonify({"error": "Coach not found"}), 404
+        cur.execute(
+            "UPDATE one_on_one_clients SET access_code = %s WHERE coach_id = %s AND group_name = %s",
+            (access_code, coach_id, group_name),
+        )
+        db.commit()
+        return jsonify({"success": True, "updated": cur.rowcount})
+    finally:
+        db.close()
+
+
 # ── Coach: drive what's on the TV (phone-as-remote) ───────────────────
 @kiosk_bp.route("/device/set-view", methods=["POST"])
 @require_auth
