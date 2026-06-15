@@ -251,43 +251,6 @@ def load_program():
                     if row and row["grace_period_ends_at"]:
                         grace_days_remaining = 14
 
-        # Coach-facing client billing snapshot (read-only). In 1-on-1 the paywall
-        # is bypassed, so the coach can't see if the client is on a free trial.
-        # This computes the status WITHOUT blocking or starting anything, so the
-        # tracker can show the trainer a "client is on trial — N days" banner.
-        client_billing = None
-        if not is_tv_display:
-            now_b = datetime.now(timezone.utc)
-            def _aware_b(dt):
-                if dt is not None and getattr(dt, "tzinfo", None) is None:
-                    return dt.replace(tzinfo=timezone.utc)
-                return dt
-            if has_sub:
-                client_billing = {"status": "paid", "days_remaining": None}
-            elif is_privileged:
-                client_billing = {"status": "coach", "days_remaining": None}
-            elif not bsa_user:
-                client_billing = {"status": "none", "days_remaining": None}
-            else:
-                cur.execute("SELECT 1 FROM workout_logs WHERE LOWER(user_email) = %s LIMIT 1", (email,))
-                _has_logs_b = cur.fetchone() is not None
-                trial_end_b = _aware_b(bsa_user.get("free_trial_ends_at"))
-                grace_end_b = _aware_b(bsa_user.get("grace_period_ends_at"))
-                if not _has_logs_b:
-                    if trial_end_b and now_b >= trial_end_b:
-                        client_billing = {"status": "expired", "days_remaining": 0}
-                    elif trial_end_b:
-                        client_billing = {"status": "trial", "days_remaining": max(0, (trial_end_b - now_b).days)}
-                    else:
-                        client_billing = {"status": "trial", "days_remaining": None}
-                else:
-                    if grace_end_b and now_b >= grace_end_b:
-                        client_billing = {"status": "expired", "days_remaining": 0}
-                    elif grace_end_b:
-                        client_billing = {"status": "grace", "days_remaining": max(0, (grace_end_b - now_b).days)}
-                    else:
-                        client_billing = {"status": "grace", "days_remaining": None}
-
         program_data = program["program_data"]
         if isinstance(program_data, str):
             program_data = json.loads(program_data)
@@ -463,7 +426,6 @@ def load_program():
                 } if chat_user else None,
                 "survey_available": survey_available,
                 "grace_days_remaining": grace_days_remaining,
-                "client_billing": client_billing,
             },
             "message": "Program loaded successfully",
         })
