@@ -136,33 +136,63 @@ def coach_dashboard(coach_id):
             })
         clients.extend(tracker_only.values())
 
-        # Earnings summary. Tiles on the coach dashboard show total EARNED
-        # (paid + pending) so a coach who hasn't onboarded Stripe Connect
-        # still sees their real revenue — with a pending-payout footnote.
-        # Returns cents; UI divides by 100.
-        cur.execute("""
-            SELECT
-                COALESCE(SUM(commission_amount_cents)
-                         FILTER (WHERE status IN ('paid','pending')
-                                 AND created_at >= DATE_TRUNC('month', NOW())), 0) AS this_month_cents,
-                COALESCE(SUM(commission_amount_cents)
-                         FILTER (WHERE status IN ('paid','pending')), 0)            AS all_time_cents,
-                COALESCE(SUM(commission_amount_cents)
-                         FILTER (WHERE status = 'paid'), 0)                         AS paid_cents,
-                COALESCE(SUM(commission_amount_cents)
-                         FILTER (WHERE status = 'pending'), 0)                      AS pending_cents,
-                COUNT(*) FILTER (WHERE status IN ('paid','pending'))                AS total_transactions
-            FROM commissions
-            WHERE earner_id = %s
-        """, (coach_id,))
-        earnings_row = cur.fetchone()
-        earnings = {
-            "this_month":         int(earnings_row["this_month_cents"]),
-            "all_time":           int(earnings_row["all_time_cents"]),
-            "paid":               int(earnings_row["paid_cents"]),
-            "pending":            int(earnings_row["pending_cents"]),
-            "total_transactions": earnings_row["total_transactions"] or 0,
-        }
+        # Earnings summary. Returns cents; UI divides by 100.
+        # The platform OWNER (admin) keeps 100% of their clients' revenue (no
+        # Connect split — it all lands in the platform Stripe), so the
+        # commission table (which only tracks money owed to OTHER coaches)
+        # shows them ~nothing. For the owner we show real subscription
+        # REVENUE from their clients instead. Regular coaches keep the
+        # commission-based view (their referral/upline earnings).
+        cur.execute("SELECT role FROM users WHERE id = %s", (coach_id,))
+        _role_row = cur.fetchone()
+        is_owner = bool(_role_row and _role_row["role"] == "admin")
+
+        if is_owner:
+            cur.execute("""
+                SELECT
+                    COALESCE(SUM(s.amount_cents)
+                             FILTER (WHERE s.current_period_start >= DATE_TRUNC('month', NOW())), 0) AS this_month_cents,
+                    COALESCE(SUM(s.amount_cents), 0)                                   AS all_time_cents,
+                    COUNT(*) FILTER (WHERE s.status IN ('active','trialing','past_due')) AS active_subs,
+                    COUNT(*)                                                            AS total_transactions
+                FROM subscriptions s
+                JOIN users u ON u.id = s.user_id
+                WHERE u.referred_by_id = %s
+            """, (coach_id,))
+            rev = cur.fetchone()
+            earnings = {
+                "this_month":         int(rev["this_month_cents"]),
+                "all_time":           int(rev["all_time_cents"]),
+                "paid":               int(rev["all_time_cents"]),  # owner: all revenue is collected
+                "pending":            0,
+                "total_transactions": rev["total_transactions"] or 0,
+                "active_subscribers": rev["active_subs"] or 0,
+                "is_revenue":         True,   # UI can label these as Revenue, not commissions
+            }
+        else:
+            cur.execute("""
+                SELECT
+                    COALESCE(SUM(commission_amount_cents)
+                             FILTER (WHERE status IN ('paid','pending')
+                                     AND created_at >= DATE_TRUNC('month', NOW())), 0) AS this_month_cents,
+                    COALESCE(SUM(commission_amount_cents)
+                             FILTER (WHERE status IN ('paid','pending')), 0)            AS all_time_cents,
+                    COALESCE(SUM(commission_amount_cents)
+                             FILTER (WHERE status = 'paid'), 0)                         AS paid_cents,
+                    COALESCE(SUM(commission_amount_cents)
+                             FILTER (WHERE status = 'pending'), 0)                      AS pending_cents,
+                    COUNT(*) FILTER (WHERE status IN ('paid','pending'))                AS total_transactions
+                FROM commissions
+                WHERE earner_id = %s
+            """, (coach_id,))
+            earnings_row = cur.fetchone()
+            earnings = {
+                "this_month":         int(earnings_row["this_month_cents"]),
+                "all_time":           int(earnings_row["all_time_cents"]),
+                "paid":               int(earnings_row["paid_cents"]),
+                "pending":            int(earnings_row["pending_cents"]),
+                "total_transactions": earnings_row["total_transactions"] or 0,
+            }
 
         # Direct recruits (coaches they recruited)
         cur.execute("""
