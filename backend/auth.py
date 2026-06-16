@@ -132,6 +132,16 @@ def register():
                 ref_row = cur.fetchone()
                 if ref_row:
                     referred_by_id = ref_row[0]
+            # No (or unknown) referral code → attribute the signup to the
+            # platform OWNER so every client is credited to Glen until there are
+            # real coaches to assign them to (Glen's call 2026-06-16). Without
+            # this, orphan signups (Tanner, Amy, …) linked to nobody and never
+            # showed on his dashboard.
+            if not referred_by_id:
+                cur.execute("SELECT id FROM users WHERE referral_code = %s", (OWNER_REFERRAL_CODE,))
+                owner_row = cur.fetchone()
+                if owner_row:
+                    referred_by_id = owner_row[0]
 
             cur.execute("""
                 INSERT INTO users (
@@ -239,6 +249,10 @@ GOAL_PROGRAM_CODES = {
     "Coming Back from Injury": "6707",  # Back in Shape
 }
 STARTER_FALLBACK_CODE = "7741"  # Beginner Adult
+
+# Platform owner (Glen). Orphan signups with no referral code default to him so
+# every client is attributed until real coaches exist.
+OWNER_REFERRAL_CODE = "GLENM7NUS"
 
 
 @auth_bp.route("/submit-goals", methods=["POST"])
