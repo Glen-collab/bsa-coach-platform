@@ -311,7 +311,7 @@ export default function GymTV() {
                   </div>
                 ) : dev.access_code ? (
                   <div style={s.activeBanner}>
-                    <span><span style={s.activeLabel}>On TV now:</span> {dev.program_name} <span style={{ color: '#888' }}>(Code {dev.access_code})</span></span>
+                    <span><span style={s.activeLabel}>On TV now:</span> {dev.program_name}{dev.program_nickname ? <span style={{ color: '#667eea', fontWeight: 600 }}> · {dev.program_nickname}</span> : null} <span style={{ color: '#888' }}>(Code {dev.access_code})</span></span>
                     <button style={{ ...s.smallBtn, ...s.btnGhost }} onClick={() => setDeviceProgram(dev.id, null)}>Clear</button>
                   </div>
                 ) : (
@@ -384,7 +384,10 @@ export default function GymTV() {
                           style={{ ...s.tile, ...(isActive ? s.tileActive : {}) }}
                         >
                           {isActive && <span style={s.tileBadge}>ON TV</span>}
-                          <div style={s.tileName}>{p.program_name || 'Untitled'}</div>
+                          <div style={s.tileName}>
+                            {p.program_name || 'Untitled'}
+                            {p.program_nickname ? <span style={{ fontWeight: 600, color: '#667eea' }}> · {p.program_nickname}</span> : null}
+                          </div>
                           <div style={s.tileCode}>Code {p.access_code}</div>
                         </button>
                       );
@@ -415,6 +418,7 @@ export default function GymTV() {
             <div key={p.id} style={s.listItem}>
               <div style={s.listName}>
                 {p.program_name || 'Untitled'}
+                {p.program_nickname ? <span style={{ fontWeight: 600, color: '#667eea' }}> · {p.program_nickname}</span> : null}
                 <span style={s.listCode}>{p.access_code}</span>
               </div>
               <button

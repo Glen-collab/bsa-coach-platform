@@ -233,6 +233,20 @@ export default function RemoteControl() {
     }
   };
 
+  // Quick Single-Day ('wod') ↔ Two-Day ('two_day') switch right on the remote,
+  // so the coach can flip the TV's view and immediately preview it on their
+  // phone (View Workout) without bouncing to the GymTV device page. The full
+  // selector (incl. Grind + Scaled) stays on the GymTV kiosk page.
+  const setLayout = async (nextLayout) => {
+    setDevice((prev) => prev ? { ...prev, layout: nextLayout } : prev);
+    try {
+      await api.kioskDeviceSetLayout(deviceId, nextLayout);
+    } catch (e) {
+      setErr(e.message || 'Failed to update view.');
+      load();
+    }
+  };
+
   // "View Workout" → opens the workout-browse view at /tv/static?tablet=1
   // pre-jumped to the same week/day the gym TV is showing. Same two-day
   // workout layout, plus tappable play buttons on every exercise that has
@@ -251,7 +265,7 @@ export default function RemoteControl() {
       from:   window.location.href,
     });
     if (coachCode) params.set('coach', coachCode);
-    if (layout === 'wod') params.set('layout', 'wod');
+    if (layout && layout !== 'two_day') params.set('layout', layout);   // single-day (wod/wod_scaled) matches the TV
     const url = `${TRACKER_BASE}/tv/static?${params.toString()}`;
     window.open(url, '_blank', 'noopener');
   };
@@ -260,6 +274,7 @@ export default function RemoteControl() {
   // Pi is independent — coach can flip one TV to the leaderboard during a
   // test day while the other gym TVs keep showing workouts.
   const isLeaderboardMode = device?.display_mode === 'leaderboard';
+  const isCardsMode = device?.display_mode === 'cards';
   const lockedMetricId = device?.display_metric_id || null;
   // Multi-metric rotation subset (CSV in the device row → number array). Empty = auto-rotate all.
   const selectedMetricIds = (device?.display_metric_ids || '').split(',').map(Number).filter(Boolean);
@@ -334,7 +349,10 @@ export default function RemoteControl() {
         <div style={s.deviceName}>{device?.display_name || 'Device'}</div>
         {device?.program_name ? (
           <>
-            <div style={s.programName}>{device.program_name}</div>
+            <div style={s.programName}>
+              {device.program_name}
+              {device.program_nickname ? <span style={{ opacity: 0.7, fontWeight: 600 }}> · {device.program_nickname}</span> : null}
+            </div>
             <div style={s.programCode}>CODE {device.access_code}</div>
           </>
         ) : (
@@ -380,6 +398,26 @@ export default function RemoteControl() {
         </div>
       </div>
 
+      {/* Quick view switch — flip the TV between single-day and two-day, then
+          preview on your phone with View Workout below. (Grind + Scaled lives
+          on the Gym TV page.) */}
+      <div style={{ ...s.modeToggleRow, marginBottom: '10px' }}>
+        <button
+          type="button"
+          onClick={() => setLayout('wod')}
+          style={{ ...s.modeBtn, ...(layout !== 'two_day' ? s.modeBtnActive : {}) }}
+        >
+          📋 Single Day
+        </button>
+        <button
+          type="button"
+          onClick={() => setLayout('two_day')}
+          style={{ ...s.modeBtn, ...(layout === 'two_day' ? s.modeBtnActive : {}) }}
+        >
+          📅 Two-Day
+        </button>
+      </div>
+
       <button
         type="button"
         onClick={openWorkout}
@@ -400,7 +438,7 @@ export default function RemoteControl() {
         <button
           type="button"
           onClick={() => setDisplay({ mode: 'workout' })}
-          style={{ ...s.modeBtn, ...(!isLeaderboardMode ? s.modeBtnActive : {}) }}
+          style={{ ...s.modeBtn, ...(!isLeaderboardMode && !isCardsMode ? s.modeBtnActive : {}) }}
         >
           Workouts
         </button>
@@ -547,6 +585,16 @@ export default function RemoteControl() {
 
       <button type="button" onClick={openTestStation} style={s.secondaryBtn}>
         🎯 Open Test Station (data entry)
+      </button>
+
+      {/* Player-cards cinematic reel on this TV. A "channel" like Workouts /
+          Leaderboard, parked down here since it's used occasionally. */}
+      <button
+        type="button"
+        onClick={() => setDisplay({ mode: isCardsMode ? 'workout' : 'cards' })}
+        style={{ ...s.secondaryBtn, marginTop: '10px', ...(isCardsMode ? { background: 'linear-gradient(135deg,#a855f7,#7c3aed)', color: '#fff', borderColor: 'transparent' } : {}) }}
+      >
+        🎴 {isCardsMode ? 'Player Cards ON — tap to stop' : 'Player Cards reel on TV'}
       </button>
 
       <div style={s.hint}>

@@ -286,7 +286,7 @@ def my_devices():
                    d.display_gender, d.display_group, d.display_year,
                    d.available_systems,
                    d.last_seen_at, d.created_at,
-                   wp.access_code, wp.program_name
+                   wp.access_code, wp.program_name, wp.program_nickname
             FROM coach_devices d
             LEFT JOIN workout_programs wp ON wp.id = d.active_program_id
             WHERE d.coach_id = %s
@@ -566,12 +566,22 @@ def coach_programs_public():
             FROM workout_programs
             WHERE is_active = TRUE
               AND (LOWER(created_by) = %s OR LOWER(optional_trainer_email) = %s OR LOWER(user_email) = %s)
-            ORDER BY updated_at DESC
+            ORDER BY program_name, program_nickname, updated_at DESC
         """, (coach_email, coach_email, coach_email))
         rows = cur.fetchall()
+        # Label leads with the TITLE (program_name = "Youth", "Legacy Athletes"…)
+        # and appends the phase/nickname ("June", "July") so duplicate titles are
+        # distinguishable — "Youth — June". (Was nickname-first, which buried the
+        # title and showed a pile of identical "June"/"July" entries.)
+        def label(r):
+            title = (r["program_name"] or "").strip()
+            nick = (r["program_nickname"] or "").strip()
+            if title and nick:
+                return f"{title} — {nick}"
+            return title or nick or r["access_code"]
         programs = [{
             "access_code": r["access_code"],
-            "name": (r["program_nickname"] or r["program_name"] or r["access_code"]),
+            "name": label(r),
         } for r in rows]
         return jsonify({"programs": programs, "count": len(programs)})
     finally:
@@ -914,7 +924,7 @@ def device_set_display():
     data = request.get_json(silent=True) or {}
     device_id = data.get("device_id")
     mode = (data.get("mode") or "").strip()
-    if not device_id or mode not in ("workout", "leaderboard", "game_nes", "game_snes", "game_n64", "game_gba"):
+    if not device_id or mode not in ("workout", "leaderboard", "cards", "game_nes", "game_snes", "game_n64", "game_gba"):
         return jsonify({"error": "device_id + valid mode required"}), 400
 
     metric_id = data.get("metric_id")
