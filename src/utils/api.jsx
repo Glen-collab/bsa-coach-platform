@@ -61,6 +61,7 @@ export const api = {
 
   // Admin
   overview: () => request('/admin/overview'),
+  emailLog: (failedOnly = false) => request(`/admin/email-log?limit=200${failedOnly ? '&failed=1' : ''}`),
   membersList: () => request('/admin/members/list'),
   coachesList: () => request('/admin/coaches/list'),
   coachApplications: () => request('/admin/coach-applications'),

@@ -97,6 +97,10 @@ export default function AdminDashboard() {
   const [challengeCreating, setChallengeCreating] = useState(false);
   const [expandedChallenge, setExpandedChallenge] = useState(null);
   const [challengeStandings, setChallengeStandings] = useState({});
+  const [emailRows, setEmailRows] = useState(null);   // null = not loaded
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailFailedOnly, setEmailFailedOnly] = useState(false);
+  const [emailFails, setEmailFails] = useState(0);     // 7-day fail count for the tab badge
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(() => {
     const p = new URLSearchParams(window.location.search);
@@ -140,6 +144,19 @@ export default function AdminDashboard() {
       setChallenges([]);
     }
     setChallengesLoading(false);
+  };
+
+  const loadEmailLog = async (failedOnly = emailFailedOnly) => {
+    setEmailLoading(true);
+    try {
+      const res = await api.emailLog(failedOnly);
+      setEmailRows(res.log || []);
+      setEmailFails(res.recent_fails_7d || 0);
+    } catch (err) {
+      alert('Failed to load email log: ' + err.message);
+      setEmailRows([]);
+    }
+    setEmailLoading(false);
   };
 
   const handleCreateChallenge = async () => {
@@ -242,6 +259,7 @@ export default function AdminDashboard() {
     if (activeTab === 'cloudflare' && cfVideos === null && !cfLoading) loadCloudflare();
     if (activeTab === 'proposals' && proposals === null && !proposalsLoading) loadProposals();
     if (activeTab === 'challenges' && challenges === null && !challengesLoading) loadChallenges();
+    if (activeTab === 'emaillog' && emailRows === null && !emailLoading) loadEmailLog();
   }, [activeTab]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleApproveCoach = async (id) => {
@@ -310,6 +328,7 @@ export default function AdminDashboard() {
     { id: 'cloudflare', label: 'Cloudflare Library' },
     { id: 'proposals', label: `Exercise Requests${proposals ? ` (${proposals.filter(p => p.status === 'pending').length})` : ''}` },
     { id: 'challenges', label: 'Challenges' },
+    { id: 'emaillog', label: `Email Log${emailFails ? ` (${emailFails}⚠)` : ''}` },
   ];
 
   return (
@@ -1005,6 +1024,58 @@ export default function AdminDashboard() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'emaillog' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+            <p style={{ ...s.sub, margin: 0 }}>Every email the app sends — recaps, workout notifications, welcomes. ✗ = it didn't go (bad address / bounce).</p>
+            <button onClick={() => { const v = !emailFailedOnly; setEmailFailedOnly(v); loadEmailLog(v); }}
+              style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #d1d5db', background: emailFailedOnly ? '#fee2e2' : '#fff', color: emailFailedOnly ? '#991b1b' : '#374151', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+              {emailFailedOnly ? '⚠ Showing failures only' : 'Show failures only'}
+            </button>
+            <button onClick={() => loadEmailLog()} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', color: '#374151', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>↻ Refresh</button>
+            {emailFails > 0 && <span style={{ color: '#991b1b', fontWeight: 700, fontSize: 13 }}>{emailFails} failed in the last 7 days</span>}
+          </div>
+          {emailLoading ? (
+            <div style={{ padding: 30, textAlign: 'center', color: '#888' }}>Loading…</div>
+          ) : !emailRows || emailRows.length === 0 ? (
+            <div style={{ padding: 30, textAlign: 'center', color: '#888' }}>No emails {emailFailedOnly ? 'failed' : 'logged'} yet.</div>
+          ) : (
+            <div style={s.tableWrap}>
+              <table style={s.table}>
+                <thead>
+                  <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee', color: '#666', fontSize: 13 }}>
+                    <th style={{ padding: '8px 10px' }}>Status</th>
+                    <th style={{ padding: '8px 10px' }}>To</th>
+                    <th style={{ padding: '8px 10px' }}>Type</th>
+                    <th style={{ padding: '8px 10px' }}>Subject</th>
+                    <th style={{ padding: '8px 10px' }}>When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {emailRows.map((e) => (
+                    <tr key={e.id} style={{ borderBottom: '1px solid #f3f4f6', background: e.success ? '#fff' : '#fef2f2' }}>
+                      <td style={{ padding: '8px 10px', fontWeight: 800, color: e.success ? '#059669' : '#dc2626', whiteSpace: 'nowrap' }}>
+                        {e.success ? '✓ Sent' : '✗ Failed'}
+                      </td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <div style={{ fontWeight: 600, color: '#111827' }}>{e.recipient_name || '—'}</div>
+                        <div style={{ fontSize: 12, color: '#6b7280' }}>{e.recipient}</div>
+                        {!e.success && e.error && <div style={{ fontSize: 11, color: '#991b1b', marginTop: 2 }}>{e.error}</div>}
+                      </td>
+                      <td style={{ padding: '8px 10px', fontSize: 13, color: '#374151' }}>{({ recap: 'Recap', workout_notify: 'Workout', intake: 'Intake' }[e.kind]) || e.kind || 'other'}</td>
+                      <td style={{ padding: '8px 10px', fontSize: 13, color: '#374151' }}>{e.subject}</td>
+                      <td style={{ padding: '8px 10px', fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>
+                        {e.created_at ? new Date(e.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

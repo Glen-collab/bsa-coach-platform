@@ -242,6 +242,43 @@ def deny_coach(app_id):
 
 # ── Members List (unattached — no coach assigned) ─────────────────────────────
 
+@admin_bp.route("/email-log", methods=["GET"])
+def email_log():
+    """Recent email sends (recaps, workout notifications, etc.) with success/
+    failure — so Glen can see exactly who got what and what bounced, instead of
+    digging the Gmail Sent folder. ?limit=N (default 100), ?failed=1 = only fails."""
+    try:
+        limit = min(int(request.args.get("limit", 100)), 500)
+    except (TypeError, ValueError):
+        limit = 100
+    only_failed = request.args.get("failed") in ("1", "true", "yes")
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT id, recipient, recipient_name, kind, subject, success, error, created_at "
+                "FROM email_log " + ("WHERE success = FALSE " if only_failed else "") +
+                "ORDER BY created_at DESC LIMIT %s",
+                (limit,),
+            )
+            rows = cur.fetchall()
+            cur.execute("SELECT COUNT(*) FROM email_log WHERE success = FALSE AND created_at > NOW() - INTERVAL '7 days'")
+            recent_fails = cur.fetchone()[0]
+        return jsonify({
+            "recent_fails_7d": recent_fails,
+            "log": [
+                {
+                    "id": r[0], "recipient": r[1], "recipient_name": r[2],
+                    "kind": r[3], "subject": r[4], "success": r[5], "error": r[6],
+                    "created_at": r[7].isoformat() if r[7] else None,
+                }
+                for r in rows
+            ],
+        })
+    finally:
+        db.close()
+
+
 @admin_bp.route("/members/list", methods=["GET"])
 def list_members():
     """Members who signed up but aren't under a coach. The dispatch queue."""
