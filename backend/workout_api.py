@@ -66,13 +66,36 @@ def _resolve_coach_uuid(cur, created_by):
         return None
 
 
-def send_email(to, subject, html_body, reply_to=None, attachments=None):
-    """Send email via SMTP. Falls back silently on failure.
+def _log_email(recipient, kind, subject, success, error=None, recipient_name=None):
+    """Record every send to email_log so the Admin dashboard (and Glen) can see
+    exactly who got what and what bounced — no more guessing from the Sent
+    folder. Best-effort: a logging failure never blocks/affects the actual send."""
+    try:
+        db = get_db()
+        try:
+            cur = db.cursor()
+            cur.execute(
+                "INSERT INTO email_log (recipient, recipient_name, kind, subject, success, error) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                (str(recipient or "")[:255], (recipient_name or None),
+                 (kind or "other"), str(subject or "")[:255], bool(success),
+                 (str(error)[:500] if error else None)),
+            )
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+
+def send_email(to, subject, html_body, reply_to=None, attachments=None, kind="other", recipient_name=None):
+    """Send email via SMTP. Returns True/False. Logs every attempt to email_log.
     attachments: optional list of (filename, content_bytes, mimetype) to attach."""
     try:
         gmail_user = os.environ.get("GMAIL_USER", TRAINER_EMAIL)
         gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
         if not gmail_pass:
+            _log_email(to, kind, subject, False, "No GMAIL_APP_PASSWORD configured", recipient_name)
             return False
 
         if attachments:
@@ -101,9 +124,11 @@ def send_email(to, subject, html_body, reply_to=None, attachments=None):
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(gmail_user, gmail_pass)
             server.sendmail(gmail_user, to, msg.as_string())
+        _log_email(to, kind, subject, True, None, recipient_name)
         return True
     except Exception as e:
         print(f"Email error: {e}")
+        _log_email(to, kind, subject, False, str(e), recipient_name)
         return False
 
 
@@ -310,6 +335,7 @@ def load_program():
         current_week = int(requested_week or position["current_week"] or 1)
         current_day = int(requested_day or position["current_day"] or 1)
         days_per_week = program_data.get("daysPerWeek", 3)
+        hidden_days = program_data.get("hiddenDays", [])
         total_weeks = program_data.get("totalWeeks", 4)
 
         # Get blocks for requested week/day
@@ -318,9 +344,10 @@ def load_program():
         if "allWorkouts" in program_data:
             blocks = program_data["allWorkouts"].get(workout_key, [])
 
-        # Check for saved workout
+        # Check for saved workout (+ the bodyweight recorded that day so the
+        # tracker can pre-fill the weight box when reopening a logged day).
         cur.execute("""
-            SELECT workout_data FROM workout_logs
+            SELECT workout_data, body_weight_lbs FROM workout_logs
             WHERE access_code = %s AND user_email = %s AND week_number = %s AND day_number = %s
             ORDER BY created_at DESC LIMIT 1
         """, (code, email, current_week, current_day))
@@ -392,6 +419,7 @@ def load_program():
                     "name": program["program_name"],
                     "userName": position.get("user_name") or name or _lookup_name(email, cur),
                     "daysPerWeek": days_per_week,
+                    "hiddenDays": hidden_days,
                     "totalWeeks": total_weeks,
                     "blocks": blocks,
                     "allWorkouts": all_workouts,
@@ -413,6 +441,7 @@ def load_program():
                     "consentAccepted": bool(position.get("consent_accepted")),
                 },
                 "savedWorkout": (json.loads(saved["workout_data"]) if isinstance(saved["workout_data"], str) else saved["workout_data"]) if saved and saved["workout_data"] else None,
+                "bodyWeight": (float(saved["body_weight_lbs"]) if saved and saved.get("body_weight_lbs") is not None else None),
                 # FriendChat auto-login. Tracker writes bsa_token to
                 # localStorage on load so the chat bubble shows the
                 # message board immediately — no email sign-in step.
@@ -595,6 +624,31 @@ def build_workout_detail_html(workout_data):
 
             rows.append(f'<tr><td style="padding:4px 10px;font-size:13px;{name_style}">{check}{name}</td><td style="padding:4px 10px;font-size:13px;color:#555;text-align:right;white-space:nowrap;">{sets_str}{rec_icon}</td></tr>')
 
+            # RPE back to the coach: prescribed Target vs athlete Actual, with the
+            # gap flag (ran hot = fatigue, easier = gas in tank). Only shown when
+            # the coach set a target and/or the athlete reported a number.
+            target_rpe = str(ex.get("targetRpe", "") or "").strip()
+            actual_rpe = str(ex.get("actualRpe", "") or "").strip()
+            if target_rpe or actual_rpe:
+                rpe_bits = []
+                if target_rpe:
+                    rpe_bits.append(f'target {target_rpe}')
+                if actual_rpe:
+                    rpe_bits.append(f'<b>actual {actual_rpe}</b>')
+                flag = ""
+                try:
+                    if target_rpe and actual_rpe:
+                        gap = int(float(actual_rpe)) - int(float(target_rpe))
+                        if gap >= 2:
+                            flag = ' 🔥 ran hot'
+                        elif gap <= -2:
+                            flag = ' 💚 gas in tank'
+                        else:
+                            flag = ' ✅ on target'
+                except (ValueError, TypeError):
+                    flag = ""
+                rows.append(f'<tr><td colspan="2" style="padding:2px 10px 6px 28px;font-size:12px;color:#b91c1c;">⚡ RPE: {" / ".join(rpe_bits)}{flag}</td></tr>')
+
             if notes:
                 rows.append(f'<tr><td colspan="2" style="padding:2px 10px 6px 28px;font-size:12px;color:#999;font-style:italic;">' + '📝' + f' {notes}</td></tr>')
 
@@ -706,14 +760,20 @@ def log_workout():
             if isinstance(pd, str):
                 pd = json.loads(pd)
             days_per_week = pd.get("daysPerWeek", 3)
+            hidden_days = pd.get("hiddenDays", []) or []
             total_weeks = pd.get("totalWeeks", 4)
+            # Visible days only — the coach may have hidden some days.
+            visible = [d for d in range(1, days_per_week + 1) if d not in hidden_days] or [1]
 
-            next_day = day + 1
-            next_week = week
-            crossed_week = next_day > days_per_week
+            # Advance to the next *visible* day, wrapping to next week.
+            later = [d for d in visible if d > day]
+            crossed_week = not later
             if crossed_week:
-                next_day = 1
+                next_day = visible[0]
                 next_week = week + 1
+            else:
+                next_day = later[0]
+                next_week = week
 
             # 1-on-1 pen-to-paper: the workout was saved to its week/day above,
             # but the trainer drives navigation — so leave the client's position
@@ -739,7 +799,7 @@ def log_workout():
                         SET current_week = %s, current_day = %s, last_workout_date = CURRENT_DATE,
                             program_name = %s
                         WHERE access_code = %s AND user_email = %s
-                    """, (total_weeks, days_per_week, program_name, code, email))
+                    """, (total_weeks, visible[-1], program_name, code, email))
 
         db.commit()
 
@@ -773,8 +833,12 @@ def log_workout():
         calories = vs.get("est_calories", 0)
         cardio_min = vs.get("cardio_minutes", 0)
 
-        # Send email (skip if re-log)
-        if not is_relog:
+        # Coach confirmation email. Fresh logs always notify. 1-on-1 sessions
+        # (advance_position == False) ALSO notify on a re-log — re-logging the
+        # same week/day is normal in 1-on-1, and the trainer wants a clear "it
+        # sent" confirmation every session. Only a self-serve client's
+        # accidental double-submit (advance + re-log) stays suppressed.
+        if (not is_relog) or (not advance_position):
             # Belt info
             belt_names = ["White", "White", "White", "White", "White",
                           "Yellow", "Yellow", "Yellow", "Yellow", "Yellow",
@@ -791,7 +855,7 @@ def log_workout():
             if calories: stats_html += f'<span style="background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;padding:4px 12px;border-radius:6px;font-size:13px;font-weight:600;margin-right:6px;">{calories} cal</span>'
             if cardio_min: stats_html += f'<span style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:4px 12px;border-radius:6px;font-size:13px;font-weight:600;">{round(cardio_min)} min cardio</span>'
 
-            send_email(TRAINER_EMAIL, f"Workout Complete: {name} — W{week}D{day}",
+            send_email(TRAINER_EMAIL, f"Workout {'Re-Logged' if is_relog else 'Complete'}: {name} — W{week}D{day}",
                 f"""
                 <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;">
                     <div style="background:linear-gradient(135deg,#667eea,#764ba2);padding:20px;text-align:center;border-radius:12px 12px 0 0;">
@@ -830,7 +894,7 @@ def log_workout():
                     </div>
                 </div>
                 """,
-                reply_to=email)
+                reply_to=email, kind="workout_notify", recipient_name=name)
 
         return jsonify({
             "success": True,
@@ -942,6 +1006,45 @@ def session_notes():
         db.close()
 
 
+@workout_bp.route("/bodyweight-history.php", methods=["POST", "OPTIONS"])
+def bodyweight_history():
+    """Body: { email, code } → [{date, weight, week, day}] for every logged day
+    that recorded a bodyweight, oldest→newest. Powers the 1-on-1 bodyweight
+    chart. Dedupes to the latest entry per workout_date (one weigh-in per day)."""
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    email = (data.get("email") or "").lower().strip()
+    code = (data.get("code") or "").strip()
+    if not email or not code:
+        return jsonify({"success": False, "message": "email and code required"}), 400
+    db = get_db()
+    try:
+        cur = db.cursor()
+        # DISTINCT ON (workout_date) → one point per calendar day (the most
+        # recently logged that day), then order oldest→newest for the chart.
+        cur.execute("""
+            SELECT date, weight, week_number, day_number FROM (
+                SELECT DISTINCT ON (workout_date)
+                       workout_date AS date, body_weight_lbs AS weight,
+                       week_number, day_number, created_at
+                FROM workout_logs
+                WHERE access_code = %s AND LOWER(user_email) = LOWER(%s)
+                  AND body_weight_lbs IS NOT NULL AND workout_date IS NOT NULL
+                ORDER BY workout_date, created_at DESC
+            ) t ORDER BY date
+        """, (code, email))
+        rows = cur.fetchall()
+        out = [{
+            "date": (r["date"].isoformat() if r["date"] else None),
+            "weight": float(r["weight"]) if r["weight"] is not None else None,
+            "week": r["week_number"], "day": r["day_number"],
+        } for r in rows if r["weight"] is not None]
+        return jsonify({"success": True, "data": out})
+    finally:
+        db.close()
+
+
 @workout_bp.route("/get-weekly-stats.php", methods=["POST", "OPTIONS"])
 def get_weekly_stats():
     if request.method == "OPTIONS":
@@ -968,7 +1071,7 @@ def get_weekly_stats():
         for row in rows:
             w = row["week_number"]
             if w not in weeks:
-                weeks[w] = {"week": w, "workouts": 0, "tonnage": 0, "core_crunches": 0, "cardio_minutes": 0, "cardio_miles": 0, "est_calories": 0}
+                weeks[w] = {"week": w, "workouts": 0, "tonnage": 0, "core_crunches": 0, "cardio_minutes": 0, "cardio_miles": 0, "est_calories": 0, "cns_load": 0}
             weeks[w]["workouts"] += 1
             vs = row.get("volume_stats")
             if vs:
@@ -979,6 +1082,8 @@ def get_weekly_stats():
                 weeks[w]["cardio_minutes"] += vs.get("cardio_minutes", 0)
                 weeks[w]["cardio_miles"] += vs.get("cardio_miles", 0)
                 weeks[w]["est_calories"] += vs.get("est_calories", 0)
+                # Neural load — stored in volume_stats JSON (no schema change).
+                weeks[w]["cns_load"] += vs.get("cns_load", 0)
 
         return jsonify({"success": True, "data": {"weeks": list(weeks.values())}})
     finally:
@@ -2004,8 +2109,17 @@ def send_session_recap():
         <p style="text-align:center;color:#999;font-size:12px;margin-top:12px;">Be Strong Again</p>
     </div>
     """
-    send_email(client_email, f"Your session recap — {program_name}", html, reply_to=TRAINER_EMAIL, attachments=attachments)
-    return jsonify({"success": True, "message": f"Recap sent to {client_email}"})
+    sent = send_email(client_email, f"Your session recap — {program_name}", html,
+                      reply_to=TRAINER_EMAIL, attachments=attachments,
+                      kind="recap", recipient_name=client_name)
+    # Report the REAL result so the tracker can show ✓/✗ per person (send_email
+    # used to swallow failures and the endpoint always said success).
+    return jsonify({
+        "success": True,
+        "sent": bool(sent),
+        "message": (f"Recap sent to {client_email}" if sent
+                    else f"Recap FAILED to {client_email} — check the address / Email Log"),
+    })
 
 
 @workout_bp.route("/delete-client.php", methods=["POST", "OPTIONS"])
