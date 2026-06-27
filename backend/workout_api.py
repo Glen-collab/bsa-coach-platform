@@ -628,6 +628,29 @@ def build_workout_detail_html(workout_data):
 
             rows.append(f'<tr><td style="padding:4px 10px;font-size:13px;{name_style}">{check}{name}</td><td style="padding:4px 10px;font-size:13px;color:#555;text-align:right;white-space:nowrap;">{sets_str}{rec_icon}</td></tr>')
 
+            # Sprint %PB detail: the prescription + this athlete's PB → target +
+            # what they actually RAN per rep. Lets Glen see target vs actual speed.
+            sprint_dist = ex.get("sprintDistance")
+            if sprint_dist:
+                _k = str(sprint_dist)
+                _i = 0
+                while _i < len(_k) and _k[_i].isdigit():
+                    _i += 1
+                dist_label = (_k[:_i] + " " + _k[_i:]).strip() if _i else _k
+                pct = str(ex.get("targetPct", "") or "").strip()
+                pb = str(ex.get("sprintPB", "") or "").strip()
+                tgt = str(ex.get("sprintTarget", "") or "").strip()
+                times = ex.get("sprintTimes") or []
+                head = dist_label + (f" @ {pct}%" if pct else "")
+                detail = ""
+                if pb and tgt:
+                    detail += f" · PB {pb} → target {tgt}"
+                elif tgt:
+                    detail += f" · target {tgt}"
+                if times:
+                    detail += " · ran " + ", ".join(str(t) for t in times)
+                rows.append(f'<tr><td colspan="2" style="padding:2px 10px 6px 28px;font-size:12px;color:#b91c1c;font-weight:600;">🏃 {head}{detail}</td></tr>')
+
             # RPE back to the coach: prescribed Target vs athlete Actual, with the
             # gap flag (ran hot = fatigue, easier = gas in tank). Only shown when
             # the coach set a target and/or the athlete reported a number.
