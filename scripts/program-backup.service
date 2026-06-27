@@ -1,0 +1,8 @@
+[Unit]
+Description=BSA workout-program safety-net backup (versioned, 90d retention)
+
+[Service]
+Type=oneshot
+User=ec2-user
+Environment=HOME=/home/ec2-user
+ExecStart=/home/ec2-user/run_backup.sh
