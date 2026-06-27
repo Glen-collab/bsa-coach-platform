@@ -436,6 +436,10 @@ def load_program():
                     "weightLbs": str(position.get("weight_lbs") or ""),
                     "age": str(position.get("age") or ""),
                     "gender": position.get("gender") or "",
+                    # Per-athlete sprint PBs (best time per distance) for the %PB
+                    # engine — the tracker computes each kid's target from these.
+                    "sprintPBs": (position.get("sprint_pbs") if isinstance(position.get("sprint_pbs"), dict)
+                                  else (json.loads(position["sprint_pbs"]) if position.get("sprint_pbs") else {})),
                     "cumulativeWeeks": user_cumulative_weeks,
                     "questionnaireCompleted": bool(position.get("questionnaire_completed")),
                     "consentAccepted": bool(position.get("consent_accepted")),
@@ -1402,6 +1406,13 @@ def update_user_stats():
     if data.get("gender"):
         set_clauses.append("gender = %s")
         params.append(data["gender"])
+
+    # Sprint PBs — merged into the JSONB column so updating one distance never
+    # clobbers the others (|| is a shallow jsonb merge).
+    sprint_pbs = data.get("sprintPBs")
+    if isinstance(sprint_pbs, dict) and sprint_pbs:
+        set_clauses.append("sprint_pbs = COALESCE(sprint_pbs, '{}'::jsonb) || %s::jsonb")
+        params.append(json.dumps(sprint_pbs))
 
     if not set_clauses:
         return jsonify({"success": True, "updated": 0})
