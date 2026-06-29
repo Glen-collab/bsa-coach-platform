@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-30T11:47:14.092Z",
-  "total": 1961,
+  "generated_at": "2026-06-29T00:38:25.521Z",
+  "total": 2040,
   "exercises": [
     {
       "name": "Barbell Bench Press",
@@ -2547,6 +2547,14 @@
       "default_video_uid": "5d01c4fa132b7c1565fe4db1df3268c6"
     },
     {
+      "name": "Banded No Money",
+      "category": "Shoulders",
+      "subcategory": "Corrective",
+      "source_library": "exerciseLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
       "name": "EZ Bar Curl",
       "category": "Biceps",
       "subcategory": "Barbell",
@@ -3811,6 +3819,14 @@
       "default_video_uid": "432beebd80d2eaff4d560e2935e8c6b5"
     },
     {
+      "name": "Close Grip Pushups",
+      "category": "Triceps",
+      "subcategory": "Other",
+      "source_library": "exerciseLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
       "name": "Alternating Barbell Reverse Lunge",
       "category": "Legs",
       "subcategory": "Barbell",
@@ -4227,6 +4243,14 @@
       "default_video_uid": "4f42700b1dbd5871cfb4d3ad6eac93df"
     },
     {
+      "name": "Trap Bar Deadlift",
+      "category": "Legs",
+      "subcategory": "Barbell",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "47710ba9bf7025a08c2eeb96b5cc10cc"
+    },
+    {
       "name": "Zercher Squats",
       "category": "Legs",
       "subcategory": "Barbell",
@@ -4241,6 +4265,14 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "33ee8e451d3021a60dd3271445b0b389"
+    },
+    {
+      "name": "Bar Stiff Leg Deadlift Stretch",
+      "category": "Legs",
+      "subcategory": "Barbell",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "709d552d96c16957b42558114af649e3"
     },
     {
       "name": "1 1/2 Dumbbell Squat",
@@ -4897,6 +4929,86 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "234ee1e54f2ccac654bfe893c5d2833e"
+    },
+    {
+      "name": "Spiderman Walk",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "67d345e8a5e4f93f9a31a4bc79361cac"
+    },
+    {
+      "name": "Duck Walk",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "850e42db5828b206d15d37b28a96c48a"
+    },
+    {
+      "name": "Supine Cross Toe to Hand",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "71bf7b53ad5cdf03002f260a6067ad2f"
+    },
+    {
+      "name": "Scorpions",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "9b0747238d86d32888952e483ebfb38f"
+    },
+    {
+      "name": "Bear to Crab",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "6b2c8cea2ca410b1fa412f56e945bc91"
+    },
+    {
+      "name": "Crab Walk Position Toe Touches",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "8f13f6c26a162835962c439ec5ff85d1"
+    },
+    {
+      "name": "Crab Walk",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "f14554508cc7c63b6c6da061834d37fd"
+    },
+    {
+      "name": "Lateral Bear Crawl",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "8986cbdeac0c0b9b5b83f03de23ffee7"
+    },
+    {
+      "name": "Walking Lateral Lunge Stretch",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "329a6b122f32bdaefc15a450f3b2f0f3"
+    },
+    {
+      "name": "Walking RDL",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "3d48938c0141495ee867ebd13d4ac418"
     },
     {
       "name": "Single Leg Hamstring Curl",
@@ -5571,30 +5683,6 @@
       "default_video_uid": "156bfc29402c52f6582c962b35059d1d"
     },
     {
-      "name": "Planks",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Bear Crawl",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Bear Crawl Hold",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
       "name": "Mountain Climbers",
       "category": "Core",
       "subcategory": "Upper",
@@ -5607,8 +5695,8 @@
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "629f467f62017cbd16884f579cba9cc2"
     },
     {
       "name": "Hollow Rocks",
@@ -5623,336 +5711,184 @@
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "4f93f1ce04c2df307a1d925af8d6dd60"
     },
     {
       "name": "Sit-Ups",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "79c2e871bc05d0e758ecf46ea16bab6e"
     },
     {
       "name": "Cable Crunches (Kneeling)",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b3b300edf71024eb5450b4702c3aa68e"
     },
     {
       "name": "Jackknife Sit-Ups",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "a0655594ae073641dac84a773c20b9bb"
     },
     {
       "name": "Weighted Crunches",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Pulse Crunches",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "dea9894ff7124f78b33d478f1012e9c9"
     },
     {
       "name": "Bicycle Crunches",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "17fefc954ede1b74161b987d84b7c92f"
     },
     {
       "name": "Swiss Ball Pikes",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "fedcbdc553df3bac33c5dacf88f8041b"
     },
     {
       "name": "Ab Wheel Rollouts",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Sit-Up to Stand",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "a9991fa5385295e0b9d8b58b4f10714c"
     },
     {
       "name": "Turkish Get-Up Sit-Up",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Barbell Rollouts",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "c6be84da3dc668171cb21c22feff8a28"
     },
     {
       "name": "Barbell Rollout from Knees",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "fa2d9e4aa944963b9424f62e7fa24823"
     },
     {
       "name": "Barbell Rollout from Feet",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "990f84d235a45912bb516bd5a2f25ca5"
     },
     {
       "name": "Barbell Sit-Up",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "19ee7d74021e4713439f3a4f80d75d3b"
     },
     {
       "name": "Barbell Ab Pullover",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Overhead Barbell Hold",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Barbell Good Morning Hold",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Barbell Hip Thrust Hold",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Barbell March (Front Rack)",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Barbell Overhead Walkout",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Barbell Zercher Carry",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Barbell Front Rack Carry",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Barbell Overhead Carry",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Turkish Get-Up",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "3beb91e349e03d334d0f92708f49c4c7"
     },
     {
       "name": "Dumbbell Sit-Up",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "36a96f3fb09517f6d5504d9a72b33e4d"
     },
     {
       "name": "Dumbbell Toe Touch Crunch",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "6ba30c2d15b1bacdc1d6cc4cd1fc55ac"
     },
     {
       "name": "Dumbbell Dead Bug Press",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Dumbbell March",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Dumbbell Overhead March",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "db3ea55f098c9495ee18a4ae841b5a4b"
     },
     {
       "name": "Dumbbell Plank Drag",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "3a0f3519f8c60411e5609be1f5b4772c"
     },
     {
       "name": "Dumbbell Renegade Hold",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "324a5fd849db5ff48b36e4c94e7ae590"
     },
     {
       "name": "Dumbbell Bear Crawl Drag",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "1621317f017703e1d84b0499630f7125"
     },
     {
       "name": "Dumbbell Hollow March",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Dumbbell Front Rack Carry",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Waiter Carry",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Offset Farmers Walk",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "225d35d2b082c930ed2b6b7e08790f43"
     },
     {
       "name": "Pelvic Tilts",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "bff0ce04c2915767b21b11fc231a317a"
     },
     {
       "name": "Cat-Cow Stretch",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "McGill Big 3",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Diaphragmatic Breathing",
-      "category": "Core",
-      "subcategory": "Upper",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "ca3f741c7500fa62431fe65757c64647"
     },
     {
       "name": "Supine Breathing with 90/90",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "67722d7b711a6f96314d490116f6ecf9"
     },
     {
       "name": "Crocodile Breathing",
@@ -5967,48 +5903,56 @@
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "39a4c1a64d7786d3edcd160ebfd7cc90"
     },
     {
       "name": "Quadruped Hover Hold",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "16f065c1195bd96e5e9709834c668e52"
     },
     {
-      "name": "Tall Kneeling Breathing",
+      "name": "Elbow Plank",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "bf4fe7c0644f746e0c563d10a88d3b0a"
     },
     {
-      "name": "Standing Wall Press Breathing",
+      "name": "Quadruped Hover Bear Walk",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "e5308f0b6d106e551e125d1a23f5c372"
     },
     {
-      "name": "Isometric Supine Brace",
+      "name": "Hollow Hold 90/90 Iso Crunch",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "0e01147bc3d74854fbe16805526a77b6"
     },
     {
-      "name": "Breathing Assisted Hollow Hold",
+      "name": "Floor Crunches",
       "category": "Core",
       "subcategory": "Upper",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "f4faad4d447aae54381772d14c104bae"
+    },
+    {
+      "name": "Arm Behind Back Diagonal Crunch",
+      "category": "Core",
+      "subcategory": "Upper",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "c7f674fc774c446c53e8ed718b89d654"
     },
     {
       "name": "Assisted Copenhagen Hold Knee on Bench",
@@ -6287,176 +6231,168 @@
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "8834555be876cc83ac77cb71ab4209f5"
     },
     {
-      "name": "Standing Cable Lift (Low to High)",
+      "name": "Standing Cable Chop (Low to High)",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Wood Choppers",
-      "category": "Core",
-      "subcategory": "Oblique",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "212687cacb045e987dab40d74b9979ee"
     },
     {
       "name": "Side Plank Hip Dips",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "3f3a73b168bc3da2b1380082e2e9116e"
     },
     {
       "name": "Tall Kneeling Anti-Rotation Press",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "8fec4efba7850ab3f01f56cc32cdf3c9"
     },
     {
       "name": "Landmine Rotations",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "79c2f9d968dec12a18b31fa81157eaec"
     },
     {
       "name": "Landmine Anti-Rotation Hold",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "7c2040853cc92058f59a6ba4bb0b28cf"
     },
     {
       "name": "Landmine Press (Split Stance)",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "619950356131d5495aacb7237728fafe"
     },
     {
       "name": "Landmine Rainbow",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "c3ee093d8cc86b3f7fba16124a6e9045"
     },
     {
       "name": "Landmine Figure-8",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "a03728c6663d31de9776d7babf7a4eae"
     },
     {
       "name": "Landmine Lateral Raise to Press",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "3237e75c2f70b17c5a2806cd23f783e1"
     },
     {
       "name": "Landmine Windmill",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Barbell Russian Twist",
-      "category": "Core",
-      "subcategory": "Oblique",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "4bb1821bd9824c50373544cb5bcc5730"
     },
     {
       "name": "Dumbbell Side Bends",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Dumbbell Russian Twist",
-      "category": "Core",
-      "subcategory": "Oblique",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "fcdb8fdca8aff5be4a6842f58fb1ffce"
     },
     {
       "name": "Dumbbell Windmill",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "f38d83acc78b98a5e0c46ae32a0ecabe"
     },
     {
       "name": "Dumbbell Side Plank Row",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "351b57b8e1cd7b2e6d4eaad9e537811f"
     },
     {
       "name": "Dumbbell Pallof Press",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Dumbbell Standing Chop",
-      "category": "Core",
-      "subcategory": "Oblique",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "198c91b215e8f8a277e1d1fd29b7b387"
     },
     {
       "name": "Dumbbell Side Bend Hold",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "1ec4153db3cd74745e3e4bb99323f37f"
     },
     {
       "name": "Seated Anti-Rotation Hold",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "5d0e085c444bfbd500f872639688c6a4"
     },
     {
       "name": "Assisted Side Plank",
       "category": "Core",
       "subcategory": "Oblique",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "0dc9f14dedea75bdbcca28b9b84bb84b"
+    },
+    {
+      "name": "Standing Cable Lateral Chop",
+      "category": "Core",
+      "subcategory": "Oblique",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "4cbf3725bcf78baea49d1de941fc14a6"
+    },
+    {
+      "name": "Dumbbell Russian Twists",
+      "category": "Core",
+      "subcategory": "Oblique",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "50b8b8ac06b6bd506ae265006f4eace7"
+    },
+    {
+      "name": "Dumbbell Chop Low to High",
+      "category": "Core",
+      "subcategory": "Oblique",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "b62ebdf81801134b258b3865740d2848"
     },
     {
       "name": "Ball Exchange Stability Ball",
@@ -6807,48 +6743,48 @@
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "dd8f39b85c98bcc783b439a5b72b585a"
     },
     {
       "name": "Hanging Leg Raises",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "0f0d42ab74584d4c9ca9dd4c23e5cbd8"
     },
     {
       "name": "Toes to Bar",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "f4a039b4772ded47ff8c2252b13537f7"
     },
     {
       "name": "Lying Leg Raises",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "ea78f900048f1b8ce06a601e021b042b"
     },
     {
       "name": "Lying Alternating Leg Lowers",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "e0cfc3261afef79e8a397c45ce1ffd08"
     },
     {
       "name": "Decline Reverse Crunch",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b83d583966dff02ca33e43d86875c213"
     },
     {
       "name": "Captain's Chair Knee Raise",
@@ -6871,112 +6807,80 @@
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "L-Sit Hold",
-      "category": "Core",
-      "subcategory": "Lower",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "da3dc3462849a3cd77fe75f6f9e028cf"
     },
     {
       "name": "Lying Hip Thrusts",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b213f539233f685ae0fcc969e11c73fe"
     },
     {
       "name": "Landmine Dead Bug Press",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "5dd9bae7214c684f40735f76cbda5ef6"
     },
     {
       "name": "Barbell Split Squat Iso Hold",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "ae51bcbe089aea4f9891381f4e251add"
     },
     {
       "name": "Dumbbell V-Sit Hold",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "70b2a26bce6f9ac229362788c8aa8a03"
     },
     {
       "name": "Bent Knee Fallout",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "17ccf199eaeb049fe12f11362879f921"
     },
     {
       "name": "Marching Dead Bug",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "bb419cac92a07fe94ead9dcdf09aa026"
     },
     {
       "name": "Wall Dead Bug",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "c9097e201e30409ccc7ace0d6b20dc40"
     },
     {
-      "name": "Side Lying Breathing",
+      "name": "L-Sit Alternating Leg Hold",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "15fe6c5911b042619def141d6426a25b"
     },
     {
-      "name": "Segmental Cat-Cow",
+      "name": "Captains Chair Knee Raises",
       "category": "Core",
       "subcategory": "Lower",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Jefferson Curl (Light)",
-      "category": "Core",
-      "subcategory": "Lower",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Pelvic Clock",
-      "category": "Core",
-      "subcategory": "Lower",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Seated Posture Holds",
-      "category": "Core",
-      "subcategory": "Lower",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "dc263ae757d075c89ac6659dc516e8f5"
     },
     {
       "name": "Clean and Jerk",
@@ -7007,24 +6911,24 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "26a01037eef630b3a62de9bf5b69df61"
     },
     {
       "name": "Bear Complex",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "ca50bd9fe14ddfa71accda183041e5ba"
     },
     {
       "name": "Barbell Complex (RDL + Row + Hang Clean)",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "96e8b6fb00f6ba413abd9e50597a488c"
     },
     {
       "name": "Grace Complex (Clean + Push Jerk)",
@@ -7063,8 +6967,8 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b88c3ca0466beae87f1956c5fbdc500e"
     },
     {
       "name": "Barbell Devil Press",
@@ -7103,16 +7007,16 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b7e29f4e2f17c5d954552d6c37b3203e"
     },
     {
       "name": "Barbell Clean Pull + Hang Clean",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "a9143b55b78c248da5957f794e63aa94"
     },
     {
       "name": "Barbell Snatch Pull + Power Snatch",
@@ -7135,8 +7039,8 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "64acabe9423432724256464e6c511417"
     },
     {
       "name": "Barbell Squat Clean + Split Jerk",
@@ -7151,8 +7055,8 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b6142b36040e4712c4484a65de7fe4fc"
     },
     {
       "name": "Barbell Ground to Shoulder",
@@ -7167,8 +7071,64 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "2ed2fd477233bcae976751d44380d8a1"
+    },
+    {
+      "name": "Full Clean + Split Jerk",
+      "category": "Tactical",
+      "subcategory": "Barbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a30365049eb697168b376ab5b34365d9"
+    },
+    {
+      "name": "Full Clean + Thruster",
+      "category": "Tactical",
+      "subcategory": "Barbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "1b7c7a12e9e694bf71046450faa25920"
+    },
+    {
+      "name": "Front Squat + Push Press",
+      "category": "Tactical",
+      "subcategory": "Barbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "4b78b568e7d907fb452d07ad98055736"
+    },
+    {
+      "name": "Power Clean + Push Press",
+      "category": "Tactical",
+      "subcategory": "Barbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "016b0eae5da523617a81c98ca24e7d7f"
+    },
+    {
+      "name": "Power Clean + Push Press + Overhead Squat",
+      "category": "Tactical",
+      "subcategory": "Barbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "1fde0e7f4693665d6901e1405ad42b73"
+    },
+    {
+      "name": "Power Clean + Thruster",
+      "category": "Tactical",
+      "subcategory": "Barbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "69fd1b726dcc93246ad1b0ccefa594d9"
+    },
+    {
+      "name": "Snatch Pull + Hang Snatch",
+      "category": "Tactical",
+      "subcategory": "Barbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "dcb7d9d0a69054e06564ebce08c0a67c"
     },
     {
       "name": "Dumbbell Thruster",
@@ -7471,48 +7431,48 @@
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "cafcbce167790fe07f334c255f1337f5"
     },
     {
       "name": "Burpee Box Jump Overs",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "15c495308cb7c703f494252c1aef3a15"
     },
     {
       "name": "Wall Balls",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "f834e0427e0741bbb109ed684735d15a"
     },
     {
       "name": "Kettlebell Swings",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "1fdf5229f00ea470fe1d6cf01504e221"
     },
     {
       "name": "Burpee Pull-Ups",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "bea65926710135a0dede6dfe5466ae2d"
     },
     {
       "name": "Air Squat + Push-Up + Jump",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b027212d170102a956935a594175706e"
     },
     {
       "name": "Shuttle Sprint + Push-Ups",
@@ -7527,8 +7487,8 @@
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "d02eed66ab1dfc9f26546eefc5e0caa9"
     },
     {
       "name": "Sandbag Lunge Walks",
@@ -7559,16 +7519,16 @@
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "e3e2b4fc80cc84b8aaac70edcd02070a"
     },
     {
       "name": "Box Jump + Step Down",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "5180f8defbf87694f01d18eabcc3698a"
     },
     {
       "name": "Farmer Carry + Box Step-Up",
@@ -7671,8 +7631,8 @@
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "248321194f9bd5dd0977c4723408e504"
     },
     {
       "name": "Jog",
@@ -7689,6 +7649,22 @@
       "source_library": "exerciseLibrary",
       "has_default_video": false,
       "default_video_uid": null
+    },
+    {
+      "name": "Air Squat + Burpee + Vertical Jump",
+      "category": "Tactical",
+      "subcategory": "Functional Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "f9c79de96e162c0f462265d0bb420f38"
+    },
+    {
+      "name": "Box Jump Walk-Over + Step Down",
+      "category": "Tactical",
+      "subcategory": "Functional Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "9474ce140a3cdff8a6fb2f870a4b25fd"
     },
     {
       "name": "Hip Flexor to Hamstring",
@@ -8204,14 +8180,6 @@
     },
     {
       "name": "Clean Pull + Hang Clean + Jerk",
-      "category": "Oly Complexes",
-      "subcategory": "Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Snatch Pull + Hang Snatch",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
@@ -9319,8 +9287,8 @@
       "category": "Senior Fitness & Balance",
       "subcategory": "Core & Posture",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "50789f485be2c5293981935598b49eac"
     },
     {
       "name": "Plank (Modified on Knees)",
@@ -9335,8 +9303,8 @@
       "category": "Senior Fitness & Balance",
       "subcategory": "Core & Posture",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "1fff41217d4adc1e8ae52d37fed268d8"
     },
     {
       "name": "Stability Ball Dead Bug",
@@ -9383,8 +9351,8 @@
       "category": "Senior Fitness & Balance",
       "subcategory": "Core & Posture",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "17ccf199eaeb049fe12f11362879f921"
     },
     {
       "name": "Seated Pelvic Tilts",
@@ -9513,6 +9481,214 @@
       "source_library": "exerciseLibrary",
       "has_default_video": false,
       "default_video_uid": null
+    },
+    {
+      "name": "Linear Preset Vargas",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "d2b27fc9f5795fffceacab1406e62fb7"
+    },
+    {
+      "name": "Dynamic Warmup - Linear Day",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Dynamic Warmup - Lateral Day",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "62b3a40376262ad8a76684ca408d48bf"
+    },
+    {
+      "name": "Dynamic Warmup - Multi-Directional Day",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0a68457bdafb2dbfa8cd34e683f1d84a"
+    },
+    {
+      "name": "A-Skip",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "99ff75f7d5ed0be23ec822b750c64d42"
+    },
+    {
+      "name": "B-Skip",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "bd0a62d47d8428d83fc8ce42381d6ef5"
+    },
+    {
+      "name": "High Knees",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "32a500450387d8c74f86c7770fc9fceb"
+    },
+    {
+      "name": "Butt Kicks",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "fc83574186c4c3387047433fd53a0c30"
+    },
+    {
+      "name": "Straight Leg Bounds",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "9bb58709324a2a7c8874f531e7374fdf"
+    },
+    {
+      "name": "Ankling (Fast Feet)",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "c74d7b11b89e925f60f5101f5ef5900a"
+    },
+    {
+      "name": "Backward Running",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "3774e6583dac978b7ac4a6a7e80737e9"
+    },
+    {
+      "name": "Power Skips",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "1096aaf99995f0634386f635070da47a"
+    },
+    {
+      "name": "Wall Drives",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "ec2fb06903f6de4879d831eaf50bc5ec"
+    },
+    {
+      "name": "Falling Starts",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "9a2d0651c3c1311f9df2bdb71547bf0a"
+    },
+    {
+      "name": "3-Point Stance Starts",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "1da74394c81ae3731a7896ffeb71d4a8"
+    },
+    {
+      "name": "Wicket Runs",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "59ffa5d08a994cda325552d59165f77e"
+    },
+    {
+      "name": "Forward Skip with Arm Circles",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "900d26941cb375a5fc61235e4eea6eb1"
+    },
+    {
+      "name": "Backward Skip with Arm Hugs",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "8b335814155cb7451554b7cff0233ce4"
+    },
+    {
+      "name": "Backward A March",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "5091c55017a4e14a69a127041b4f8652"
+    },
+    {
+      "name": "Walking Quad Pull to RDL",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a2ea7faec153831d0619602ab217fa9f"
+    },
+    {
+      "name": "Lunge Walk with Reach Up and Back",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "e6018d453eb6ef437ad1fcc1754fc0a8"
+    },
+    {
+      "name": "Shake Out Knee Hug",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "f9c85e833c73c7c7d866714879f3154e"
+    },
+    {
+      "name": "Shake Out Hamstring Kick",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "9bcd7acd3c7fa211e1b8c107cf7f9562"
+    },
+    {
+      "name": "Carioca",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "3cde8c4ca6bd1f1d62d765b3d0b16b00"
+    },
+    {
+      "name": "Lateral Shuffle with Jacks",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "4f3f499c052233465d4e75127dfe31fc"
+    },
+    {
+      "name": "Single Leg Hop w/ Cycle",
+      "category": "Warm Up",
+      "subcategory": "Sprint Warmup",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "2a64b5053a2e88ae8a03d7b5580ed5af"
     },
     {
       "name": "Backward Scoop Toss",
@@ -10123,100 +10299,28 @@
       "default_video_uid": "bd243bbca5dc12042a276001f154e995"
     },
     {
-      "name": "Jump Rope (Single Unders)",
+      "name": "Ladder Linear Preset",
       "category": "Warm Up",
-      "subcategory": "Cardio",
+      "subcategory": "Low Impact Agility",
       "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "99f2c34db01830ea112caf2b8c5bcbe2"
+      "has_default_video": false,
+      "default_video_uid": null
     },
     {
-      "name": "Jump Rope (Double Unders)",
+      "name": "Ladder Lateral Preset",
       "category": "Warm Up",
-      "subcategory": "Cardio",
+      "subcategory": "Low Impact Agility",
       "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "87446322ea33a456369df6008ca54e66"
+      "has_default_video": false,
+      "default_video_uid": null
     },
     {
-      "name": "Jump Rope (High Knees)",
+      "name": "Ladder Multi Preset",
       "category": "Warm Up",
-      "subcategory": "Cardio",
+      "subcategory": "Low Impact Agility",
       "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "2d9695af9fab0252c692ab575b072422"
-    },
-    {
-      "name": "Jump Rope (Single Leg Hop)",
-      "category": "Warm Up",
-      "subcategory": "Cardio",
-      "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "0455070d06e075fdc7e84d87b7721208"
-    },
-    {
-      "name": "Tire Double Taps",
-      "category": "Warm Up",
-      "subcategory": "Tire Drills",
-      "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "a671409ac999b06f2bf5e2dead1eded0"
-    },
-    {
-      "name": "Tire Jump Shuffle",
-      "category": "Warm Up",
-      "subcategory": "Tire Drills",
-      "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "181fe5bf9c56bb3fbe72594dd98a85fc"
-    },
-    {
-      "name": "Tire Pushup (Feet on Tire)",
-      "category": "Warm Up",
-      "subcategory": "Tire Drills",
-      "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "0674ed7665948ccc7df37596f86307f6"
-    },
-    {
-      "name": "Tire Pushup (Hands on Tire)",
-      "category": "Warm Up",
-      "subcategory": "Tire Drills",
-      "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "d4d6a961d8505d317ee5415fc889c823"
-    },
-    {
-      "name": "Tire Switch Feet",
-      "category": "Warm Up",
-      "subcategory": "Tire Drills",
-      "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "11495ec6de2603c624f22b6a0f0d5e65"
-    },
-    {
-      "name": "Tire Switch Hop Flip",
-      "category": "Warm Up",
-      "subcategory": "Tire Drills",
-      "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "0fcc738b9d76bf8a2cc9fbf7814cdd9d"
-    },
-    {
-      "name": "Tire Switch Hops",
-      "category": "Warm Up",
-      "subcategory": "Tire Drills",
-      "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "a0807af16e6fe368e90586e6de60b02e"
-    },
-    {
-      "name": "Tire Walk Ups",
-      "category": "Warm Up",
-      "subcategory": "Tire Drills",
-      "source_library": "exerciseLibrary",
-      "has_default_video": true,
-      "default_video_uid": "ad3dde8f03cd6a2802232745e4eff658"
+      "has_default_video": false,
+      "default_video_uid": null
     },
     {
       "name": "Ladder Bunny Hops Forward Backward",
@@ -10361,6 +10465,102 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "bdb58b0c6be8f5ada28b4d1362db2664"
+    },
+    {
+      "name": "Jump Rope (Single Unders)",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "99f2c34db01830ea112caf2b8c5bcbe2"
+    },
+    {
+      "name": "Jump Rope (Double Unders)",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "87446322ea33a456369df6008ca54e66"
+    },
+    {
+      "name": "Jump Rope (High Knees)",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "2d9695af9fab0252c692ab575b072422"
+    },
+    {
+      "name": "Jump Rope (Single Leg Hop)",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0455070d06e075fdc7e84d87b7721208"
+    },
+    {
+      "name": "Tire Double Taps",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a671409ac999b06f2bf5e2dead1eded0"
+    },
+    {
+      "name": "Tire Jump Shuffle",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "181fe5bf9c56bb3fbe72594dd98a85fc"
+    },
+    {
+      "name": "Tire Pushup (Feet on Tire)",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0674ed7665948ccc7df37596f86307f6"
+    },
+    {
+      "name": "Tire Pushup (Hands on Tire)",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "d4d6a961d8505d317ee5415fc889c823"
+    },
+    {
+      "name": "Tire Switch Feet",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "11495ec6de2603c624f22b6a0f0d5e65"
+    },
+    {
+      "name": "Tire Switch Hop Flip",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0fcc738b9d76bf8a2cc9fbf7814cdd9d"
+    },
+    {
+      "name": "Tire Switch Hops",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a0807af16e6fe368e90586e6de60b02e"
+    },
+    {
+      "name": "Tire Walk Ups",
+      "category": "Warm Up",
+      "subcategory": "Low Impact Agility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "ad3dde8f03cd6a2802232745e4eff658"
     },
     {
       "name": "Rear Delt Lacrosse Ball Rollout",
@@ -10601,6 +10801,62 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "852c6f132a1e324c46061302cabdc3dc"
+    },
+    {
+      "name": "Child's Pose",
+      "category": "Warm Up",
+      "subcategory": "Stretching",
+      "source_library": "exerciseLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Overhead Triceps Stretch",
+      "category": "Warm Up",
+      "subcategory": "Flexibility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Child's Pose (Lat Stretch)",
+      "category": "Warm Up",
+      "subcategory": "Flexibility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Seated Spinal Twist",
+      "category": "Warm Up",
+      "subcategory": "Flexibility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Standing Forward Fold (Hamstrings)",
+      "category": "Warm Up",
+      "subcategory": "Flexibility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Seated Forward Fold",
+      "category": "Warm Up",
+      "subcategory": "Flexibility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Butterfly Stretch",
+      "category": "Warm Up",
+      "subcategory": "Flexibility",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a2a0a2a3c868f34c9c11f0dad76e8193"
     },
     {
       "name": "Front Kick",
@@ -12707,6 +12963,214 @@
       "default_video_uid": "0efef15b0bf5293f1721fee25a3fe9c8"
     },
     {
+      "name": "Linear Preset Vargas",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "d2b27fc9f5795fffceacab1406e62fb7"
+    },
+    {
+      "name": "Dynamic Warmup - Linear Day",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Dynamic Warmup - Lateral Day",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "62b3a40376262ad8a76684ca408d48bf"
+    },
+    {
+      "name": "Dynamic Warmup - Multi-Directional Day",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "0a68457bdafb2dbfa8cd34e683f1d84a"
+    },
+    {
+      "name": "A-Skip",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "99ff75f7d5ed0be23ec822b750c64d42"
+    },
+    {
+      "name": "B-Skip",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "bd0a62d47d8428d83fc8ce42381d6ef5"
+    },
+    {
+      "name": "High Knees",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "32a500450387d8c74f86c7770fc9fceb"
+    },
+    {
+      "name": "Butt Kicks",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "fc83574186c4c3387047433fd53a0c30"
+    },
+    {
+      "name": "Straight Leg Bounds",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "9bb58709324a2a7c8874f531e7374fdf"
+    },
+    {
+      "name": "Ankling (Fast Feet)",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "c74d7b11b89e925f60f5101f5ef5900a"
+    },
+    {
+      "name": "Backward Running",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "3774e6583dac978b7ac4a6a7e80737e9"
+    },
+    {
+      "name": "Power Skips",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "1096aaf99995f0634386f635070da47a"
+    },
+    {
+      "name": "Wall Drives",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "ec2fb06903f6de4879d831eaf50bc5ec"
+    },
+    {
+      "name": "Falling Starts",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "9a2d0651c3c1311f9df2bdb71547bf0a"
+    },
+    {
+      "name": "3-Point Stance Starts",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "1da74394c81ae3731a7896ffeb71d4a8"
+    },
+    {
+      "name": "Wicket Runs",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "59ffa5d08a994cda325552d59165f77e"
+    },
+    {
+      "name": "Forward Skip with Arm Circles",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "900d26941cb375a5fc61235e4eea6eb1"
+    },
+    {
+      "name": "Backward Skip with Arm Hugs",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "8b335814155cb7451554b7cff0233ce4"
+    },
+    {
+      "name": "Backward A March",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "5091c55017a4e14a69a127041b4f8652"
+    },
+    {
+      "name": "Walking Quad Pull to RDL",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "a2ea7faec153831d0619602ab217fa9f"
+    },
+    {
+      "name": "Lunge Walk with Reach Up and Back",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "e6018d453eb6ef437ad1fcc1754fc0a8"
+    },
+    {
+      "name": "Shake Out Knee Hug",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "f9c85e833c73c7c7d866714879f3154e"
+    },
+    {
+      "name": "Shake Out Hamstring Kick",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "9bcd7acd3c7fa211e1b8c107cf7f9562"
+    },
+    {
+      "name": "Carioca",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "3cde8c4ca6bd1f1d62d765b3d0b16b00"
+    },
+    {
+      "name": "Lateral Shuffle with Jacks",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "4f3f499c052233465d4e75127dfe31fc"
+    },
+    {
+      "name": "Single Leg Hop w/ Cycle",
+      "category": "Sprint Warmup",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "2a64b5053a2e88ae8a03d7b5580ed5af"
+    },
+    {
       "name": "Hip Mobility Preset 1 - Hip Flexor Focus",
       "category": "Hip Mobility",
       "subcategory": null,
@@ -12777,6 +13241,14 @@
       "source_library": "mobilityExercises",
       "has_default_video": true,
       "default_video_uid": "a32e917e14f2f15a0137ff429e89cd61"
+    },
+    {
+      "name": "Hurdle Mobility",
+      "category": "Hip Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "aae027bd0686916ad595c16619d53a7d"
     },
     {
       "name": "Pigeon Pose",
@@ -12855,8 +13327,8 @@
       "category": "Hip Mobility",
       "subcategory": null,
       "source_library": "mobilityExercises",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "a2a0a2a3c868f34c9c11f0dad76e8193"
     },
     {
       "name": "Kneeling Hip Flexor Stretch",
@@ -13036,14 +13508,6 @@
     },
     {
       "name": "Toe Touch Progression",
-      "category": "Ankle Mobility",
-      "subcategory": null,
-      "source_library": "mobilityExercises",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "A-Skip",
       "category": "Ankle Mobility",
       "subcategory": null,
       "source_library": "mobilityExercises",
@@ -13307,6 +13771,94 @@
       "default_video_uid": null
     },
     {
+      "name": "Bear Walk (Forward/Backward)",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Bear Walk Straight Legs",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "f90d94374a9dda5f0eba2e4f63bf4811"
+    },
+    {
+      "name": "Lateral Bear Crawl",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "8986cbdeac0c0b9b5b83f03de23ffee7"
+    },
+    {
+      "name": "Crab Walk",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "f14554508cc7c63b6c6da061834d37fd"
+    },
+    {
+      "name": "Crab Reach (Toe Touch)",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Beast to Crab Transition",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Duck Walk",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "850e42db5828b206d15d37b28a96c48a"
+    },
+    {
+      "name": "Spiderman Crawl",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Scorpion Reach (Prone)",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Scorpion Reach (Supine)",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Inchworm Walkout",
+      "category": "Full Body Mobility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "c59d2a0bd160f2f78e08ac1c1ade8580"
+    },
+    {
       "name": "Full Body Stretch Sequence",
       "category": "Full Body Mobility",
       "subcategory": null,
@@ -13451,14 +14003,6 @@
       "default_video_uid": null
     },
     {
-      "name": "B-Skip",
-      "category": "Dynamic Mobility",
-      "subcategory": null,
-      "source_library": "mobilityExercises",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
       "name": "Hurdle Preset 1 - Multi-Directional",
       "category": "Hurdle Drills",
       "subcategory": null,
@@ -13541,6 +14085,94 @@
     {
       "name": "Hurdle Sits (Hip Mobility)",
       "category": "Hurdle Drills",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Flexibility Preset 1 - Full Body Static",
+      "category": "Flexibility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Flexibility Preset 2 - Lower Body Focus",
+      "category": "Flexibility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Flexibility Preset 3 - Upper Body Focus",
+      "category": "Flexibility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Standing Forward Fold (Hamstrings)",
+      "category": "Flexibility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Seated Forward Fold",
+      "category": "Flexibility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Frog Stretch",
+      "category": "Flexibility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": true,
+      "default_video_uid": "253c73bfc85d17e580ab2fd15ae0d664"
+    },
+    {
+      "name": "Standing Quad Stretch",
+      "category": "Flexibility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Lying Quad Stretch",
+      "category": "Flexibility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Overhead Triceps Stretch",
+      "category": "Flexibility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Seated Spinal Twist",
+      "category": "Flexibility",
+      "subcategory": null,
+      "source_library": "mobilityExercises",
+      "has_default_video": false,
+      "default_video_uid": null
+    },
+    {
+      "name": "Cobra Stretch",
+      "category": "Flexibility",
       "subcategory": null,
       "source_library": "mobilityExercises",
       "has_default_video": false,
