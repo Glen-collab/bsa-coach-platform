@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-29T01:56:41.850Z",
+  "generated_at": "2026-06-29T02:04:29.724Z",
   "total": 2038,
   "exercises": [
     {
@@ -6887,24 +6887,24 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "3d4f08c7fa0071c8202823957966f08c"
     },
     {
       "name": "Snatch",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "cfb6e19659f0f1b5d20861f6cceee284"
     },
     {
       "name": "Thruster",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b21b327f895328b09b1e8d50c2d518ac"
     },
     {
       "name": "Clean Complex (Hang + Power + Front Squat)",
