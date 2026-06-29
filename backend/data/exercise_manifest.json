@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-29T00:38:25.521Z",
+  "generated_at": "2026-06-29T00:54:50.026Z",
   "total": 2040,
   "exercises": [
     {
@@ -8119,24 +8119,24 @@
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "e944b2e6b4320e4eb4a14d1eb960ae99"
     },
     {
       "name": "Pull + Hang Clean",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "3b8defe1a353873ebf298fd4594239aa"
     },
     {
       "name": "Pull + Hang Snatch",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "68f0e9e969235d438fe11f60eb95360e"
     },
     {
       "name": "Clean + Front Squat + Jerk",
