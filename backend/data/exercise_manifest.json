@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-29T00:54:50.026Z",
-  "total": 2040,
+  "generated_at": "2026-06-29T01:56:41.850Z",
+  "total": 2038,
   "exercises": [
     {
       "name": "Barbell Bench Press",
@@ -8139,84 +8139,12 @@
       "default_video_uid": "68f0e9e969235d438fe11f60eb95360e"
     },
     {
-      "name": "Clean + Front Squat + Jerk",
-      "category": "Oly Complexes",
-      "subcategory": "Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
       "name": "Snatch + OHS",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "8b4e2e7f596ac8d3233d9c9fd7d4bc28"
-    },
-    {
-      "name": "Clean High Pull + Power Clean",
-      "category": "Oly Complexes",
-      "subcategory": "Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Clean + Front Squat + Clean",
-      "category": "Oly Complexes",
-      "subcategory": "Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Snatch + OHS + Snatch",
-      "category": "Oly Complexes",
-      "subcategory": "Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Clean Pull + Hang Clean + Jerk",
-      "category": "Oly Complexes",
-      "subcategory": "Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Clean + Pause Front Squat",
-      "category": "Oly Complexes",
-      "subcategory": "Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Snatch + Pause OHS",
-      "category": "Oly Complexes",
-      "subcategory": "Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Clean from Blocks + Front Squat",
-      "category": "Oly Complexes",
-      "subcategory": "Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Snatch from Blocks + OHS",
-      "category": "Oly Complexes",
-      "subcategory": "Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
     },
     {
       "name": "Hang Clean + Clean",
@@ -8235,84 +8163,140 @@
       "default_video_uid": "6888dbd0ee951fce85f7eacebe312866"
     },
     {
-      "name": "Clean + Jerk + Split Squat",
+      "name": "Pull + Power Clean",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "9921ccca4699cadf29867d5ea724c3c3"
     },
     {
-      "name": "Snatch + Snatch Balance",
+      "name": "Hang Clean + Front Squat",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "3e9da075bab147c1770134adc57f77d2"
     },
     {
-      "name": "Clean Pull + Power Clean + Front Squat",
+      "name": "Pull + Power Snatch + Overhead Squat",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "de28d23ffb37fc189ac833510083ce29"
     },
     {
-      "name": "Snatch Pull + Power Snatch + OHS",
+      "name": "Box Power Snatch + Overhead Squat",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "74926f548952a8e4e79b4e159e6fcf5e"
     },
     {
-      "name": "Clean + Pause Catch + Front Squat",
+      "name": "Hang Snatch + Pull",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "0eab9099bac06abea9aa2577af0e404e"
     },
     {
-      "name": "Snatch + Pause Catch + OHS",
+      "name": "Slow Pull to Hang Clean + Front Squat",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "c2d75553940af692cebbcf1f9f1364fb"
     },
     {
-      "name": "Clean + Clean Pull",
+      "name": "Hang Clean + Front Squat + Push Press",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b5351ae15a0c6ca29854434f63cd803d"
     },
     {
-      "name": "Snatch + Snatch Pull",
+      "name": "RDL + Bent Over Row + Hang Clean",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "1920e6168b6e1059585ca9c7d4c6c3cc"
     },
     {
-      "name": "Hang Clean + Front Squat + Jerk",
+      "name": "Box Power Clean + Front Squat",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "7d5891893bc47d867a3af4380aa6bf7e"
     },
     {
-      "name": "Hang Snatch + OHS",
+      "name": "Hang Clean + Push Press",
       "category": "Oly Complexes",
       "subcategory": "Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "d45714ffb53c68cc8534f2ca848b2164"
+    },
+    {
+      "name": "Hang Clean + Push Jerk + Split Squat",
+      "category": "Oly Complexes",
+      "subcategory": "Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "c3bc92090e257c88b00fdbee0fb0b26f"
+    },
+    {
+      "name": "Hang Snatch + Overhead Squat",
+      "category": "Oly Complexes",
+      "subcategory": "Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "4c69d5e68c61c1dab766c6876a7a3446"
+    },
+    {
+      "name": "Hang Snatch + Slow pull to Clean + Hang Snatch + OHS",
+      "category": "Oly Complexes",
+      "subcategory": "Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "fde2844e8222b3eeba6f9e6b29967d5e"
+    },
+    {
+      "name": "Hang Snatch + Overhead Squat + Hang Snatch",
+      "category": "Oly Complexes",
+      "subcategory": "Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "19e9a2192b88f06b20824337cf7863cd"
+    },
+    {
+      "name": "Hang Clean + Power Clean + Front Squat",
+      "category": "Oly Complexes",
+      "subcategory": "Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "92d204971305e105347b996bff36298c"
+    },
+    {
+      "name": "Pull + Hang Clean + Front Squat",
+      "category": "Oly Complexes",
+      "subcategory": "Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "805aa260143e387de72897b0942b6ddb"
+    },
+    {
+      "name": "Hang Snatch + Snatch Balance",
+      "category": "Oly Complexes",
+      "subcategory": "Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "9e025e7313dd9aa8a93bca399438adfa"
     },
     {
       "name": "Single-Leg Balance (Eyes Open)",
