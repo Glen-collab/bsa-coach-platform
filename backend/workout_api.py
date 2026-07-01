@@ -2128,14 +2128,20 @@ def send_session_recap():
     if attachments:
         photos_note = f'<p style="font-size:13px;color:#667eea;margin:16px 0 0;">📎 {len(attachments)} reference photo(s) attached — save them for your records.</p>'
 
+    # Optional framing overrides so the SAME pipe can send a session recap OR a
+    # training/PT summary. Defaults preserve the original recap wording.
+    email_title = (data.get("email_title") or "Your Session Recap").strip()
+    email_intro = (data.get("email_intro") or "here's a recap from today's session:").strip()
+    email_subject = (data.get("email_subject") or f"Your session recap — {program_name}").strip()
+
     html = f"""
     <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;">
         <div style="background:linear-gradient(135deg,#667eea,#764ba2);padding:22px;text-align:center;border-radius:12px 12px 0 0;">
-            <h1 style="color:#fff;margin:0;font-size:20px;">Your Session Recap</h1>
+            <h1 style="color:#fff;margin:0;font-size:20px;">{esc(email_title)}</h1>
             {f'<div style="color:#e0e7ff;font-size:13px;margin-top:4px;">{esc(program_name)} · {wd}</div>' if wd else ''}
         </div>
         <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-radius:0 0 12px 12px;">
-            <p style="font-size:15px;color:#444;margin-top:0;">Hey {esc(client_name)}, here's a recap from today's session:</p>
+            <p style="font-size:15px;color:#444;margin-top:0;">Hey {esc(client_name)}, {esc(email_intro)}</p>
             {notes_html}
             {photos_note}
             <p style="font-size:15px;color:#444;margin:20px 0 0;">— {esc(coach_name)}</p>
@@ -2143,7 +2149,7 @@ def send_session_recap():
         <p style="text-align:center;color:#999;font-size:12px;margin-top:12px;">Be Strong Again</p>
     </div>
     """
-    sent = send_email(client_email, f"Your session recap — {program_name}", html,
+    sent = send_email(client_email, email_subject, html,
                       reply_to=TRAINER_EMAIL, attachments=attachments,
                       kind="recap", recipient_name=client_name)
     # Report the REAL result so the tracker can show ✓/✗ per person (send_email
