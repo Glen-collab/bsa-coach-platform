@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-29T02:04:29.724Z",
+  "generated_at": "2026-07-01T19:24:02.912Z",
   "total": 2038,
   "exercises": [
     {
@@ -4339,7 +4339,7 @@
       "default_video_uid": "fc7f9abc0bfbea1cc10314a30e0839f8"
     },
     {
-      "name": "Dumbbell Bench/Box Squat",
+      "name": "Goblet Squat to Box",
       "category": "Legs",
       "subcategory": "Dumbbell",
       "source_library": "exerciseLibrary",
