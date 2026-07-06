@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-06T15:27:20.281Z",
-  "total": 2061,
+  "generated_at": "2026-07-06T15:33:52.435Z",
+  "total": 2060,
   "exercises": [
     {
       "name": "Barbell Bench Press",
@@ -7305,14 +7305,6 @@
       "source_library": "exerciseLibrary",
       "has_default_video": true,
       "default_video_uid": "83f5a8b952182a28c8d23c3c660521a8"
-    },
-    {
-      "name": "Dumbbell Renegade Clean",
-      "category": "Tactical",
-      "subcategory": "Dumbbell Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
     },
     {
       "name": "Dumbbell Squat + Press Ladder",
