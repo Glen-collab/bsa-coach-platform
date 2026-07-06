@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-06T02:19:37.977Z",
-  "total": 2062,
+  "generated_at": "2026-07-06T02:31:33.359Z",
+  "total": 2061,
   "exercises": [
     {
       "name": "Barbell Bench Press",
@@ -7348,14 +7348,6 @@
     },
     {
       "name": "Dumbbell Power Clean + Push Jerk",
-      "category": "Tactical",
-      "subcategory": "Dumbbell Complexes",
-      "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
-    },
-    {
-      "name": "Dumbbell Cluster",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
