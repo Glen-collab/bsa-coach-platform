@@ -9,7 +9,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
+
+# Fail LOUD if SECRET_KEY isn't set instead of silently falling back to a public
+# throwaway. A missing key used to mean the app would (a) sign every JWT with a
+# guessable secret — anyone could forge an admin token — and (b) invalidate all
+# real sessions on the next deploy. Refusing to boot surfaces the misconfig
+# immediately (systemd shows the crash) rather than shipping it live.
+_secret = os.environ.get('SECRET_KEY')
+if not _secret or _secret == 'dev-secret-change-me':
+    raise RuntimeError(
+        "SECRET_KEY is missing or set to the insecure default — refusing to start. "
+        "Set a strong SECRET_KEY in /opt/bestrongagain/.env before launching."
+    )
+app.config['SECRET_KEY'] = _secret
 
 # CORS — allow all origins (workout builder/tracker on Netlify + WordPress)
 CORS(app, origins='*')

@@ -405,6 +405,9 @@ def login():
     data = request.json
     email = data.get("email", "").lower().strip()
     password = data.get("password", "")
+    # "Remember me" → year-long token so coaches/admins on their own device
+    # aren't logged out every 30 days. Unchecked keeps the shorter 30-day window.
+    remember = bool(data.get("remember"))
 
     db = get_db()
     try:
@@ -423,7 +426,7 @@ def login():
         if not bcrypt.checkpw(password.encode(), password_hash.encode()):
             return jsonify({"error": "Invalid credentials"}), 401
 
-        token = make_token(str(user_id), role)
+        token = make_token(str(user_id), role, days=365 if remember else 30)
         return jsonify({
             "token": token,
             "user": {

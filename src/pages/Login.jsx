@@ -23,6 +23,7 @@ export default function Login() {
 
   const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true); // keep coaches/admins signed in ~1yr
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -71,7 +72,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const res = await api.login({ email, password });
+      const res = await api.login({ email, password, remember });
       login(res.user, res.token);
 
       // If they bounced over from /register intending to upgrade to a paid
@@ -150,6 +151,10 @@ export default function Login() {
             <form onSubmit={handleSubmit} style={{ textAlign: 'left', marginTop: '4px' }}>
               <label style={s.label}>Password</label>
               <input style={s.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#555', marginBottom: '14px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+                Keep me signed in on this device
+              </label>
               <button style={{ ...s.btn, background: 'linear-gradient(135deg, #15803d, #0f5c2c)', opacity: loading ? 0.6 : 1 }} disabled={loading} type="submit">
                 {loading ? 'Logging in...' : 'Log in with password'}
               </button>
