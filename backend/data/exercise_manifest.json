@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-01T19:24:02.912Z",
-  "total": 2038,
+  "generated_at": "2026-07-06T02:19:37.977Z",
+  "total": 2062,
   "exercises": [
     {
       "name": "Barbell Bench Press",
@@ -4507,6 +4507,70 @@
       "default_video_uid": "8f577d59cd075fce18777a3d1fff00dc"
     },
     {
+      "name": "Plate Overhead Split Squat",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "7e0bf3fe1c7777440aaa80d3b81f8e70"
+    },
+    {
+      "name": "Squat and Reach Up side to side",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a0f9c4c56adc7d2087cc8f3cc288c31e"
+    },
+    {
+      "name": "Glute Extension Reach Backs",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a4b312df06a0fbc0fd99b1a66bc596cc"
+    },
+    {
+      "name": "RDL Hip Openers",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "b2740c6d0521b9104cdfb67223ca46eb"
+    },
+    {
+      "name": "Waiter Hold Opposite Knee Up Balance",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "2bbb25bd8782d6420c3804504b8d33df"
+    },
+    {
+      "name": "Standing Hip Circles with Balance",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "5a318a85f538e66f960d54ae97ca5216"
+    },
+    {
+      "name": "Band Single Leg Hamstring Curl",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "6d904adac77f96cd9f8d0abd44c356b5"
+    },
+    {
+      "name": "Dumbbell Step Behind Curtsy Lunge",
+      "category": "Legs",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "0d5d027e6dc03dcdee371c981e09601a"
+    },
+    {
       "name": "Assisted Single Leg Squat",
       "category": "Legs",
       "subcategory": "Functional",
@@ -6883,6 +6947,38 @@
       "default_video_uid": "dc263ae757d075c89ac6659dc516e8f5"
     },
     {
+      "name": "GHR Side Crunch Hold",
+      "category": "Core",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "dd3805fe926050455c9cfe2f23e31836"
+    },
+    {
+      "name": "Half Kneeling Plate Chop",
+      "category": "Core",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "4331c6b61d6407545f2cf075262b5eab"
+    },
+    {
+      "name": "Plank Toe Touch opposite hand to foot",
+      "category": "Core",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "7af594ef784596c80c4bdbf5387374b7"
+    },
+    {
+      "name": "Band Pallof Press Circles",
+      "category": "Core",
+      "subcategory": "Functional",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "55ceb8e7a4131d8a7ef9c448bf63b3ce"
+    },
+    {
       "name": "Clean and Jerk",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
@@ -6935,32 +7031,32 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "66f0ecbe8e492c9f85703cdb18c79c96"
     },
     {
       "name": "DT Complex",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "6a97f3d3088f92b5f72ca193f8cf2b2d"
     },
     {
       "name": "Barbell Cluster (Clean + Thruster)",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "706e790bd178b9cbf28899c9a71def5d"
     },
     {
       "name": "Barbell Ground to Overhead",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "216ae71c3ede70072cacb159cf82925c"
     },
     {
       "name": "Barbell Complex (Deadlift + Hang Clean + Push Press)",
@@ -6975,32 +7071,32 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b2b36a9ac5efadcc39b83a79cc57d98c"
     },
     {
       "name": "Barbell Squat Clean Thruster",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "2b5f9600c1cb33b36ac13984b4da50ec"
     },
     {
       "name": "Barbell Front Squat + Push Jerk",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "5b58767c6349fa7762f25a3ae62eb8c8"
     },
     {
       "name": "Barbell Overhead Walking Lunge",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "d3edd1900a7137d19446aa6e883004c4"
     },
     {
       "name": "Barbell Power Clean + Front Squat",
@@ -7023,16 +7119,16 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "bb1d8805ba66f88def2ca9c5beca7597"
     },
     {
       "name": "Barbell Clean + Overhead Squat",
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "69ee9c11b9ffb24f954871519bcfad6e"
     },
     {
       "name": "Barbell Complex (Row + Clean + Push Press)",
@@ -7047,8 +7143,8 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "69effed54cc7f3e7b1c5f825520f0b91"
     },
     {
       "name": "Barbell Complex (Deadlift + Shrug + Clean)",
@@ -7063,8 +7159,8 @@
       "category": "Tactical",
       "subcategory": "Barbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "a8bc519dc3c1421a0bf15e8bcd2efe10"
     },
     {
       "name": "Barbell Complex (Front Squat + Push Press + Back Squat)",
@@ -7135,80 +7231,80 @@
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b78632753c9593c996e6c65e394b756b"
     },
     {
       "name": "Man Makers",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "9117630dbeacd8f54d7451759e24f549"
     },
     {
       "name": "Dumbbell Snatch",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "ef92f6768ed10385cf9b75fc7594aa5f"
     },
     {
       "name": "Dumbbell Clean + Push Press",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "4a62f894668a460ce7eb3ebf97d9f690"
     },
     {
       "name": "Dumbbell Squat Clean Thruster",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "ad8abf30199ff1967f680ee11f5ff72f"
     },
     {
       "name": "Dumbbell Hang Clean + Front Squat",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "9baf47ba823e01ce9b10cd6d956f839b"
     },
     {
       "name": "Dumbbell Lunge + Curl + Press",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "1736a44b124be45e562e60fe9db729fb"
     },
     {
       "name": "Dumbbell Ground to Overhead",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "be5595c866b6e3c9c88f978c8341c205"
     },
     {
       "name": "Dumbbell Bear Complex",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "d68256ca0046514570ff9df660379a7c"
     },
     {
       "name": "Dumbbell Snatch Alternating",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "83f5a8b952182a28c8d23c3c660521a8"
     },
     {
       "name": "Dumbbell Renegade Clean",
@@ -7223,8 +7319,8 @@
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "13dbc70574309d93068c6d3df2dcfeec"
     },
     {
       "name": "Dumbbell Complex (RDL + Row + Clean)",
@@ -7271,40 +7367,88 @@
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "aecf80affba61778a8151c7a52ead6df"
     },
     {
       "name": "Dumbbell Step-Up to Press",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "8ae135fef6cfcbe184c170fa0466ac89"
     },
     {
       "name": "Dumbbell Squat Clean + Push Press",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "826177f9971f9ab13c92bc47e629db8a"
     },
     {
       "name": "Dumbbell Ground Flow Complex",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "15d2834b8877d1b537919292f332f051"
     },
     {
       "name": "Dumbbell Burpee Clean",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "999b37073663341c8f02f845de8a78b2"
+    },
+    {
+      "name": "Dumbbell Reverse Lunge + Curl + Press",
+      "category": "Tactical",
+      "subcategory": "Dumbbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "83989445104170c35d1873a68795133e"
+    },
+    {
+      "name": "Dumbbell Hang Clean 1-1-Double",
+      "category": "Tactical",
+      "subcategory": "Dumbbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "25d67b0fdbd0e84ceba553bd67544f27"
+    },
+    {
+      "name": "Dumbbell Cluster (Clean + Hang Clean + Snatch + Hang Snatch)",
+      "category": "Tactical",
+      "subcategory": "Dumbbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "af30d20cb10d0fd10d95b46ac335cc2d"
+    },
+    {
+      "name": "Dumbbell Walking Lunge + Curl + Press",
+      "category": "Tactical",
+      "subcategory": "Dumbbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "54318e5b4834c2d03557098285f2ba8f"
+    },
+    {
+      "name": "Dumbbell Lunge Matrix + Curl + Press",
+      "category": "Tactical",
+      "subcategory": "Dumbbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "296108cb0283183e864d4d55d4af8248"
+    },
+    {
+      "name": "Dumbbell Reverse Lunge + Step-Up to Press",
+      "category": "Tactical",
+      "subcategory": "Dumbbell Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "a649909e84a1d21b69f10fb1d7efb201"
     },
     {
       "name": "Kettlebell Thruster",
@@ -7479,8 +7623,8 @@
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "9fd6b85548a59577847c191b57121f09"
     },
     {
       "name": "Sandbag Clean",
@@ -7503,16 +7647,16 @@
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "09b89b106dc588c55e689feb6ef9af89"
     },
     {
       "name": "Bear Crawl + Sprint",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "6ba46a882aaa5d06d084f82c7793b9e2"
     },
     {
       "name": "Wall Ball + Burpee",
@@ -7535,8 +7679,8 @@
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "c87385188225b9b81e6403c679c2aed1"
     },
     {
       "name": "Sled Push",
@@ -7551,64 +7695,112 @@
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b47259b3a73f3aeffb893aa8621d5fa6"
     },
     {
-      "name": "Battle Rope Slams",
+      "name": "Battle Rope Slams Alternating",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "847a2b464779cc3a88c7b7ac97212621"
     },
     {
-      "name": "Battle Rope + Squat Combo",
+      "name": "Battle Rope Slams Alternating + Burpee",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "3b9e154f71bd5a94e70ddad4bddecc6d"
+    },
+    {
+      "name": "Battle Rope Slams Double Arm",
+      "category": "Tactical",
+      "subcategory": "Functional Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "859c9978ce1eed6d7e34bf06ac192fa7"
+    },
+    {
+      "name": "Battle Rope Slams Double + Burpee",
+      "category": "Tactical",
+      "subcategory": "Functional Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "491d96438a45d114acbf15045401f12e"
+    },
+    {
+      "name": "Battle Rope Slams + Squats",
+      "category": "Tactical",
+      "subcategory": "Functional Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "bc8b4181bf2b2ec4b05aa6919d51bd05"
+    },
+    {
+      "name": "Battle Rope Slams + Lateral Lunge",
+      "category": "Tactical",
+      "subcategory": "Functional Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "5ef8ddd224e710504077bcf61d1bf6c3"
+    },
+    {
+      "name": "Battle Rope Slams + Reverse Lunge",
+      "category": "Tactical",
+      "subcategory": "Functional Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "be3cdbdcda5f36e8a64322456f998372"
+    },
+    {
+      "name": "Double Battle Rope Slams + Squats",
+      "category": "Tactical",
+      "subcategory": "Functional Complexes",
+      "source_library": "exerciseLibrary",
+      "has_default_video": true,
+      "default_video_uid": "4865fceb0f461967175e00e06430ca0a"
     },
     {
       "name": "Medicine Ball Clean",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "97c020bb91daf0dd018143382d5d6050"
     },
     {
       "name": "Medicine Ball Slam + Sprint",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "4f0ed45b74c943ec7c03468b29a058cd"
     },
     {
       "name": "Ground-to-Shoulder Sandbag",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "deffd4a5d16d5cd551a7f620fe146644"
     },
     {
       "name": "Tire Flip",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "872859b731cc8d6343a05af510164fdd"
     },
     {
       "name": "Tire Flip + Jump In",
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "03c96ce0da7906926daed6d511f90d57"
     },
     {
       "name": "Stair Sprint Intervals",
@@ -7623,8 +7815,8 @@
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "35919ef88162e09644e3bb5b241542cb"
     },
     {
       "name": "Burpee + Box Jump",
