@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
@@ -30,6 +30,17 @@ export default function Login() {
 
   const [magicMsg, setMagicMsg] = useState('');
   const [magicLoading, setMagicLoading] = useState(false);
+
+  // Set by api.jsx when a request 401s with a token present (session expired /
+  // token invalidated). Show a friendly note so a normal expiry doesn't read as
+  // a scary "authentication required" failure.
+  const [sessionExpired, setSessionExpired] = useState(false);
+  useEffect(() => {
+    if (sessionStorage.getItem('bsa_session_expired')) {
+      setSessionExpired(true);
+      sessionStorage.removeItem('bsa_session_expired');
+    }
+  }, []);
   // Password login is secondary now (coaches/admins or anyone who set one).
   // Members / 1-on-1 clients have no password, so the email sign-in link leads.
   const [showPassword, setShowPassword] = useState(false);
@@ -83,6 +94,16 @@ export default function Login() {
       <div style={s.card}>
         <h1 style={s.title}>Welcome Back</h1>
         <p style={s.subtitle}>Enter your email — we’ll send you a one-tap sign-in link. No password needed.</p>
+
+        {sessionExpired && (
+          <div style={{
+            background: '#fffbeb', border: '1px solid #fcd34d',
+            color: '#92400e', padding: '12px 14px', borderRadius: '10px',
+            fontSize: '13px', marginBottom: '16px', lineHeight: 1.5, textAlign: 'center',
+          }}>
+            Your session expired — please sign in again to pick up where you left off.
+          </div>
+        )}
 
         {reason === 'upgrade' && (
           <div style={{

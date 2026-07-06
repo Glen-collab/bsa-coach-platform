@@ -8,6 +8,20 @@ async function request(endpoint, options = {}) {
   const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
   const data = await res.json();
   if (!res.ok) {
+    // Expired/invalid session: if we SENT a token and the server rejected it
+    // (401), the cached login is dead. The app otherwise keeps rendering the
+    // dashboard off the cached `bsa_user` and every call fails with a scary
+    // "authentication required". Clear the dead session and bounce to /login
+    // with a friendly note instead. Guard on `token` so a failed login attempt
+    // (no token yet) doesn't redirect-loop.
+    if (res.status === 401 && token) {
+      localStorage.removeItem('bsa_token');
+      localStorage.removeItem('bsa_user');
+      try { sessionStorage.setItem('bsa_session_expired', '1'); } catch {}
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.assign('/login');
+      }
+    }
     // Throw with the friendly message but attach the raw payload + a code so
     // callers can branch on structured error responses (e.g. account_exists).
     const err = new Error(data.message || data.error || 'Request failed');
