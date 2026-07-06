@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-06T02:31:33.359Z",
+  "generated_at": "2026-07-06T15:27:20.281Z",
   "total": 2061,
   "exercises": [
     {
@@ -7327,32 +7327,32 @@
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "ed8fe7055b128b9aa3d0292852ab412d"
     },
     {
       "name": "Dumbbell Overhead Walking Lunge",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "ceb09f24f0a5152103303bda830176e0"
     },
     {
       "name": "Dumbbell Farmer Carry into Thruster",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "e6809216fb53cb91bfc558d2920864e3"
     },
     {
       "name": "Dumbbell Power Clean + Push Jerk",
       "category": "Tactical",
       "subcategory": "Dumbbell Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "79ccbdb5275102798e509f568f7be47f"
     },
     {
       "name": "Dumbbell Lunge Matrix",
@@ -7679,8 +7679,8 @@
       "category": "Tactical",
       "subcategory": "Functional Complexes",
       "source_library": "exerciseLibrary",
-      "has_default_video": false,
-      "default_video_uid": null
+      "has_default_video": true,
+      "default_video_uid": "b893afb70b315a1c4e1386e68384439c"
     },
     {
       "name": "Sled Push + Sprint",
