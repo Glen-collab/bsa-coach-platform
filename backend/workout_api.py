@@ -440,6 +440,10 @@ def load_program():
                     # engine — the tracker computes each kid's target from these.
                     "sprintPBs": (position.get("sprint_pbs") if isinstance(position.get("sprint_pbs"), dict)
                                   else (json.loads(position["sprint_pbs"]) if position.get("sprint_pbs") else {})),
+                    # Per-athlete persisted exercise swaps (prescribed name → substitute
+                    # {name, video, sets, reps}). Re-applied to every week on load.
+                    "exerciseSwaps": (position.get("exercise_swaps") if isinstance(position.get("exercise_swaps"), dict)
+                                      else (json.loads(position["exercise_swaps"]) if position.get("exercise_swaps") else {})),
                     "cumulativeWeeks": user_cumulative_weeks,
                     "questionnaireCompleted": bool(position.get("questionnaire_completed")),
                     "consentAccepted": bool(position.get("consent_accepted")),
@@ -1436,6 +1440,25 @@ def update_user_stats():
     if isinstance(sprint_pbs, dict) and sprint_pbs:
         set_clauses.append("sprint_pbs = COALESCE(sprint_pbs, '{}'::jsonb) || %s::jsonb")
         params.append(json.dumps(sprint_pbs))
+
+    # Exercise swaps — persist a client's substitute per prescribed movement so
+    # it carries across weeks. Keyed by lowercased prescribed name. A truthy
+    # object value SETS the swap (merged); a null/false value REVERTS (removes
+    # the key) so "reset to prescribed" sticks too. Both happen in one update.
+    exercise_swaps = data.get("exerciseSwaps")
+    if isinstance(exercise_swaps, dict) and exercise_swaps:
+        to_set = {k: v for k, v in exercise_swaps.items() if v}
+        to_remove = [k for k, v in exercise_swaps.items() if not v]
+        expr = "COALESCE(exercise_swaps, '{}'::jsonb)"
+        expr_params = []
+        if to_set:
+            expr += " || %s::jsonb"
+            expr_params.append(json.dumps(to_set))
+        for k in to_remove:
+            expr += " - %s"
+            expr_params.append(k)
+        set_clauses.append(f"exercise_swaps = {expr}")
+        params.extend(expr_params)
 
     if not set_clauses:
         return jsonify({"success": True, "updated": 0})
