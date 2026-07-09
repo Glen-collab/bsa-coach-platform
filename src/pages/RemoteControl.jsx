@@ -41,6 +41,20 @@ const buildStyles = (isMobile) => ({
     padding: '18px 20px', marginBottom: '20px',
   },
   deviceName: { fontSize: '13px', color: 'rgba(255,255,255,0.55)', marginBottom: '4px' },
+  switchLabel: {
+    fontSize: '11px', color: 'rgba(255,255,255,0.45)', fontWeight: 700,
+    textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px',
+  },
+  deviceSelect: {
+    width: '100%', boxSizing: 'border-box',
+    background: 'rgba(255,255,255,0.09)', border: '1px solid rgba(255,255,255,0.2)',
+    borderRadius: '10px', color: '#fff', fontSize: '15px', fontWeight: 700,
+    padding: '10px 12px', marginBottom: '12px', cursor: 'pointer',
+    appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+    backgroundImage: 'linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.6) 50%), linear-gradient(135deg, rgba(255,255,255,0.6) 50%, transparent 50%)',
+    backgroundPosition: 'calc(100% - 18px) 50%, calc(100% - 13px) 50%',
+    backgroundSize: '5px 5px, 5px 5px', backgroundRepeat: 'no-repeat',
+  },
   programName: { fontSize: '22px', fontWeight: '800', color: '#fff', lineHeight: '1.2' },
   programCode: {
     fontSize: '12px', color: 'rgba(255,255,255,0.5)',
@@ -175,6 +189,10 @@ export default function RemoteControl() {
   const s = buildStyles(isMobile);
 
   const [device, setDevice] = useState(null);
+  // Full device list so the coach can jump TV→TV right from the remote (no
+  // round-trip back to "Your Devices"). Every gym TV's remote can retarget any
+  // other device via the header dropdown.
+  const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   // Available leaderboard metrics + groups + years — fetched directly
@@ -192,11 +210,14 @@ export default function RemoteControl() {
   const load = useCallback(async () => {
     try {
       const r = await api.kioskMyDevices();
-      const found = (r.devices || []).find((d) => String(d.id) === String(deviceId));
+      const list = r.devices || [];
+      setDevices(list);
+      const found = list.find((d) => String(d.id) === String(deviceId));
       if (!found) {
         setErr('Device not found.');
       } else {
         setDevice(found);
+        setErr('');
       }
     } catch (e) {
       setErr(e.message || 'Failed to load device.');
@@ -346,7 +367,24 @@ export default function RemoteControl() {
       {err && <div style={s.errorBox}>{err}</div>}
 
       <div style={s.hero}>
-        <div style={s.deviceName}>{device?.display_name || 'Device'}</div>
+        {devices.length > 1 ? (
+          <>
+            <div style={s.switchLabel}>📺 Controlling — tap to switch TV</div>
+            <select
+              value={String(deviceId)}
+              onChange={(e) => navigate(`/gym-tv/remote/${e.target.value}`)}
+              style={s.deviceSelect}
+            >
+              {devices.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.display_name}{d.program_name ? ` — ${d.program_name}` : ' — (no program)'}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <div style={s.deviceName}>{device?.display_name || 'Device'}</div>
+        )}
         {device?.program_name ? (
           <>
             <div style={s.programName}>
