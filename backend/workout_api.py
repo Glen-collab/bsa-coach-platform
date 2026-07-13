@@ -1046,25 +1046,27 @@ def bodyweight_history():
         return "", 200
     data = request.json or {}
     email = (data.get("email") or "").lower().strip()
-    code = (data.get("code") or "").strip()
-    if not email or not code:
-        return jsonify({"success": False, "message": "email and code required"}), 400
+    if not email:
+        return jsonify({"success": False, "message": "email required"}), 400
     db = get_db()
     try:
         cur = db.cursor()
-        # DISTINCT ON (workout_date) → one point per calendar day (the most
-        # recently logged that day), then order oldest→newest for the chart.
+        # Keyed by the CLIENT (email) across ALL their programs — a person's
+        # bodyweight is theirs regardless of which program code they're on, so
+        # the trend carries program→program and keeps building instead of
+        # resetting each new program. DISTINCT ON (workout_date) → one point per
+        # calendar day (the most recently logged that day), oldest→newest.
         cur.execute("""
             SELECT date, weight, week_number, day_number FROM (
                 SELECT DISTINCT ON (workout_date)
                        workout_date AS date, body_weight_lbs AS weight,
                        week_number, day_number, created_at
                 FROM workout_logs
-                WHERE access_code = %s AND LOWER(user_email) = LOWER(%s)
+                WHERE LOWER(user_email) = LOWER(%s)
                   AND body_weight_lbs IS NOT NULL AND workout_date IS NOT NULL
                 ORDER BY workout_date, created_at DESC
             ) t ORDER BY date
-        """, (code, email))
+        """, (email,))
         rows = cur.fetchall()
         out = [{
             "date": (r["date"].isoformat() if r["date"] else None),
