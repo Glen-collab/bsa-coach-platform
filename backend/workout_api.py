@@ -751,11 +751,12 @@ def log_workout():
 
         # Check for duplicate
         cur.execute("""
-            SELECT id FROM workout_logs
+            SELECT id, created_at FROM workout_logs
             WHERE access_code = %s AND user_email = %s AND week_number = %s AND day_number = %s
         """, (code, email, week, day))
         existing = cur.fetchone()
         is_relog = existing is not None
+        existing_created_at = existing["created_at"] if existing else None
 
         # Get 1RMs
         bench = data.get("one_rm_bench", 0)
@@ -865,11 +866,21 @@ def log_workout():
         cardio_min = vs.get("cardio_minutes", 0)
 
         # Coach confirmation email. Fresh logs always notify. 1-on-1 sessions
-        # (advance_position == False) ALSO notify on a re-log — re-logging the
-        # same week/day is normal in 1-on-1, and the trainer wants a clear "it
-        # sent" confirmation every session. Only a self-serve client's
-        # accidental double-submit (advance + re-log) stays suppressed.
-        if (not is_relog) or (not advance_position):
+        # (advance_position == False) ALSO notify on every re-log. For a
+        # self-serve client's re-log we now DO notify (subject says
+        # "Re-Logged" so the coach knows where the client is at) — EXCEPT an
+        # accidental rapid double-submit: if the day was first logged only
+        # moments ago, stay silent. A genuine re-log of an old/prior day
+        # (minutes-to-months later) always sends.
+        recent_double_submit = False
+        if is_relog and advance_position and existing_created_at is not None:
+            from datetime import datetime, timezone
+            ec = existing_created_at
+            if ec.tzinfo is None:
+                ec = ec.replace(tzinfo=timezone.utc)
+            recent_double_submit = (datetime.now(timezone.utc) - ec).total_seconds() < 900  # 15 min
+
+        if not recent_double_submit:
             # Belt info
             belt_names = ["White", "White", "White", "White", "White",
                           "Yellow", "Yellow", "Yellow", "Yellow", "Yellow",
