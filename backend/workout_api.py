@@ -234,7 +234,7 @@ def load_program():
                                 "success": False,
                                 "payment_required": True,
                                 "message": "Your free trial has ended. Subscribe to continue accessing your workout programs!",
-                                "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=basic",
+                                "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=tracker",
                             }), 403
                         grace_days_remaining = max(0, (trial_end - now).days)
                 else:
@@ -243,7 +243,7 @@ def load_program():
                         "success": False,
                         "payment_required": True,
                         "message": "A subscription is required to access workout programs. Please subscribe to get started!",
-                        "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=basic",
+                        "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=tracker",
                     }), 403
 
             elif has_logs and bsa_user:
@@ -260,7 +260,7 @@ def load_program():
                             "success": False,
                             "payment_required": True,
                             "message": "Your free trial has ended. Subscribe to continue accessing your workout programs!",
-                            "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=basic",
+                            "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=tracker",
                         }), 403
                     grace_days_remaining = max(0, (grace_end - now).days)
                 elif not survey_done and dismiss_count < 3:
