@@ -746,8 +746,19 @@ def magic_link_request():
         )
         db.commit()
 
+        # Carry an upgrade intent through the email hop. When a member bounces
+        # from the paywall to /login?tier=tracker and uses the passwordless link
+        # (members have no password, so this IS their path), the tier would
+        # otherwise be lost and they'd land on the dashboard with no checkout.
+        # Bake it into the link so /magic can resume checkout after sign-in.
+        upgrade = (data.get("upgrade") or "").strip().lower()
+        if upgrade not in ("tracker", "basic", "coached", "elite"):
+            upgrade = ""
+
         if dest == "app":
             link = f"{APP_URL}/magic?token={token}"
+            if upgrade:
+                link += f"&upgrade={upgrade}"
             subject = "Sign in to your dashboard"
             html = f"""
               <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:24px;">

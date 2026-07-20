@@ -53,10 +53,15 @@ export default function Login() {
     if (!email) { setError('Enter your email above first.'); return; }
     setError(''); setMagicMsg(''); setMagicLoading(true);
     try {
+      // Carry the upgrade intent through the emailed link so a member who
+      // bounced here to subscribe lands back on checkout after signing in,
+      // instead of dead-ending on the dashboard.
+      const wantsUpgrade = reason === 'upgrade' && tier &&
+        ['tracker', 'basic', 'coached', 'elite'].includes(tier);
       const res = await fetch('/api/auth/magic-link/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, dest: 'app' }),
+        body: JSON.stringify({ email, dest: 'app', ...(wantsUpgrade ? { upgrade: tier } : {}) }),
       });
       const data = await res.json();
       if (res.ok && data.success) setMagicMsg(`Check ${email} for a sign-in link.`);

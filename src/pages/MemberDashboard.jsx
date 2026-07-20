@@ -127,6 +127,21 @@ export default function MemberDashboard() {
     setUpgrading(false);
   };
 
+  // Resume a checkout the member began before signing in. The paywall →
+  // /login?tier=X → magic-link path lands here as ?upgrade=X; send them
+  // straight to Stripe. Strip the param first so a refresh won't re-fire.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const upgrade = params.get('upgrade');
+    if (upgrade && ['tracker', 'basic', 'coached', 'elite'].includes(upgrade)) {
+      params.delete('upgrade');
+      const qs = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+      handleUpgrade(upgrade);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Build tracker URL with email + name + access_code prepopulated.
   // Tracker reads ?email=&code=&name= and auto-loads the program when
   // both email + code are present.

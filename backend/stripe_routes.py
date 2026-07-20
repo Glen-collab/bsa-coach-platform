@@ -179,23 +179,27 @@ def create_checkout():
     if not PRICE_IDS[tier]:
         return jsonify({"error": f"{tier} price not configured on server (STRIPE_PRICE_{tier.upper()} missing)"}), 500
 
-    # If no coach_id, check who referred this user
+    # Look up the referring coach (for commissions) and the member's existing
+    # Stripe customer id (so a tier change reuses the same customer instead of
+    # spawning a duplicate — and so the downgrade cleanup can find their old sub).
     db = get_db()
-    if not coach_id:
-        try:
-            with db.cursor() as cur:
-                cur.execute("SELECT referred_by_id FROM users WHERE id = %s", (user_id,))
-                row = cur.fetchone()
-                if row and row[0]:
+    stripe_customer_id = None
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT referred_by_id, stripe_customer_id FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            if row:
+                if not coach_id and row[0]:
                     coach_id = str(row[0])
-        except Exception:
-            pass
+                stripe_customer_id = row[1]
+    except Exception:
+        pass
     db.close()
 
     app_url = os.environ.get('APP_URL', 'https://app.bestrongagain.com')
 
     try:
-        session = stripe.checkout.Session.create(
+        session_kwargs = dict(
             payment_method_types=["card"],
             mode="subscription",
             line_items=[{
@@ -210,6 +214,10 @@ def create_checkout():
                 "tier": tier
             }
         )
+        # Reuse the existing customer on a repeat/downgrade purchase.
+        if stripe_customer_id:
+            session_kwargs["customer"] = stripe_customer_id
+        session = stripe.checkout.Session.create(**session_kwargs)
     except stripe.error.StripeError as e:
         return jsonify({"error": f"Stripe: {str(e)}"}), 400
 
@@ -369,6 +377,32 @@ def handle_checkout_completed(session, db):
         """, (DEFAULT_PROGRAM_ACCESS_CODE, user_id))
 
         db.commit()
+
+    # Tier change / downgrade cleanup. This checkout created a NEW subscription.
+    # If the member already had a DIFFERENT active subscription (e.g. the $20
+    # basic they're dropping from), cancel it in Stripe and mark it cancelled so
+    # they end up with exactly one active sub — never billed for both. Runs
+    # after the main commit so a Stripe hiccup can't roll back provisioning.
+    try:
+        with db.cursor() as cur:
+            cur.execute("""
+                SELECT id, stripe_subscription_id FROM subscriptions
+                WHERE user_id = %s AND status = 'active'
+                  AND stripe_subscription_id IS NOT NULL
+                  AND stripe_subscription_id != %s
+            """, (user_id, stripe_sub_id))
+            old_subs = cur.fetchall()
+            for old_id, old_stripe_id in old_subs:
+                try:
+                    stripe.Subscription.delete(old_stripe_id)
+                except stripe.error.StripeError:
+                    pass  # already cancelled/gone on Stripe's side — still mark it
+                cur.execute(
+                    "UPDATE subscriptions SET status = 'cancelled' WHERE id = %s",
+                    (old_id,))
+            db.commit()
+    except Exception:
+        pass
 
     # Send subscription confirmation email to the user. Pass the actual
     # assigned program's access code so the email matches what the

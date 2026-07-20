@@ -26,7 +26,12 @@ export default function MagicLogin() {
         if (cancelled) return;
         if (res.ok && data.success && data.token) {
           login(data.user, data.token);
-          navigate(data.user?.role === 'member' ? '/member' : '/dashboard', { replace: true });
+          // Carry an upgrade intent (from the paywall → login → magic-link
+          // path) into the dashboard so it can resume Stripe checkout.
+          const upgrade = params.get('upgrade');
+          const validUpgrade = ['tracker', 'basic', 'coached', 'elite'].includes(upgrade);
+          const dest = data.user?.role === 'member' ? '/member' : '/dashboard';
+          navigate(validUpgrade ? `${dest}?upgrade=${upgrade}` : dest, { replace: true });
         } else {
           setError(data.error || 'This link has expired. Ask your trainer to resend it.');
         }
