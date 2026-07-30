@@ -201,6 +201,50 @@ print("    That is Drew's exact situation today — approved, selling, unpayable
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+print("SCENARIO 6 — Blake's mixed book: 10 flyer clients at $15 AND")
+print("             5 coached clients at $200. Katie referred him.\n")
+# ═════════════════════════════════════════════════════════════════════════════
+
+blake3 = mkuser("Blake3", "Mixed", "coach", katie)
+b3 = k3 = bsa3 = 0
+for i in range(10):
+    r, _ = sell(blake3, 1500, f"F{i}")
+    b3 += earned(r, blake3); k3 += earned(r, katie); bsa3 += earned(r, "PLATFORM")
+for i in range(5):
+    r, _ = sell(blake3, 20000, f"P{i}")
+    b3 += earned(r, blake3); k3 += earned(r, katie); bsa3 += earned(r, "PLATFORM")
+
+gross3 = 10 * 1500 + 5 * 20000
+check("Blake's monthly gross", gross3, 115000)
+check("Blake keeps 80% of first $100, 70% of the rest", b3, 8000 + int(105000 * 0.70))
+check("Katie's 10% of everything Blake sells", k3, 11500)
+check("BSA keeps the remainder", bsa3, gross3 - b3 - k3)
+check("reconciles to the gross exactly", b3 + k3 + bsa3, gross3)
+
+# 15 charges: 10 small, 5 large. Stripe is 2.9% + 30c on each.
+stripe3 = round(10 * (1500 * 0.029 + 30) + 5 * (20000 * 0.029 + 30))
+check("BSA after Stripe's cut", bsa3 - stripe3, 22000 - 3785)
+
+# The per-active-client minimum is nowhere near binding here.
+mplan = build_settlement(blake3, db)
+check("15 active clients would owe a $30 minimum", 15 * ACTIVE_CLIENT_MIN_CENTS, 3000)
+check("but BSA's real share dwarfs it, so nothing is added",
+      mplan["shortfall_cents"], 0)
+
+print(f"""
+    Gross        {D(gross3)}
+    Blake        {D(b3)}
+    Katie        {D(k3)}
+    BSA          {D(bsa3)}  (before Stripe)
+    Stripe       {D(stripe3)}
+    BSA net      {D(bsa3 - stripe3)}
+
+    The 5 coached clients are 87% of the revenue. The flyer tier is the
+    on-ramp; the $200 clients are where the money actually is.
+""")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 _real.rollback()
 cur.execute("SELECT COUNT(*) FROM users WHERE email LIKE '%%@test.invalid'")
 leaked = cur.fetchone()[0]
