@@ -8,6 +8,7 @@ import os
 import json
 import random
 from email_helper import notify_coach_approved, notify_coach_denied
+from auth import get_current_user
 
 
 def _gen_unique_access_code(cur):
@@ -21,6 +22,32 @@ def _gen_unique_access_code(cur):
     return f"{random.randint(10000, 99999)}"
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.before_request
+def _require_admin():
+    """
+    Gate EVERY /api/admin/* route behind an admin JWT.
+
+    These routes were completely unauthenticated. An anonymous request could
+    read business metrics (MRR, member and coach counts) and, far worse, POST
+    to members/delete, members/deactivate, coach-applications/<id>/approve,
+    videos/<id>/approve and coaches/<a>/transfer-to/<b>. Self-approving as a
+    coach also meant inserting yourself into the commission tree.
+
+    Deliberately a before_request on the blueprint rather than a decorator on
+    each route: a new admin route added later is protected by default instead
+    of only when somebody remembers the decorator.
+    """
+    if request.method == "OPTIONS":
+        return None
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "Authentication required"}), 401
+    if user.get("role") != "admin":
+        return jsonify({"error": "Admin access required"}), 403
+    request.current_user = user
+    return None
 
 
 def get_db():
