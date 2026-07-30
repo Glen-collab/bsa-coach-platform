@@ -26,7 +26,7 @@ Single source of truth for how the four BSA repos connect. Read this first when 
 │ (coaches: build     │   │ (coaches:     │   │ (clients: log   │
 │  multi-week programs│   │  manage       │   │  workouts; also │
 │  — source of truth  │   │  clients,     │   │  /tv kiosk for  │
-│  for the 1872       │   │  send codes,  │   │  gym TVs; also  │
+│  for the 2060       │   │  send codes,  │   │  gym TVs; also  │
 │  exercise libs)     │   │  edit programs│   │  /kiosk for     │
 │                     │   │  in override  │   │  tablet picker) │
 │ React + Netlify     │   │  mode)        │   │                 │
@@ -53,7 +53,7 @@ Single source of truth for how the four BSA repos connect. Read this first when 
 | Admin management UI | bsa-coach-platform | `src/pages/AdminDashboard.jsx` |
 | Coach-proposed custom exercises | bsa-coach-platform | `backend/media.py` + `src/pages/AdminDashboard.jsx` (Exercise Requests tab) |
 | Video upload + override system | bsa-coach-platform | `backend/media.py` + `src/pages/MediaLibrary.jsx` |
-| Bundled exercise libraries (1872) | workoutbuilder | `src/data/exerciseLibrary.js`, `martialArtsLibrary.js`, `mobilityExercises.js`, `warmupExercises.js` |
+| Bundled exercise libraries (2060) | workoutbuilder | `src/data/exerciseLibrary.js`, `martialArtsLibrary.js`, `mobilityExercises.js`, `warmupExercises.js` |
 | Program builder UI | workoutbuilder | `src/components/builder/` |
 | Travel workout system | workoutbuilder | `src/components/programs/ManageTravelWorkouts.jsx` |
 | Access-code client UX | WorkoutTracker | `src/components/access/` |
@@ -63,19 +63,21 @@ Single source of truth for how the four BSA repos connect. Read this first when 
 | Pain management chatbot | WorkoutTracker | `src/components/chatbot/WorkoutChatbot.jsx` |
 | Gym TV kiosk (`/tv`, `/tv/static`) | WorkoutTracker | `src/components/tv/TVScreen.jsx`, `TVStatic.jsx` |
 | Tablet kiosk (`/kiosk`) | WorkoutTracker | `src/components/kiosk/KioskScreen.jsx` |
-| Coach client list + send code | react-trainer-dashboard | `src/pages/*` |
+| Coach client list + send code | react-trainer-dashboard | `src/components/clients/` (no `src/pages/` in this repo) |
 | Override mode (coach edits client's program) | react-trainer-dashboard + workoutbuilder | Uses `?mode=override` URL param in builder |
 
 ## Exercise Manifest
 
-The 1872-exercise list in `bsa-coach-platform/src/data/exercise_manifest.json` is **generated from** the four JS files in `workoutbuilder/src/data/`. To regenerate:
+The 2060-exercise list in `bsa-coach-platform/src/data/exercise_manifest.json` is **generated from** the four JS files in `workoutbuilder/src/data/`. To regenerate:
 
 ```
 cd bsa-coach-platform
 node scripts/build_exercise_manifest.js
 ```
 
-The script reads the workoutbuilder JS libraries (must be at `../workoutbuilder-tkd/src/data/` — Glen's desktop clone layout). Any time the workoutbuilder libraries gain/lose exercises, re-run this in `bsa-coach-platform` and commit.
+The script reads the workoutbuilder JS libraries from `../workoutbuilder/src/data/` (sibling checkout of `Glen-collab/workoutbuilder`). Any time the workoutbuilder libraries gain/lose exercises, re-run this in `bsa-coach-platform` and commit.
+
+> **Do not point this at `workoutbuilder-tkd/`.** That desktop folder is a stale second clone of the same repo, months behind `main`. Regenerating from it silently drops every exercise and wired video added since it was last pulled. The script hardcodes the correct sibling path — leave it alone.
 
 ## Video Override Lookup (`/api/media/tracker-overrides`)
 

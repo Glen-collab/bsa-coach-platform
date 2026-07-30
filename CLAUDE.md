@@ -15,7 +15,7 @@ The **central backend + coach dashboard** for the Be Strong Again ecosystem. Eve
 ## Related Repos (BSA Ecosystem)
 
 - **`Glen-collab/bsa-coach-platform`** — (this repo) Central backend + coach dashboard. All other repos hit its Flask API at `app.bestrongagain.com/api/*`.
-- **`Glen-collab/workoutbuilder`** — React app where coaches build multi-week workout programs. Source of the bundled exercise libraries (~1872 exercises across `exerciseLibrary.js`, `martialArtsLibrary.js`, `mobilityExercises.js`, `warmupExercises.js`). Live clone on Glen's Desktop is `workoutbuilder-tkd/`.
+- **`Glen-collab/workoutbuilder`** — React app where coaches build multi-week workout programs. Source of the bundled exercise libraries (2060 exercises across `exerciseLibrary.js`, `martialArtsLibrary.js`, `mobilityExercises.js`, `warmupExercises.js`). The working clone is `workoutbuilder/`. (`workoutbuilder-tkd/` on the Desktop is a stale clone of the same repo — never build the manifest from it.)
 - **`Glen-collab/WorkoutTracker`** — PWA clients use to log workouts. Reads programs from `/api/workout/*`, reads per-coach video overrides from `/api/media/tracker-overrides`, includes the `/tv` kiosk routes (whiteboard + QR landing) used by the Pi-based gym displays.
 - **`Glen-collab/react-trainer-dashboard`** — React app coaches use to manage clients (send access codes via email, view progress, edit programs via override mode). Extracted from the workoutbuilder repo.
 
@@ -58,13 +58,13 @@ src/
     MemberDashboard.jsx   # Client-facing — "Start Your Workout" primary CTA
     CoachDashboard.jsx    # Coach view — clients, tree, earnings, tools buttons
     AdminDashboard.jsx    # Admin (Glen) — overview stats, members, coaches, applications, coach uploads, cloudflare library, exercise requests
-    MediaLibrary.jsx      # Drag-drop video upload for coaches (1872 exercises)
+    MediaLibrary.jsx      # Drag-drop video upload for coaches (2060 exercises)
   components/
     Navbar.jsx
     VideoWaiverModal.jsx  # One-time video use agreement
     ProposeExerciseModal.jsx  # Coach proposes new exercise
   data/
-    exercise_manifest.json    # 1872 exercises flattened (regenerate with scripts/build_exercise_manifest.js)
+    exercise_manifest.json    # 2060 exercises flattened (regenerate with scripts/build_exercise_manifest.js)
 ```
 
 Build: `npm run build` → `dist/` → scp to `/var/www/bestrongagain/` on EC2.
