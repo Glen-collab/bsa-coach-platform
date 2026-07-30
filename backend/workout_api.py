@@ -133,6 +133,163 @@ def send_email(to, subject, html_body, reply_to=None, attachments=None, kind="ot
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# PAYMENT GATE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+SUBSCRIBE_URL = "https://app.bestrongagain.com/register/GLENM7NUS?tier=tracker"
+
+
+def _paywall_denied(message):
+    return jsonify({
+        "success": False,
+        "payment_required": True,
+        "message": message,
+        "subscribe_url": SUBSCRIBE_URL,
+    }), 403
+
+
+def check_payment_access(cur, db, email, data=None, program=None):
+    """
+    Shared payment gate for load-program AND log-workout.
+
+    Returns (denied_response_or_None, survey_available, grace_days_remaining).
+    A non-None first element means the caller must return it immediately.
+
+    Lives in one place deliberately: it used to be inline in load-program
+    only, which meant a client whose PWA had already cached their program
+    could keep logging forever without the gate ever running again.
+    """
+    from datetime import datetime, timezone
+    data = data or {}
+    survey_available = False
+    grace_days_remaining = None
+
+    # TV kiosk + kiosk-station use system emails — always bypass.
+    is_tv_display = email in ('tv-display@bestrongagain.com', 'kiosk@bestrongagain.com')
+    if is_tv_display:
+        return None, survey_available, grace_days_remaining
+
+    cur.execute("""
+        SELECT id, role, grace_period_ends_at, survey_completed_at,
+               survey_dismiss_count, free_trial_ends_at
+        FROM users WHERE LOWER(email) = %s
+    """, (email,))
+    bsa_user = cur.fetchone()
+
+    has_sub = False
+    if bsa_user:
+        cur.execute("""
+            SELECT 1 FROM subscriptions
+            WHERE user_id = %s AND status = 'active'
+            LIMIT 1
+        """, (bsa_user["id"],))
+        has_sub = cur.fetchone() is not None
+    is_privileged = bsa_user and bsa_user["role"] in ("coach", "admin")
+
+    # 1-on-1 clients never see a paywall. They pay the trainer per session in
+    # person and the trainer logs for them; the app is the trainer's clipboard,
+    # not a product these clients bought. The older trainer_bypass below only
+    # fires when the TRAINER is driving (trainer_logging + owning coach code) —
+    # it does nothing when the client opens the app on their own phone, which
+    # is exactly what most of this roster does.
+    cur.execute(
+        "SELECT 1 FROM one_on_one_clients WHERE LOWER(client_email) = %s LIMIT 1",
+        (email,),
+    )
+    is_one_on_one = cur.fetchone() is not None
+
+    # Trainer-logging bypass: in 1-on-1 mode a coach logs ON BEHALF of a
+    # client (who may never have paid for the app). Skip the paywall only
+    # when the request carries trainer_logging + a coach referral code that
+    # actually OWNS this program (built it).
+    trainer_bypass = False
+    if data.get("trainer_logging") and program is not None:
+        coach_code = (data.get("coach") or "").strip().upper()
+        if coach_code:
+            cur.execute(
+                "SELECT email FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin')",
+                (coach_code,),
+            )
+            crow = cur.fetchone()
+            if crow:
+                owner = (crow["email"] or "").lower()
+                prog_owner = (program.get("created_by") or "").lower()
+                prog_trainer = (program.get("optional_trainer_email") or "").lower()
+                if owner and owner in (prog_owner, prog_trainer):
+                    trainer_bypass = True
+
+    if has_sub or is_privileged or is_one_on_one or trainer_bypass:
+        return None, survey_available, grace_days_remaining
+
+    cur.execute("SELECT 1 FROM workout_logs WHERE LOWER(user_email) = %s LIMIT 1", (email,))
+    has_logs = cur.fetchone() is not None
+    now = datetime.now(timezone.utc)
+
+    if not bsa_user:
+        # No BSA account at all — hard block. Previously an account-less email
+        # that already had logs matched neither branch and fell through ungated.
+        return _paywall_denied(
+            "A subscription is required to access workout programs. Please subscribe to get started!"
+        ), survey_available, grace_days_remaining
+
+    if not has_logs:
+        # New user — 1-week free trial
+        trial_end = bsa_user.get("free_trial_ends_at")
+        if trial_end is None:
+            cur.execute("""
+                UPDATE users SET free_trial_ends_at = NOW() + INTERVAL '7 days'
+                WHERE id = %s RETURNING free_trial_ends_at
+            """, (bsa_user["id"],))
+            row = cur.fetchone()
+            db.commit()
+            trial_end = row["free_trial_ends_at"] if row else None
+        if trial_end:
+            if hasattr(trial_end, 'tzinfo') and trial_end.tzinfo is None:
+                trial_end = trial_end.replace(tzinfo=timezone.utc)
+            if now >= trial_end:
+                return _paywall_denied(
+                    "Your free trial has ended. Subscribe to continue accessing your workout programs!"
+                ), survey_available, grace_days_remaining
+            grace_days_remaining = max(0, (trial_end - now).days)
+        return None, survey_available, grace_days_remaining
+
+    # Existing client — 2-week grace period.
+    grace_end = bsa_user.get("grace_period_ends_at")
+    survey_done = bsa_user.get("survey_completed_at") is not None
+    dismiss_count = bsa_user.get("survey_dismiss_count") or 0
+
+    if grace_end is None:
+        # Start the clock on FIRST SIGHT, not on survey interaction. It used to
+        # start only when the survey was completed or dismissed 3 times, so a
+        # client who simply ignored the survey kept free access indefinitely —
+        # dismiss_count stayed 0 and the countdown never began.
+        cur.execute("""
+            UPDATE users SET grace_period_ends_at = NOW() + INTERVAL '2 weeks'
+            WHERE id = %s RETURNING grace_period_ends_at
+        """, (bsa_user["id"],))
+        row = cur.fetchone()
+        db.commit()
+        grace_end = row["grace_period_ends_at"] if row else None
+        if grace_end:
+            grace_days_remaining = 14
+        if not survey_done and dismiss_count < 3:
+            survey_available = True
+        return None, survey_available, grace_days_remaining
+
+    if hasattr(grace_end, 'tzinfo') and grace_end.tzinfo is None:
+        grace_end = grace_end.replace(tzinfo=timezone.utc)
+    if now >= grace_end:
+        return _paywall_denied(
+            "Your free trial has ended. Subscribe to continue accessing your workout programs!"
+        ), survey_available, grace_days_remaining
+
+    grace_days_remaining = max(0, (grace_end - now).days)
+    if not survey_done and dismiss_count < 3:
+        survey_available = True
+    return None, survey_available, grace_days_remaining
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # TRACKER ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -157,124 +314,13 @@ def load_program():
         if not program:
             return jsonify({"success": False, "message": "Program not found"})
 
-        # Payment gate: new users get 1-week free trial. Existing clients
-        # get a 2-week grace period (starts after survey or 3 dismissals).
-        # TV kiosk + kiosk-station use system emails — always bypass.
-        from datetime import datetime, timezone, timedelta
-        is_tv_display = email in ('tv-display@bestrongagain.com', 'kiosk@bestrongagain.com')
-        survey_available = False
-        grace_days_remaining = None
-        if is_tv_display:
-            bsa_user = None
-        else:
-            cur.execute("""
-                SELECT id, role, grace_period_ends_at, survey_completed_at,
-                       survey_dismiss_count, free_trial_ends_at
-                FROM users WHERE LOWER(email) = %s
-            """, (email,))
-            bsa_user = cur.fetchone()
-        has_sub = False
-        if bsa_user:
-            cur.execute("""
-                SELECT 1 FROM subscriptions
-                WHERE user_id = %s AND status = 'active'
-                LIMIT 1
-            """, (bsa_user["id"],))
-            has_sub = cur.fetchone() is not None
-        is_privileged = bsa_user and bsa_user["role"] in ("coach", "admin")
-
-        # Trainer-logging bypass: in 1-on-1 mode a coach logs ON BEHALF of a
-        # client (who may never have paid for the app). Skip the paywall only
-        # when the request carries trainer_logging + a coach referral code that
-        # actually OWNS this program (built it). Strictly additive — normal
-        # client self-serve loads are unaffected.
-        trainer_bypass = False
-        if data.get("trainer_logging"):
-            coach_code = (data.get("coach") or "").strip().upper()
-            if coach_code:
-                cur.execute(
-                    "SELECT email FROM users WHERE UPPER(referral_code) = %s AND role IN ('coach','admin')",
-                    (coach_code,),
-                )
-                crow = cur.fetchone()
-                if crow:
-                    owner = (crow["email"] or "").lower()
-                    prog_owner = (program.get("created_by") or "").lower()
-                    prog_trainer = (program.get("optional_trainer_email") or "").lower()
-                    if owner and owner in (prog_owner, prog_trainer):
-                        trainer_bypass = True
-
-        if not has_sub and not is_privileged and not is_tv_display and not trainer_bypass:
-            cur.execute("""
-                SELECT 1 FROM workout_logs
-                WHERE LOWER(user_email) = %s
-                LIMIT 1
-            """, (email,))
-            has_logs = cur.fetchone() is not None
-            now = datetime.now(timezone.utc)
-
-            if not has_logs:
-                # New user — 1-week free trial
-                if bsa_user:
-                    trial_end = bsa_user.get("free_trial_ends_at")
-                    if trial_end is None:
-                        # First visit — start the 1-week trial
-                        cur.execute("""
-                            UPDATE users SET free_trial_ends_at = NOW() + INTERVAL '7 days'
-                            WHERE id = %s RETURNING free_trial_ends_at
-                        """, (bsa_user["id"],))
-                        row = cur.fetchone()
-                        db.commit()
-                        trial_end = row["free_trial_ends_at"] if row else None
-                    if trial_end:
-                        if hasattr(trial_end, 'tzinfo') and trial_end.tzinfo is None:
-                            trial_end = trial_end.replace(tzinfo=timezone.utc)
-                        if now >= trial_end:
-                            return jsonify({
-                                "success": False,
-                                "payment_required": True,
-                                "message": "Your free trial has ended. Subscribe to continue accessing your workout programs!",
-                                "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=tracker",
-                            }), 403
-                        grace_days_remaining = max(0, (trial_end - now).days)
-                else:
-                    # No BSA account at all — hard block
-                    return jsonify({
-                        "success": False,
-                        "payment_required": True,
-                        "message": "A subscription is required to access workout programs. Please subscribe to get started!",
-                        "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=tracker",
-                    }), 403
-
-            elif has_logs and bsa_user:
-                # Existing client — survey + 2-week grace period
-                grace_end = bsa_user.get("grace_period_ends_at")
-                survey_done = bsa_user.get("survey_completed_at") is not None
-                dismiss_count = bsa_user.get("survey_dismiss_count") or 0
-
-                if grace_end:
-                    if hasattr(grace_end, 'tzinfo') and grace_end.tzinfo is None:
-                        grace_end = grace_end.replace(tzinfo=timezone.utc)
-                    if now >= grace_end:
-                        return jsonify({
-                            "success": False,
-                            "payment_required": True,
-                            "message": "Your free trial has ended. Subscribe to continue accessing your workout programs!",
-                            "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=tracker",
-                        }), 403
-                    grace_days_remaining = max(0, (grace_end - now).days)
-                elif not survey_done and dismiss_count < 3:
-                    survey_available = True
-                elif not survey_done and dismiss_count >= 3:
-                    # Auto-start 2-week grace after 3 dismissals
-                    cur.execute("""
-                        UPDATE users SET grace_period_ends_at = NOW() + INTERVAL '2 weeks'
-                        WHERE id = %s RETURNING grace_period_ends_at
-                    """, (bsa_user["id"],))
-                    row = cur.fetchone()
-                    db.commit()
-                    if row and row["grace_period_ends_at"]:
-                        grace_days_remaining = 14
+        # Payment gate — shared with log-workout so a cached PWA cannot
+        # route around it. See check_payment_access().
+        denied, survey_available, grace_days_remaining = check_payment_access(
+            cur, db, email, data=data, program=program
+        )
+        if denied:
+            return denied
 
         program_data = program["program_data"]
         if isinstance(program_data, str):
@@ -710,6 +756,28 @@ def log_workout():
     email = (data.get("user_email") or "").lower().strip()
     code = (data.get("access_code") or data.get("program_code") or "").strip()
     name = data.get("user_name", "")
+
+    # Payment gate. load-program used to be the only gated endpoint, which
+    # meant a client whose PWA had already cached their program could keep
+    # logging indefinitely without the gate ever running again.
+    if email:
+        _gate_db = get_db()
+        try:
+            _gate_cur = _gate_db.cursor()
+            _program = None
+            if code:
+                _gate_cur.execute(
+                    "SELECT * FROM workout_programs WHERE access_code = %s AND is_active = TRUE",
+                    (code,),
+                )
+                _program = _gate_cur.fetchone()
+            denied, _, _ = check_payment_access(
+                _gate_cur, _gate_db, email, data=data, program=_program
+            )
+            if denied:
+                return denied
+        finally:
+            _gate_db.close()
     program_name = data.get("program_name", "")
     week = data.get("current_week", 1)
     day = data.get("current_day", 1)
