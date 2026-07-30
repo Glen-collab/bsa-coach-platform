@@ -35,6 +35,34 @@ TIER_AMOUNTS = {
 }
 
 
+def resolve_subscription_price(stripe_sub, tier):
+    """
+    What Stripe ACTUALLY billed, not what our table says it should have been.
+
+    This number drives commission payouts, so a wrong value silently pays
+    coaches off a fiction. Reading it from Stripe means:
+      - a price edited in the Stripe dashboard can't desync from TIER_AMOUNTS
+      - per-coach custom prices work without a hardcoded tier entry
+
+    Falls back to the tier table if Stripe's shape is ever unexpected, so
+    this is never worse than the previous hardcoded behaviour.
+
+    Returns (amount_cents, stripe_price_id).
+    """
+    try:
+        item = stripe_sub["items"]["data"][0]
+        price = item["price"]
+        amount = price["unit_amount"]
+        # A metered/tiered price can carry unit_amount = None. Only trust a
+        # real positive integer; anything else falls through to the table.
+        if isinstance(amount, int) and amount > 0:
+            return amount, price["id"]
+    except (KeyError, IndexError, TypeError):
+        pass
+
+    return TIER_AMOUNTS.get(tier), PRICE_IDS.get(tier)
+
+
 def get_db():
     return psycopg2.connect(os.environ.get("DATABASE_URL"))
 
@@ -333,7 +361,16 @@ def handle_checkout_completed(session, db):
     stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
 
     subscription_id = str(uuid.uuid4())
-    amount_cents = TIER_AMOUNTS[tier]
+    amount_cents, stripe_price_id = resolve_subscription_price(stripe_sub, tier)
+
+    if not amount_cents:
+        # Unknown tier AND unreadable Stripe price — recording a subscription
+        # with a null amount would poison every commission calculated off it.
+        # Bail loudly instead; the payment is already captured and can be
+        # reconciled by hand.
+        print(f"[stripe] ABORT checkout {stripe_sub_id}: no resolvable price "
+              f"(tier={tier!r}). Subscription NOT recorded — reconcile manually.")
+        return
 
     stripe_customer_id = _md(session, "customer")
 
@@ -352,7 +389,7 @@ def handle_checkout_completed(session, db):
             ) VALUES (%s, %s, %s, %s, 'active', %s, %s, %s, NOW(), NOW() + INTERVAL '1 month')
         """, (
             subscription_id, user_id, coach_id, tier,
-            stripe_sub_id, PRICE_IDS[tier], amount_cents
+            stripe_sub_id, stripe_price_id, amount_cents
         ))
 
         # Stamp Stripe customer ID on the user (lets us look up their
@@ -468,6 +505,13 @@ def handle_invoice_paid(invoice, db):
         return
 
     sub_id, user_id, coach_id, tier, amount_cents = row
+
+    # Commission the amount THIS invoice actually collected, not the figure
+    # cached at signup. Proration, a coach's price change, a coupon, or a
+    # partial refund all make the stored amount wrong for this cycle.
+    invoiced = _md(invoice, "amount_paid")
+    if isinstance(invoiced, int) and invoiced > 0:
+        amount_cents = invoiced
 
     if coach_id:
         commissions = calculate_commissions(

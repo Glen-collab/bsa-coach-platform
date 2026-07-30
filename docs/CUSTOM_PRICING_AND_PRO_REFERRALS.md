@@ -26,11 +26,47 @@ At standard US card pricing (2.9% + 30¢):
 Two consequences:
 
 1. **A price floor is mandatory, and it's not an arbitrary business rule — it's arithmetic.** Recommend **$19/mo minimum**, which nets ~$1.05/client/mo. Anything under ~$15 isn't worth carrying.
-2. The existing **$5.99 tracker tier nets 13¢/month per subscriber**. That's fine as a loss-leader funnel into coaching, but it should be understood as one, not as a revenue line. It cannot absorb an upline *and* a payment-processing fee and still matter.
+2. The $5.99 figures above are what a **different** coach selling at $5.99 would leave on the table — 13¢. They do **not** describe Glen's own gym members.
+
+### Why the table doesn't apply to Glen's own clients
+
+When Glen is both the selling coach and the platform, all three slices come back to him: 80% via his Connect transfer, 10% platform fee, and the unclaimed upline 10%. His real take on a $5.99 gym member is **$5.99 − $0.47 Stripe = $5.52**, not 13¢. The margin problem only exists when the 80% leaves for someone else.
+
+**Decided 2026-07-30:** the `tracker` $5.99 tier is **Glen's in-person gym rate and is not offered to other coaches.** Other coaches use `basic` $20 and up, or their own custom price subject to the floor. Later, trainers who want the full suite (Raspberry Pi kiosks, gym TV, hardware, the whole build) get charged directly for the amenities, and *that* is what buys them the ability to offer $5.99 to their own clients.
+
+That decision is what makes coach-set pricing safe. Enforce it in code, not just policy — `tracker` must be rejected for any coach other than the platform owner, or the floor is trivially bypassed by pointing clients at the cheap tier.
+
+> If Glen later wants sub-$20 coaches without the hardware deal, the percentage model can't fund it and it has to become a flat per-active-client fee.
 
 > Verify against your real Stripe rate before setting the floor. Stripe Billing adds ~0.5% on recurring if enabled, and Connect Express has per-payout and possibly per-active-account fees. Every one of those comes out of Glen's slice, not the coach's. The floor should be set from your actual net, not this table.
 
 **If you want coaches pricing freely at low numbers**, the percentage model can't fund it. The alternative is a flat platform fee per active client (say $4/client/mo) taken off the top, with the coach keeping the rest. That decouples your revenue from their pricing decision entirely. It's a bigger change to `commission_engine.py` and I'd only do it if you actually want sub-$20 coaches.
+
+---
+
+## 0b. The coach's 80% is never actually paid
+
+Found while tracing the payout path on 2026-07-30, verified against production.
+
+`calculate_commissions()` builds exactly two records: a `PLATFORM` row (10%, which `save_commissions()` then **skips inserting** — it's tracking only) and an upline row (10%). **There is no row for the selling coach's 80%, and no code anywhere transfers it.** The comment at `commission_engine.py:71` — *"Don't add the coach themselves — they keep their 80%"* — would be true under **direct charges**, where the coach is merchant of record and the money lands in their account. But checkout runs on the **platform account**, so the coach keeps nothing. The full charge sits in Glen's Stripe balance.
+
+Production state, confirmed by query:
+
+- **0 of 6** commission rows have ever had a `stripe_transfer_id`. **No Stripe Transfer has ever executed.**
+- The two 80% rows that do exist came from `006_backfill_jace_commission.sql` and a manual insert — not from the engine.
+- 2 coaches, 1 completed Connect onboarding, 53 members.
+
+**This is invisible today because Glen is both the platform and the only selling coach** — money staying in his balance is where he wants it anyway. It breaks the first time another coach makes a sale: they will be owed 80% that no code path produces or pays.
+
+Deployed `/opt/bestrongagain/` matches the repo byte-for-byte (md5 verified), so this is the live behaviour, not local drift.
+
+**This is a prerequisite for everything below.** Coach-set pricing and clinician referrals are both features about paying people correctly; neither means anything until the 80% leg exists. Order of work:
+
+1. Correct amount (§1, done — the change is in `resolve_subscription_price`)
+2. **Record and pay the coach's 80%** — add a `depth_from_earner = 0` commission row for the selling coach in `calculate_commissions()`, so the existing `pay_commission()` Transfer machinery picks it up unchanged
+3. Then custom pricing, then pro referrals
+
+Step 2 needs a decision first: **do coaches get paid per-transaction, or on a monthly payout cycle?** Per-transaction is what the current code shape implies, but it means a Transfer per client per month and a refund/chargeback after a Transfer leaves a negative balance to claw back. A monthly cycle over `status='pending'` rows is easier to reconcile and easier to reverse. Decide before writing step 2.
 
 ---
 
@@ -49,18 +85,13 @@ Five lines in `backend/stripe_routes.py`, all keyed off a hardcoded tier name:
 
 Line 336 is the one that matters. That number is what gets written to `subscriptions.amount_cents` and then fed to `calculate_commissions()`. If it's wrong, **coaches get paid off a fiction** — and it fails silently, because nothing reconciles it against Stripe.
 
-### The fix that unlocks everything
+### The fix that unlocks everything — DONE 2026-07-30
 
-`handle_checkout_completed()` already calls `stripe.Subscription.retrieve()` on line 333 and then ignores it for the amount. Use it:
+`handle_checkout_completed()` already called `stripe.Subscription.retrieve()` and then ignored it for the amount. Now it uses it, via `resolve_subscription_price(stripe_sub, tier)`, which returns what Stripe actually billed and falls back to the tier table if Stripe's shape is ever unexpected — so it is never worse than the old hardcoded behaviour. Covered branches (all tested): normal tier, custom price, dashboard-edited price, metered price with `unit_amount = None`, zero amount, malformed payloads, and unknown-tier-plus-broken-Stripe (which now aborts loudly rather than writing a null amount that would poison every commission derived from it).
 
-```python
-stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
-item = stripe_sub["items"]["data"][0]
-amount_cents = item["price"]["unit_amount"]      # what Stripe actually billed
-stripe_price_id = item["price"]["id"]
-```
+`handle_invoice_paid()` now commissions off the invoice's `amount_paid` rather than the amount cached at signup, so proration, a coach's price change, a coupon, or a partial refund all commission the money that actually moved.
 
-That single change makes the entire commission engine price-agnostic, because `calculate_commissions()` is already pure percentages off `sale_amount_cents` — it never looks at the tier. **Do this one first, on its own, before any custom-pricing feature.** It's strictly more correct for the four existing tiers too: today, editing a price in the Stripe dashboard silently desyncs from `TIER_AMOUNTS` and you'd never know.
+Together these make the commission engine price-agnostic, because `calculate_commissions()` is already pure percentages off `sale_amount_cents` — it never looks at the tier. This was worth shipping on its own regardless of custom pricing: previously, editing a price in the Stripe dashboard silently desynced from `TIER_AMOUNTS` and nothing would have caught it.
 
 ### Schema
 
@@ -139,15 +170,16 @@ Estimate: this is the *small* piece of the three. Build it after §1's line-336 
 
 ## 4. Ship order
 
-The order is not negotiable — step 1 is what broke the $5.99 tier.
+The order is not negotiable — the enum step is what broke the $5.99 tier.
 
-1. **`ALTER TYPE subscription_tier ADD VALUE 'custom'`**, deployed and verified in RDS, **before** any code references it. Migration `029_add_tracker_tier_enum.sql` exists because adding `tracker` without the enum value produced "charged but no subscription" — Stripe took the money, the insert threw, the webhook 500'd. Same trap, same shape. Postgres also won't let you use a new enum value in the same transaction that adds it.
-2. **Read the amount from Stripe** (line 336). Independent of everything else, correct on its own, deployable alone.
-3. `coach_prices` table + the two endpoints, with bounds enforced server-side.
-4. Landing/Register de-pricing.
-5. `pro` role + dashboard.
+1. ~~**Read the amount from Stripe.**~~ **Done 2026-07-30.** Independent of everything else, correct on its own.
+2. **Record and pay the coach's 80%** (§0b). Nothing below matters until this exists. Decide per-transaction vs monthly payout cycle first.
+3. **`ALTER TYPE subscription_tier ADD VALUE 'custom'`**, deployed and verified in RDS, **before** any code references it. Migration `029_add_tracker_tier_enum.sql` exists because adding `tracker` without the enum value produced "charged but no subscription" — Stripe took the money, the insert threw, the webhook 500'd. Same trap, same shape. Postgres also won't let you use a new enum value in the same transaction that adds it.
+4. `coach_prices` table + the two endpoints, with bounds enforced server-side, plus the rule that `tracker` is owner-only (§0).
+5. Landing/Register de-pricing.
+6. `pro` role + dashboard.
 
-Each step is separately deployable and separately revertible. Steps 1–2 are worth doing even if the rest never ships.
+Each step is separately deployable and separately revertible.
 
 ---
 
