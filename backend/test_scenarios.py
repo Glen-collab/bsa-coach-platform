@@ -245,6 +245,26 @@ print(f"""
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+print("SCENARIO 7 — Glen's own 1-on-1 roster must not be billed to Glen.\n")
+# ═════════════════════════════════════════════════════════════════════════════
+
+# A coach and the platform owner, side by side, both with zero client revenue.
+plain_coach = mkuser("Plain", "Coach", "coach")
+owner = mkuser("Glen", "Owner", "admin")
+
+pc = build_settlement(plain_coach, db)
+ow = build_settlement(owner, db)
+
+check("an ordinary tool-only coach is subject to the minimum",
+      pc["minimum_cents"], pc["active_clients"] * ACTIVE_CLIENT_MIN_CENTS)
+check("the platform owner is never charged a minimum", ow["minimum_cents"], 0)
+check("so the owner is never billed by himself", ow["shortfall_cents"], 0)
+check("and never shows a direct charge", ow["direct_charge_cents"], 0)
+print("\n    Before this, Glen's payroll row showed him owing the platform for")
+print("    his own nine 1-on-1 clients. He is the platform.\n")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 _real.rollback()
 cur.execute("SELECT COUNT(*) FROM users WHERE email LIKE '%%@test.invalid'")
 leaked = cur.fetchone()[0]

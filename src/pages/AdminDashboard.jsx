@@ -3,6 +3,7 @@ import { api } from '../utils/api';
 import useMediaQuery from '../hooks/useMediaQuery';
 import BroadcastCard from '../components/BroadcastCard';
 import GymTvPowerCard from '../components/GymTvPowerCard';
+import PayrollPanel from '../components/PayrollPanel';
 import { formatScore } from '../utils/challengeFormat';
 
 // Compact goal chips for the admin tables. Empty array → em-dash so
@@ -329,6 +330,7 @@ export default function AdminDashboard() {
     { id: 'proposals', label: `Exercise Requests${proposals ? ` (${proposals.filter(p => p.status === 'pending').length})` : ''}` },
     { id: 'challenges', label: 'Challenges' },
     { id: 'emaillog', label: `Email Log${emailFails ? ` (${emailFails}⚠)` : ''}` },
+    { id: 'payroll', label: 'Payroll' },
   ];
 
   return (
@@ -1028,6 +1030,8 @@ export default function AdminDashboard() {
           )}
         </div>
       )}
+
+      {activeTab === 'payroll' && <PayrollPanel />}
 
       {activeTab === 'emaillog' && (
         <div>

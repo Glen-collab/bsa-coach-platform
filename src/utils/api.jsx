@@ -75,6 +75,12 @@ export const api = {
 
   // Admin
   overview: () => request('/admin/overview'),
+  // Payroll. Preview is a dry run and moves nothing; run() transfers real
+  // money, which is why the month is explicit and confirm is required.
+  settlementPreview: (month) => request(`/admin/settlement/preview${month ? `?month=${month}` : ''}`),
+  settlementRun: (month) => request('/admin/settlement/run', {
+    method: 'POST', body: JSON.stringify({ month, confirm: true }),
+  }),
   emailLog: (failedOnly = false) => request(`/admin/email-log?limit=200${failedOnly ? '&failed=1' : ''}`),
   membersList: () => request('/admin/members/list'),
   coachesList: () => request('/admin/coaches/list'),

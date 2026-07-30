@@ -695,3 +695,108 @@ def transfer_coach(from_coach_id, to_coach_id):
         })
     finally:
         db.close()
+
+
+# ============================================
+# PAYROLL — monthly coach settlement
+# ============================================
+#
+# settle_month() does the arithmetic; these two routes are how a human runs
+# it. Preview is always safe. Run moves real money and requires an explicit
+# confirm, so a stray request or a double-clicked button can't pay twice.
+#
+# Guarded by the blueprint's before_request admin check like everything else
+# in this file.
+
+def _month_start(month_str):
+    """'2026-07' or '2026-07-01' -> date. Defaults to LAST month."""
+    import datetime as dt
+    if not month_str:
+        today = dt.date.today().replace(day=1)
+        return (today - dt.timedelta(days=1)).replace(day=1)
+    s = month_str.strip()
+    if len(s) == 7:
+        s += "-01"
+    return dt.date.fromisoformat(s)
+
+
+def _label_earners(plan, db):
+    """Swap opaque UUIDs for names so the payroll screen is readable."""
+    ids = [e["earner_id"] for e in plan["earners"]]
+    if not ids:
+        return plan
+    with db.cursor() as cur:
+        cur.execute("""
+            SELECT id, first_name, last_name, email, role,
+                   stripe_account_id IS NOT NULL AND stripe_onboarded AS payable
+            FROM users WHERE id::text = ANY(%s)
+        """, ([str(i) for i in ids],))
+        who = {str(r[0]): r for r in cur.fetchall()}
+    for e in plan["earners"]:
+        r = who.get(str(e["earner_id"]))
+        e["name"] = f"{r[1]} {r[2]}".strip() if r else "(unknown)"
+        e["email"] = r[3] if r else None
+        e["role"] = r[4] if r else None
+        e["payable"] = bool(r[5]) if r else False
+    plan["earners"].sort(key=lambda e: -e["net_cents"])
+    return plan
+
+
+@admin_bp.route("/settlement/preview", methods=["GET"])
+def settlement_preview():
+    """Dry run. Shows exactly what a payout run would do. Moves nothing."""
+    from commission_engine import settle_month
+    try:
+        month = _month_start(request.args.get("month"))
+    except ValueError:
+        return jsonify({"error": "month must be YYYY-MM"}), 400
+
+    db = get_db()
+    try:
+        plan = _label_earners(settle_month(db, month_start=month, dry_run=True), db)
+        plan["month"] = str(month)
+        plan["unpayable"] = [
+            {"name": e["name"], "email": e["email"], "net_cents": e["net_cents"]}
+            for e in plan["earners"] if e["net_cents"] > 0 and not e["payable"]
+        ]
+        return jsonify(plan)
+    finally:
+        db.close()
+
+
+@admin_bp.route("/settlement/run", methods=["POST"])
+def settlement_run():
+    """
+    Execute the payout. Requires {"confirm": true} and an explicit month.
+
+    Re-running is safe: settle_month only picks up rows still marked
+    'pending' and flips them to 'paid' behind a successful Transfer, so
+    anyone already paid is simply not selected the second time.
+    """
+    from commission_engine import settle_month
+    data = request.get_json(silent=True) or {}
+    if data.get("confirm") is not True:
+        return jsonify({"error": "confirm must be true to move money"}), 400
+    if not data.get("month"):
+        return jsonify({"error": "month is required (YYYY-MM) — refusing to guess"}), 400
+    try:
+        month = _month_start(data["month"])
+    except ValueError:
+        return jsonify({"error": "month must be YYYY-MM"}), 400
+
+    db = get_db()
+    try:
+        plan = _label_earners(settle_month(db, month_start=month, dry_run=False), db)
+        plan["month"] = str(month)
+        paid = [e for e in plan["earners"] if e.get("transfer_id")]
+        plan["summary"] = {
+            "transfers": len(paid),
+            "paid_cents": sum(e["net_cents"] for e in paid),
+            "held": [
+                {"name": e["name"], "reason": e["skipped"], "net_cents": e["net_cents"]}
+                for e in plan["earners"] if not e.get("transfer_id") and e["net_cents"] > 0
+            ],
+        }
+        return jsonify(plan)
+    finally:
+        db.close()

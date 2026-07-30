@@ -273,16 +273,21 @@ def build_settlement(coach_id, db, month_start=None):
         sale_total, coach_total = int(sale_total or 0), int(coach_total or 0)
 
         cur.execute(
-            "SELECT referred_by_id FROM users WHERE id = %s", (coach_id,)
+            "SELECT referred_by_id, role FROM users WHERE id = %s", (coach_id,)
         )
         r = cur.fetchone()
         has_upline = bool(r and r[0])
+        is_platform_owner = bool(r and r[1] == "admin")
 
     referral_total = int(Decimal(sale_total) * REFERRAL_BONUS_RATE) if has_upline else 0
     platform_share = sale_total - coach_total - referral_total
 
     actives = active_client_count(coach_id, db, month_start)
-    minimum = actives * ACTIVE_CLIENT_MIN_CENTS
+    # The platform owner is not charged the per-active-client minimum. He IS
+    # the platform — billing him for his own 1-on-1 roster would just move
+    # money from one of his pockets to the other, and it made the payroll
+    # screen show him owing himself.
+    minimum = 0 if is_platform_owner else actives * ACTIVE_CLIENT_MIN_CENTS
     shortfall = max(0, minimum - platform_share)
     payout = max(0, coach_total - shortfall)
 
