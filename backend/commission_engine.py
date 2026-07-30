@@ -353,10 +353,18 @@ def settle_month(db, month_start=None, dry_run=True):
             "direct_charge_cents": settlement["direct_charge_cents"],
             "transfer_id": None,
             "skipped": None,
+            "retained": False,
         }
+
+        with db.cursor() as c2:
+            c2.execute("SELECT role FROM users WHERE id = %s", (earner_id,))
+            rr = c2.fetchone()
+        entry["retained"] = bool(rr and rr[0] == "admin")
 
         if net_cents <= 0:
             entry["skipped"] = "nothing to pay after deductions"
+        elif entry["retained"] and dry_run:
+            entry["skipped"] = "retained by platform — already in your Stripe balance"
         elif dry_run:
             entry["skipped"] = "dry run"
         else:
@@ -378,10 +386,28 @@ def _transfer_earner(earner_id, net_cents, db, month_start=None):
     """One Transfer for an earner, then mark their pending rows paid."""
     with db.cursor() as cur:
         cur.execute(
-            "SELECT stripe_account_id, stripe_onboarded FROM users WHERE id = %s",
+            "SELECT stripe_account_id, stripe_onboarded, role FROM users WHERE id = %s",
             (earner_id,),
         )
         row = cur.fetchone()
+
+    # The platform owner is never transferred to. Charges are collected on the
+    # platform account, so money earned from his own clients is ALREADY in his
+    # Stripe balance — a Transfer to himself is both meaningless and
+    # impossible (he has no Connect account, and shouldn't need one). Settle
+    # the rows as retained so they stop reappearing in every future payroll.
+    if row and row[2] == "admin":
+        with db.cursor() as cur:
+            cur.execute("""
+                UPDATE commissions
+                SET status = 'paid', paid_at = NOW()
+                WHERE earner_id = %s AND status = 'pending'
+                  AND created_at >= date_trunc('month', COALESCE(%s, NOW()))
+                  AND created_at <  date_trunc('month', COALESCE(%s, NOW())) + INTERVAL '1 month'
+            """, (earner_id, month_start, month_start))
+            db.commit()
+        return {"retained": True,
+                "skipped": "retained by platform — already in your Stripe balance"}
 
     if not row or not row[0] or not row[1]:
         # Approved-but-not-onboarded is a real state — a coach can be promoted

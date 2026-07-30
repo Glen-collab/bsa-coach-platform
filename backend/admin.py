@@ -732,12 +732,37 @@ def _label_earners(plan, db):
             FROM users WHERE id::text = ANY(%s)
         """, ([str(i) for i in ids],))
         who = {str(r[0]): r for r in cur.fetchall()}
+    # Which clients each earner's money actually came from. Without this the
+    # screen shows "Glen Rogers — $5.97" with no clue that it's Tanner's
+    # subscription, and a coach can't tell whether a client is missing.
+    month = plan.get("_month")
+    with db.cursor() as cur:
+        cur.execute("""
+            SELECT c.earner_id::text,
+                   COALESCE(su.first_name || ' ' || su.last_name, su.email, '(unknown)'),
+                   su.email,
+                   SUM(c.commission_amount_cents)
+            FROM commissions c
+            LEFT JOIN users su ON su.id = c.source_user_id
+            WHERE c.status = 'pending'
+              AND c.created_at >= date_trunc('month', COALESCE(%s, NOW()))
+              AND c.created_at <  date_trunc('month', COALESCE(%s, NOW())) + INTERVAL '1 month'
+            GROUP BY 1, 2, 3
+            ORDER BY 4 DESC
+        """, (month, month))
+        sources = {}
+        for eid, nm, em, cents in cur.fetchall():
+            sources.setdefault(eid, []).append(
+                {"name": nm, "email": em, "cents": int(cents or 0)})
+
     for e in plan["earners"]:
         r = who.get(str(e["earner_id"]))
         e["name"] = f"{r[1]} {r[2]}".strip() if r else "(unknown)"
         e["email"] = r[3] if r else None
         e["role"] = r[4] if r else None
-        e["payable"] = bool(r[5]) if r else False
+        # The platform owner needs no Connect account — his share never moves.
+        e["payable"] = True if e.get("retained") else (bool(r[5]) if r else False)
+        e["from_clients"] = sources.get(str(e["earner_id"]), [])
     plan["earners"].sort(key=lambda e: -e["net_cents"])
     return plan
 
@@ -753,7 +778,10 @@ def settlement_preview():
 
     db = get_db()
     try:
-        plan = _label_earners(settle_month(db, month_start=month, dry_run=True), db)
+        plan = settle_month(db, month_start=month, dry_run=True)
+        plan["_month"] = month
+        plan = _label_earners(plan, db)
+        plan.pop("_month", None)
         plan["month"] = str(month)
         plan["unpayable"] = [
             {"name": e["name"], "email": e["email"], "net_cents": e["net_cents"]}
@@ -786,7 +814,10 @@ def settlement_run():
 
     db = get_db()
     try:
-        plan = _label_earners(settle_month(db, month_start=month, dry_run=False), db)
+        plan = settle_month(db, month_start=month, dry_run=False)
+        plan["_month"] = month
+        plan = _label_earners(plan, db)
+        plan.pop("_month", None)
         plan["month"] = str(month)
         paid = [e for e in plan["earners"] if e.get("transfer_id")]
         plan["summary"] = {

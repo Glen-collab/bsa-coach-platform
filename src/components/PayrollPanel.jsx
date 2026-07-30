@@ -145,15 +145,25 @@ export default function PayrollPanel() {
                   <td style={s.td}>
                     <div style={{ fontWeight: 600 }}>{e.name}</div>
                     <div style={{ fontSize: 12, color: '#6b7280' }}>{e.email}</div>
+                    {/* Which clients this money came from — otherwise a row
+                        reads "$5.97" with no way to tell whose payment it is,
+                        or whether someone is missing. */}
+                    {e.from_clients?.length > 0 && (
+                      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                        from {e.from_clients.map((c) => `${c.name} (${money(c.cents)})`).join(', ')}
+                      </div>
+                    )}
                   </td>
                   <td style={s.td}>{money(e.gross_cents)}</td>
                   <td style={s.td}>{e.deduction_cents ? `−${money(e.deduction_cents)}` : '—'}</td>
                   <td style={{ ...s.td, fontWeight: 700 }}>{money(e.net_cents)}</td>
                   <td style={s.td}>{e.active_clients}</td>
                   <td style={s.td}>
-                    {e.payable
-                      ? <span style={{ color: '#15803d' }}>ready</span>
-                      : <span style={{ color: '#b45309' }}>no Stripe account</span>}
+                    {e.retained
+                      ? <span style={{ color: '#15803d' }} title="Charges are collected on your platform account, so this is already in your Stripe balance. Nothing is transferred.">retained — already yours</span>
+                      : e.payable
+                        ? <span style={{ color: '#15803d' }}>ready</span>
+                        : <span style={{ color: '#b45309' }}>no Stripe account</span>}
                   </td>
                 </tr>
               ))}
@@ -163,9 +173,20 @@ export default function PayrollPanel() {
           <div style={{ ...s.card, marginTop: 16, borderColor: '#fca5a5' }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>Run payroll for {plan.month}</div>
             <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 10 }}>
-              This sends {money(totalPayable)} in real Stripe transfers. Type <strong>PAY</strong> to
-              enable it. Running twice is safe — anyone already paid is skipped.
+              This settles {money(totalPayable)} for {plan.month}. Type <strong>PAY</strong> to
+              enable it. Running twice is safe — anyone already settled is skipped.
             </div>
+            {/* Say WHY the button is dead. It was silently disabled whenever
+                nothing was payable, which reads exactly like a broken button. */}
+            {totalPayable <= 0 && (
+              <div style={{ ...s.warn, marginBottom: 10 }}>
+                {(plan.earners || []).length === 0
+                  ? <>Nothing to settle for {plan.month} — no earnings were recorded that month. Check another month.</>
+                  : <>Nothing is payable for {plan.month}, so the button stays disabled no matter what you type.
+                     Everyone listed is either already settled, owes more in platform minimums than they earned,
+                     or hasn't finished Stripe onboarding.</>}
+              </div>
+            )}
             <div style={s.row}>
               <input style={s.input} value={confirmText} placeholder="type PAY"
                      onChange={(ev) => setConfirmText(ev.target.value)} />
