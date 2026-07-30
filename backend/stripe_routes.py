@@ -459,17 +459,24 @@ def handle_checkout_completed(session, db):
     except:
         pass
 
-    # Commissions are NOT calculated here. checkout.session.completed fires
-    # alongside invoice.payment_succeeded and Stripe does not guarantee order,
-    # so doing it in both places double-commissioned the first month whenever
-    # checkout won the race. It also fired on trial signups, booking a full
-    # month of commission against a $0 collection.
+    # Commission the first period here TOO, not instead of handle_invoice_paid.
     #
-    # invoice.payment_succeeded is the only correct trigger: it means money
-    # actually moved. See handle_invoice_paid().
+    # Both events fire for a new subscription with no ordering guarantee. In
+    # practice invoice.payment_succeeded arrives FIRST, before this handler has
+    # inserted the subscriptions row — so that handler finds no row and bails.
+    # Commissioning only there meant a new signup was never commissioned at
+    # all. (Caught by Michael Glatkowski's live signup, 2026-07-30: real
+    # subscription, zero commission rows.)
     #
-    # The new-client notification below still belongs here — that IS a signup
-    # event, not a payment event.
+    # commission_payment() is idempotent per subscription per month, so
+    # whichever webhook lands second is a no-op and nobody is paid twice.
+    #
+    # A trialing subscription has collected nothing yet — skip it and let the
+    # first real invoice commission it.
+    if coach_id and _md(stripe_sub, "status") != "trialing":
+        commission_payment(subscription_id, user_id, coach_id, amount_cents,
+                           db, "checkout.completed")
+
     if coach_id:
         try:
             with db.cursor() as cur:
@@ -484,6 +491,39 @@ def handle_checkout_completed(session, db):
                 )
         except:
             pass
+
+
+def _already_commissioned(db, subscription_id):
+    """
+    Has this subscription already been commissioned for the current period?
+
+    checkout.session.completed and invoice.payment_succeeded both fire for a
+    new subscription and Stripe guarantees no ordering, so BOTH have to be
+    able to do the work and whichever runs second must be a no-op. Keying on
+    the calendar month is right for monthly billing, which is all we sell.
+    """
+    with db.cursor() as cur:
+        cur.execute("""
+            SELECT 1 FROM commissions
+            WHERE subscription_id = %s
+              AND created_at >= date_trunc('month', NOW())
+            LIMIT 1
+        """, (subscription_id,))
+        return cur.fetchone() is not None
+
+
+def commission_payment(sub_id, user_id, coach_id, amount_cents, db, source):
+    """Record commissions once for a paid period. Safe to call from either webhook."""
+    if not coach_id or not amount_cents or amount_cents <= 0:
+        return False
+    if _already_commissioned(db, sub_id):
+        print(f"[stripe] commissions for {sub_id} already exist this period "
+              f"({source}) — skipping")
+        return False
+    commissions = calculate_commissions(sub_id, user_id, coach_id, amount_cents, db)
+    save_commissions(commissions, db)
+    print(f"[stripe] commissioned {amount_cents}c for {sub_id} via {source}")
+    return True
 
 
 def handle_invoice_paid(invoice, db):
@@ -519,15 +559,11 @@ def handle_invoice_paid(invoice, db):
         amount_cents = invoiced
 
     if coach_id:
-        commissions = calculate_commissions(
-            sub_id, user_id, coach_id, amount_cents, db
-        )
-        save_commissions(commissions, db)
-        # Deliberately NOT paid out here. Commissions accumulate as 'pending'
-        # and settle on a monthly cycle, because the per-active-client
-        # minimum can only be worked out once the month is known, and because
-        # a refund after a Transfer has left leaves a negative balance to
-        # claw back. See commission_engine.build_settlement().
+        # Not paid out here. Commissions accumulate as 'pending' and settle on
+        # a monthly cycle, because the per-active-client minimum can only be
+        # worked out once the month is known, and because a refund after a
+        # Transfer has left leaves a negative balance to claw back.
+        commission_payment(sub_id, user_id, coach_id, amount_cents, db, "invoice.paid")
 
 
 def handle_subscription_cancelled(subscription, db):
