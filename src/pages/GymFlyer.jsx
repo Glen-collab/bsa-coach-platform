@@ -46,6 +46,10 @@ export default function GymFlyer() {
           @page { size: letter; margin: 0; }
           html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
           .no-print { display: none !important; }
+          /* The app-wide <Navbar /> lives in App.jsx OUTSIDE the route tree, so
+             it can't carry .no-print — kill it by tag. This rule only exists
+             while the flyer page is mounted, so no other page is affected. */
+          nav { display: none !important; }
           /* Pin the flyer to one exact Letter page and undo the screen-only
              scale — otherwise mobile "Save as PDF" can apply the 0.86 transform
              and print it shrunk/shifted. overflow:hidden guarantees one page. */
