@@ -510,7 +510,13 @@ def handle_invoice_paid(invoice, db):
     # cached at signup. Proration, a coach's price change, a coupon, or a
     # partial refund all make the stored amount wrong for this cycle.
     invoiced = _md(invoice, "amount_paid")
-    if isinstance(invoiced, int) and invoiced > 0:
+    if isinstance(invoiced, int):
+        if invoiced <= 0:
+            # An explicit zero is a free-trial or fully-discounted cycle.
+            # Nothing was collected, so there is nothing to commission —
+            # and we must NOT fall through to the stored amount, which
+            # would pay a coach out of money that never arrived.
+            return
         amount_cents = invoiced
 
     if coach_id:
