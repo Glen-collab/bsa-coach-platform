@@ -66,7 +66,22 @@ Deployed `/opt/bestrongagain/` matches the repo byte-for-byte (md5 verified), so
 2. **Record and pay the coach's 80%** — add a `depth_from_earner = 0` commission row for the selling coach in `calculate_commissions()`, so the existing `pay_commission()` Transfer machinery picks it up unchanged
 3. Then custom pricing, then pro referrals
 
-Step 2 needs a decision first: **do coaches get paid per-transaction, or on a monthly payout cycle?** Per-transaction is what the current code shape implies, but it means a Transfer per client per month and a refund/chargeback after a Transfer leaves a negative balance to claw back. A monthly cycle over `status='pending'` rows is easier to reconcile and easier to reverse. Decide before writing step 2.
+**Decided 2026-07-30: one-week free trial, then a monthly payout cycle.** The immediate `pay_commission()` loop that currently runs right after `save_commissions()` goes away; commissions accumulate as `status='pending'` and a monthly job settles them. Easier to reconcile, and reversible when a charge is disputed.
+
+### 0c. Two bugs that block step 2 — found while checking the trial path
+
+**Commissions fire twice on the first month, by luck of event ordering.** `checkout.session.completed` and `invoice.payment_succeeded` are *both* handled (`stripe_routes.py:324–328`) and *both* call `calculate_commissions()`. Stripe does not guarantee order:
+
+- invoice event first → `handle_invoice_paid` finds no `subscriptions` row yet → returns → checkout then commissions once. **Total: 1.**
+- checkout event first → commissions once → invoice event then finds the row → commissions **again. Total: 2.**
+
+Production has exactly one upline row per subscription (4 rows, 4 subscriptions), so the invoice event has been landing first every time so far. That is luck, not design, and it becomes a double payout the moment transfers actually execute.
+
+**Checkout commissions on money that hasn't arrived.** `handle_checkout_completed` commissions the subscription's *price* with no check that anything was collected. With a one-week trial, checkout completes having collected **$0**, and a full month's commission is recorded against it — payable at month end even if the client cancels during the trial.
+
+**Both have the same fix, and it's the right architecture anyway: commission only on `invoice.payment_succeeded`.** That event means money actually moved. Remove the commission block from `handle_checkout_completed` entirely and let the first invoice carry it. Trials then commission nothing until the first real payment, and the double-fire race disappears because only one event path can create rows.
+
+The `amount_paid <= 0` guard shipped 2026-07-30 already prevents the *invoice* side from commissioning a $0 trial cycle. The checkout side is still open and must be closed before trials go live.
 
 ---
 
@@ -194,3 +209,17 @@ That holds only as long as the arrow points one way. **The athlete shares out; p
 The good news is that **the safer structure is also the one that needs less code**: pay the pro for recruiting **trainers**, professional-to-professional, not for sending **patients**. That is precisely what `referred_by_id` already does — the pro's downline is trainers, and their commission is a percentage of a trainer's business, not a fee per patient delivered. Avoid any commission that keys on an individual patient the pro referred, avoid per-patient bonuses, and disclose the arrangement plainly to clients.
 
 Worth one paid hour with a healthcare attorney in Wisconsin before launch — specifically on the referral fee, not on HIPAA. It's not a reason to delay building §1–§4.
+
+---
+
+## 6. Refunds and what the subscription actually promises
+
+**The onboarding promise isn't a trick — it's true, so state it plainly.** The platform genuinely does contact every new subscriber: `send_subscription_email()` fires on checkout with their access code and assigned program. Writing "your subscription includes your program, full app access, and onboarding contact with your access code" is an accurate description of a service that already runs automatically. There's nothing to be uncomfortable about.
+
+What causes refund demands is the *gap* between what a buyer thinks they bought and what arrives. So the protective move is not clever wording — it's saying explicitly what each tier does **and does not** include. If a $20 tier has no ongoing 1:1 contact, say that on the tier itself. A client who knew that up front rarely asks for money back; a client who assumed weekly check-ins always will. Being specific is what's actually "covered," and it reads as confident rather than evasive.
+
+**A "no refunds" policy does not stop chargebacks.** Cardholders can dispute regardless of any term you write, and a Stripe dispute costs the disputed amount **plus a fee that you pay whether or not you win**. What actually wins disputes is evidence of delivery — and you already generate all of it: the signed waiver, the timestamped welcome email containing the access code, and login plus `workout_logs` timestamps proving the client used the product. Keep those retrievable per client; that's worth more than any policy sentence.
+
+**The one-week free trial is the real fix.** Most refund requests come from people who paid before discovering the fit was wrong. A trial moves that decision to before the charge. Trial plus an obvious cancel path — the Stripe billing portal is already wired — is the standard, defensible setup, and it removes most of the pressure that made the waiver framing feel necessary.
+
+**Refunds interact with coach payouts.** Under the monthly cycle, settle only commissions whose underlying invoice is paid and not refunded, and put a lag between the billing month and the payout run. Card disputes can arrive up to roughly 120 days out, so a lag can't eliminate the risk — but paying month N at the start of month N+1 catches the common early cancel-and-dispute case before the money has left. Never transfer against an invoice that has been refunded.
