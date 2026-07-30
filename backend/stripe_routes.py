@@ -459,19 +459,18 @@ def handle_checkout_completed(session, db):
     except:
         pass
 
-    # Calculate and save commissions if there's a coach
+    # Commissions are NOT calculated here. checkout.session.completed fires
+    # alongside invoice.payment_succeeded and Stripe does not guarantee order,
+    # so doing it in both places double-commissioned the first month whenever
+    # checkout won the race. It also fired on trial signups, booking a full
+    # month of commission against a $0 collection.
+    #
+    # invoice.payment_succeeded is the only correct trigger: it means money
+    # actually moved. See handle_invoice_paid().
+    #
+    # The new-client notification below still belongs here — that IS a signup
+    # event, not a payment event.
     if coach_id:
-        commissions = calculate_commissions(
-            subscription_id, user_id, coach_id, amount_cents, db
-        )
-        save_commissions(commissions, db)
-
-        # Pay out immediately for transaction-based commissions
-        for c in commissions:
-            if c["commission_amount_cents"] > 0:
-                pay_commission(c["id"], db)
-
-        # Notify the coach they have a new client
         try:
             with db.cursor() as cur:
                 cur.execute("SELECT email, first_name FROM users WHERE id = %s", (coach_id,))
@@ -524,9 +523,11 @@ def handle_invoice_paid(invoice, db):
             sub_id, user_id, coach_id, amount_cents, db
         )
         save_commissions(commissions, db)
-        for c in commissions:
-            if c["commission_amount_cents"] > 0:
-                pay_commission(c["id"], db)
+        # Deliberately NOT paid out here. Commissions accumulate as 'pending'
+        # and settle on a monthly cycle, because the per-active-client
+        # minimum can only be worked out once the month is known, and because
+        # a refund after a Transfer has left leaves a negative balance to
+        # claw back. See commission_engine.build_settlement().
 
 
 def handle_subscription_cancelled(subscription, db):
