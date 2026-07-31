@@ -212,6 +212,25 @@ Worth one paid hour with a healthcare attorney in Wisconsin before launch — sp
 
 ---
 
+## 5b. Coaches who never finish Stripe onboarding — expected, not a fault
+
+A coach can be approved, get a referral code, and start selling before completing
+Stripe Connect. Settlement handles this correctly: they're skipped with
+*"earner has no completed Stripe Connect account"* and their rows stay `pending`, so
+nothing is lost and a later run picks them up once they onboard.
+
+**Drew (`drew@lakecountrycorp.com`) is in this state deliberately — skip him.** Glen's
+read (2026-07-30) is that Drew won't finish onboarding unless a podcast they've
+discussed actually happens, which may never occur. He has no clients and no earnings,
+so he never appears in payroll at all. Do not raise him as an action item, and do not
+build anything to chase him. If he ever does sell, the pending rows are already correct
+and settle the moment he onboards.
+
+The general rule this illustrates: **approved ≠ payable.** Treat un-onboarded coaches as
+a normal resting state, not an error to fix.
+
+---
+
 ## 6. Refunds and what the subscription actually promises
 
 **The onboarding promise isn't a trick — it's true, so state it plainly.** The platform genuinely does contact every new subscriber: `send_subscription_email()` fires on checkout with their access code and assigned program. Writing "your subscription includes your program, full app access, and onboarding contact with your access code" is an accurate description of a service that already runs automatically. There's nothing to be uncomfortable about.
