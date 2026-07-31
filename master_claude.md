@@ -1,6 +1,6 @@
 # BSA Master Reference
 
-**Last verified: 2026-07-30.** Start here when working anywhere in the Be Strong Again ecosystem. Everything below was checked against the live code and running servers on that date — not copied from older docs.
+**Last verified: 2026-07-31.** Start here when working anywhere in the Be Strong Again ecosystem. Everything below was checked against the live code and running servers on that date — not copied from older docs.
 
 Per-repo detail lives in each repo's own `CLAUDE.md`. Cross-repo wiring detail lives in `docs/ARCHITECTURE.md`. This file is the orientation layer over both: what exists, what's live, how to deploy it, and what will bite you.
 
@@ -86,23 +86,40 @@ Tiers, from `backend/stripe_routes.py`:
 
 | Tier | Price | `TIER_AMOUNTS` cents | What it is |
 |---|---|---|---|
-| `tracker` | $5.99/mo | 599 | tracker only, no coaching |
-| `basic` | $20/mo | 2000 | |
+| `tracker` | $5.99/mo | 599 | **Glen's in-person gym rate only.** Not offered to other coaches. |
+| `basic` | $20/mo | 2000 | the floor for other coaches |
 | `coached` | $200/mo | 20000 | |
 | `elite` | $400/mo | 40000 | |
 
-Price IDs come from env vars (`STRIPE_PRICE_TRACKER`, `_BASIC`, `_COACHED`, `_ELITE`) in `/opt/bestrongagain/.env`.
+Price IDs come from env vars (`STRIPE_PRICE_TRACKER`, `_BASIC`, `_COACHED`, `_ELITE`) in `/opt/bestrongagain/.env`. **The billed amount is read from Stripe at webhook time** (`resolve_subscription_price`), not from `TIER_AMOUNTS` — that table is only a fallback. A price edited in the Stripe dashboard can no longer desync.
 
-**Money flow — this is the important part.** Checkout Sessions are created on the **platform account**: no `stripe_account` header, no `transfer_data`. Glen is merchant of record and collects 100% of every charge. Coach and upline are paid **afterward** via separate `stripe.Transfer.create` calls in `commission_engine.pay_commission()`. Coaches are on **Connect Express** accounts (`users.stripe_account_id`, `stripe_onboarded`).
+**Money flow.** Checkout Sessions are created on the **platform account**: no `stripe_account` header, no `transfer_data`. Glen is merchant of record and collects 100% of every charge. Everyone else is paid **afterward** via `stripe.Transfer.create`. Coaches are on **Connect Express** (`users.stripe_account_id`, `stripe_onboarded`).
 
-**The split always sums to exactly 100%** (`commission_engine.py`):
+**The split always sums to exactly 100%** (`commission_engine.py`) — protect that property:
 
-- Coach keeps **80%**
-- Platform fee **10%** — always
-- Referral bonus **10%** — to whoever recruited the coach, **one level only** (`MAX_COMMISSION_DEPTH = 1`)
-- No recruiter → platform keeps 20%
+- **Coach keeps 80% of their first $100 of client revenue each month, 70% above it.** MARGINAL, like tax brackets. A flat cliff meant a coach crossing $100 took home *less* than one who stopped at $99.
+- **Recruiter 10%** — one level only (`MAX_COMMISSION_DEPTH = 1`), and symmetric: a coach who recruits a coach earns it exactly like a clinician referrer.
+- **Platform takes the remainder** — computed as a remainder, not a rate, so rounding never leaks. 10% under the line, 20% over, plus the referral 10% when nobody recruited that coach.
+- Stripe fees come out of the platform share, which is why there is a **$10 price floor** (break-even is $4.23).
 
-> Older docs describe this as a "3-tier affiliate tree." It is not, and hasn't been. Depth is capped at 1 in code. Trust `commission_engine.py` over any prose.
+> Not a "3-tier affiliate tree" and never has been. Depth is capped at 1 in code. Trust `commission_engine.py` over any prose, including this file.
+
+**Payouts are monthly, not per-transaction.** Commissions accrue as `status=pending`; `settle_month()` batches **one Transfer per earner** (a per-payout fee charged per client would eat the margin at low prices). Run it from **Admin → Payroll** — `GET /api/admin/settlement/preview` is a safe dry run, `POST /api/admin/settlement/run` needs an explicit month and `confirm:true`. Re-running is safe: only `pending` rows are selected.
+
+**Tool-only coaches** (app as a clipboard, clients never pay) owe **$2 per active client per month**, charged as the *greater* of that or the platform's share. Deducted from their payout. **Collecting it from a coach with no payout is NOT built** — see the design doc.
+
+**Glen is exempt from all of it.** He is the platform: his own client money is already in his Stripe balance, so his rows settle as *"retained — already yours"* with no Transfer, and he is never charged the per-active-client minimum. Three separate bugs came from the system treating him as a coach who needs paying — expect that class of mistake.
+
+**Both Stripe webhooks commission, and the second one must no-op.** `checkout.session.completed` and `invoice.payment_succeeded` both fire for a new subscription with **no ordering guarantee**, and in this account the invoice event arrives *first* — before the subscriptions row exists — so its handler bails. Commissioning from only one handler produced **zero** rows on a real signup (2026-07-30). `commission_payment()` is idempotent per subscription per month; never "simplify" this back to a single handler. Locked by `backend/test_webhook_ordering.py`.
+
+Full design + economics: `docs/CUSTOM_PRICING_AND_PRO_REFERRALS.md`.
+
+**Tests** (run on the server, they roll back and are safe against production):
+```bash
+cd /opt/bestrongagain && ./venv/bin/python test_commission_engine.py   # 51
+./venv/bin/python test_scenarios.py          # 34 — the Katie/Blake/BSA stories
+./venv/bin/python test_webhook_ordering.py   # 14 — the ordering regression
+```
 
 ---
 
@@ -181,6 +198,26 @@ Beyond `access/ → consent/ → program/`, this repo owns every screen that isn
 
 ---
 
+## 9b. Access control — who gets past the paywall
+
+The gate lives in `workout_api.py` as **`check_payment_access()`**, called by **both** `load-program.php` and `log-workout.php`. Gating only the loader was useless: the tracker is a PWA that caches the program, so a blocked client kept logging indefinitely.
+
+Order of checks — first match wins:
+
+1. **TV/kiosk system emails** (`tv-display@`, `kiosk@`) — always bypass
+2. **Active subscription** — bypass
+3. **`role` in (coach, admin)** — bypass
+4. **Anyone in `one_on_one_clients`** — bypass, whatever route they arrive by. These clients pay the trainer per session in person; the app is the trainer's clipboard, not something they bought. The older `trainer_bypass` only fires when the *trainer* drives the request (`trainer_logging` + owning coach code) and does nothing when the client opens the app on their own phone, which is what most of that roster does.
+5. **No `users` row at all** → hard block (previously fell through ungated)
+6. **No workout logs** → 1-week free trial from first sight
+7. **Has logs** → 2-week grace, clock started on **first sight**
+
+That last point was a real leak: the grace clock used to start only when a client completed the survey or dismissed it three times. Ignoring the survey left `dismiss_count` at 0 and `grace_period_ends_at` NULL **forever**, so eleven accounts had unlimited free access — one still logging weekly. Ignoring something must never be the cheapest option.
+
+`/api/admin/*` is gated by a **blueprint-level `before_request`** requiring an admin JWT, not a per-route decorator, so a new admin route is protected by default. It was previously **completely unauthenticated** — anonymous callers could read MRR and POST to `members/delete` and `coach-applications/approve`.
+
+---
+
 ## 10. Gotchas that have cost real time
 
 - **Cold-start warmup must use the absolute URL.** A relative `/api/…` ping goes through the Netlify proxy, and that proxy pointed at the retired WordPress host for months — it 403'd and warmed nothing, silently, because the ping was wrapped in `.catch(() => {})`. Fixed 2026-07-30 in both tracker and builder; both now GET `https://app.bestrongagain.com/api/health`.
@@ -203,6 +240,9 @@ Beyond `access/ → consent/ → program/`, this repo owns every screen that isn
 - **`workoutbuilder-tkd/` and `WorkoutTracker-tv/`** stale clones still sit on the Desktop. Deleting them would remove a recurring footgun, but nothing depends on that happening.
 - **Per-repo `CLAUDE.md` files have drifted** from the code — the tracker's file predates the `tv/`, `kiosk/`, `social/`, and `common/` directories and all of 1-on-1 mode. Worth a refresh pass; this file is accurate in the meantime.
 - Open security items from the last review pass: rotate `COACH_PASSWORD`, remove the JWT dev-secret fallback, purge a committed wifi password.
+- **Charging tool-only coaches is not built** — deferred by Glen 2026-07-30 ("leave it until we go green"). The amount is calculated and stored (`direct_charge_cents`); nothing collects it. The real blocker is that coaches have Connect accounts to *receive* money but no card on file to *pay*, so it needs coach Stripe Customers plus card capture at signup. Nobody is affected yet.
+- **Drew (`drew@lakecountrycorp.com`) — skip him, not an action item.** Approved coach, never finished Connect onboarding, no clients, no earnings, never appears in payroll. Settlement already handles un-onboarded earners correctly. **Approved ≠ payable** is a normal resting state.
+- **Old commission rows use a different convention.** Jace's and Tanner's pre-2026-07-30 rows store all three slices (80/10/10) as separate rows totalling 100%; the engine now stores only the coach's 80%, since the platform's share isn't a payout. Harmless while they all earn to Glen and settle as retained, but it makes identical subscriptions look different in payroll. Worth normalising before a real coach's rows ever look like that.
 
 ---
 
