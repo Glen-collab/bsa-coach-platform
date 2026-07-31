@@ -2213,24 +2213,45 @@ def send_session_recap():
 
     # Optional reference photos (data URLs from the recap modal) → email attachments.
     # Coach-side resized already; cap count + per-image size for safety.
-    attachments = []
-    for i, p in enumerate((data.get("photos") or [])[:6]):
-        try:
-            mt = "image/jpeg"
-            if isinstance(p, str) and p.startswith("data:") and ";" in p:
-                mt = p[5:p.index(";")] or "image/jpeg"
-            b64 = p.split(",", 1)[1] if (isinstance(p, str) and "," in p) else p
-            raw = base64.b64decode(b64)
-            if len(raw) > 6 * 1024 * 1024:
+    #
+    # Two buckets, both optional:
+    #   group_photos — the shot of the whole group, SAME file to everyone
+    #   photos       — this person's own reference shots
+    # They're kept separate (rather than merged client-side) so the filenames
+    # tell the client which is which when they save them, and so a group photo
+    # can never push someone's personal shots past the cap.
+    def _decode_photos(items, prefix, start_at=0):
+        out = []
+        for i, p in enumerate(items or []):
+            try:
+                mt = "image/jpeg"
+                if isinstance(p, str) and p.startswith("data:") and ";" in p:
+                    mt = p[5:p.index(";")] or "image/jpeg"
+                b64 = p.split(",", 1)[1] if (isinstance(p, str) and "," in p) else p
+                raw = base64.b64decode(b64)
+                if len(raw) > 6 * 1024 * 1024:
+                    continue
+                ext = "jpg" if ("jpeg" in mt or "jpg" in mt) else (mt.split("/")[-1] or "jpg")
+                out.append((f"{prefix}-{start_at + i + 1}.{ext}", raw, mt))
+            except Exception:
                 continue
-            ext = "jpg" if ("jpeg" in mt or "jpg" in mt) else (mt.split("/")[-1] or "jpg")
-            attachments.append((f"session-photo-{i+1}.{ext}", raw, mt))
-        except Exception:
-            continue
+        return out
+
+    group_photos = _decode_photos((data.get("group_photos") or [])[:6], "group-photo")
+    own_photos = _decode_photos((data.get("photos") or [])[:6], "session-photo")
+    # Total ceiling so a big group + a chatty personal set can't build a
+    # 20MB message. Personal shots are trimmed first — the group photo is
+    # the one everybody is expecting.
+    attachments = (group_photos + own_photos)[:10]
 
     photos_note = ""
     if attachments:
-        photos_note = f'<p style="font-size:13px;color:#667eea;margin:16px 0 0;">📎 {len(attachments)} reference photo(s) attached — save them for your records.</p>'
+        bits = []
+        if group_photos:
+            bits.append(f"{len(group_photos)} group photo(s)")
+        if own_photos:
+            bits.append(f"{len(own_photos)} of your own")
+        photos_note = f'<p style="font-size:13px;color:#667eea;margin:16px 0 0;">📎 {" + ".join(bits)} attached — save them for your records.</p>'
 
     # Optional framing overrides so the SAME pipe can send a session recap OR a
     # training/PT summary. Defaults preserve the original recap wording.
