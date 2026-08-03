@@ -6,6 +6,20 @@ import GymTvPowerCard from '../components/GymTvPowerCard';
 import PayrollPanel from '../components/PayrollPanel';
 import { formatScore } from '../utils/challengeFormat';
 
+// Challenge units offered as a dropdown. "mm:ss" is the ONLY spelling that
+// should ever be used for a timed event: challengeFormat.isTimeUnit() decides
+// from this string whether a score is stored as total seconds and rendered as a
+// clock, so anything it doesn't recognise silently turns a 8:03 row into the
+// number 8.03. Adding a synonym here is not enough — TIME_UNITS in
+// challengeFormat.js (BOTH copies: this repo and workouttracker) must match.
+const UNIT_OPTIONS = [
+  { value: 'mm:ss', label: 'mm:ss — timed event (clock)' },
+  { value: 'reps', label: 'reps' },
+  { value: 'lbs', label: 'lbs' },
+  { value: 'miles', label: 'miles' },
+  { value: 'meters', label: 'meters' },
+];
+
 // Compact goal chips for the admin tables. Empty array → em-dash so
 // the column reads "this member never told us" rather than blank.
 function renderGoals(goals) {
@@ -96,6 +110,8 @@ export default function AdminDashboard() {
   const [challengeFormOpen, setChallengeFormOpen] = useState(false);
   const [challengeForm, setChallengeForm] = useState({ title: '', description: '', unit: '', lower_is_better: false, start_date: '', end_date: '', duration_weeks: '' });
   const [challengeCreating, setChallengeCreating] = useState(false);
+  // id of the challenge being edited; null = the form is creating a new one
+  const [editingChallenge, setEditingChallenge] = useState(null);
   const [expandedChallenge, setExpandedChallenge] = useState(null);
   const [challengeStandings, setChallengeStandings] = useState({});
   const [emailRows, setEmailRows] = useState(null);   // null = not loaded
@@ -160,7 +176,35 @@ export default function AdminDashboard() {
     setEmailLoading(false);
   };
 
-  const handleCreateChallenge = async () => {
+  const blankChallengeForm = { title: '', description: '', unit: '', lower_is_better: false, start_date: '', end_date: '', duration_weeks: '' };
+
+  // One form serves both create and edit — editingChallenge holds the id when
+  // we're editing, null when creating. The backend PUT has always accepted every
+  // one of these fields; there was simply no way to reach it from the UI, so a
+  // typo in a live challenge (the "sec" -> "sex" autocorrect) was unfixable
+  // without a hand-written SQL update against production.
+  const startEditChallenge = (ch) => {
+    setEditingChallenge(ch.id);
+    setChallengeForm({
+      title: ch.title || '',
+      description: ch.description || '',
+      unit: ch.unit || '',
+      lower_is_better: !!ch.lower_is_better,
+      start_date: ch.start_date || '',
+      end_date: ch.end_date || '',
+      duration_weeks: ch.duration_weeks ?? '',
+    });
+    setChallengeFormOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const closeChallengeForm = () => {
+    setChallengeFormOpen(false);
+    setEditingChallenge(null);
+    setChallengeForm(blankChallengeForm);
+  };
+
+  const handleSaveChallenge = async () => {
     if (!challengeForm.title || !challengeForm.start_date || !challengeForm.end_date) {
       alert('Title, start date, and end date are required.');
       return;
@@ -169,14 +213,18 @@ export default function AdminDashboard() {
     try {
       const payload = {
         ...challengeForm,
+        unit: (challengeForm.unit || '').trim(),
         duration_weeks: challengeForm.duration_weeks ? Number(challengeForm.duration_weeks) : null,
       };
-      await api.createChallenge(payload);
-      setChallengeForm({ title: '', description: '', unit: '', lower_is_better: false, start_date: '', end_date: '', duration_weeks: '' });
-      setChallengeFormOpen(false);
+      if (editingChallenge) {
+        await api.updateChallenge(editingChallenge, payload);
+      } else {
+        await api.createChallenge(payload);
+      }
+      closeChallengeForm();
       loadChallenges();
     } catch (err) {
-      alert(err.message || 'Could not create challenge.');
+      alert(err.message || 'Could not save challenge.');
     }
     setChallengeCreating(false);
   };
@@ -810,7 +858,7 @@ export default function AdminDashboard() {
               Create and manage member challenges. Active challenges appear on every member dashboard.
             </div>
             <button
-              onClick={() => setChallengeFormOpen(!challengeFormOpen)}
+              onClick={() => (challengeFormOpen ? closeChallengeForm() : setChallengeFormOpen(true))}
               style={{ ...s.btnSmall, background: challengeFormOpen ? '#ef4444' : '#16a34a', color: '#fff' }}
             >
               {challengeFormOpen ? 'Cancel' : '+ Create Challenge'}
@@ -823,7 +871,16 @@ export default function AdminDashboard() {
               background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px',
               padding: isMobile ? '14px' : '20px', marginBottom: '18px',
             }}>
-              <div style={{ fontSize: '15px', fontWeight: 700, marginBottom: '14px', color: '#1a1a2e' }}>New Challenge</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, marginBottom: '14px', color: '#1a1a2e' }}>
+                {editingChallenge ? 'Edit Challenge' : 'New Challenge'}
+              </div>
+              {editingChallenge && (
+                <div style={{ fontSize: '12px', color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '8px', padding: '8px 10px', marginBottom: '12px' }}>
+                  Editing a live challenge. Changing the <b>unit</b> does not convert scores that
+                  are already submitted — if you switch to or from <b>mm:ss</b>, existing entries
+                  need to be re-entered.
+                </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 600, color: '#666', display: 'block', marginBottom: '4px' }}>Title</label>
@@ -848,21 +905,38 @@ export default function AdminDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
                   <div>
                     <label style={{ fontSize: '12px', fontWeight: 600, color: '#666', display: 'block', marginBottom: '4px' }}>Unit of measurement</label>
-                    <input
-                      type="text"
-                      list="challenge-units"
-                      value={challengeForm.unit}
-                      onChange={(e) => setChallengeForm({ ...challengeForm, unit: e.target.value })}
-                      placeholder="e.g. mm:ss, reps, lbs, miles"
-                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
-                    />
-                    <datalist id="challenge-units">
-                      <option value="mm:ss" />
-                      <option value="reps" />
-                      <option value="lbs" />
-                      <option value="miles" />
-                      <option value="meters" />
-                    </datalist>
+                    {/* A dropdown, not a text box. This field used to be free
+                        text with a datalist hint, and phone autocorrect quietly
+                        turned "sec" into "sex" on a live challenge — which then
+                        also broke scoring, because an unrecognised unit is not
+                        treated as time, so 8:03 stored as the number 8.03.
+                        Picking from a list makes both failures impossible. */}
+                    <select
+                      value={UNIT_OPTIONS.some(u => u.value === challengeForm.unit) ? challengeForm.unit : (challengeForm.unit ? '__custom' : '')}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setChallengeForm({ ...challengeForm, unit: v === '__custom' ? ' ' : v });
+                      }}
+                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', background: '#fff' }}
+                    >
+                      <option value="">Select a unit...</option>
+                      {UNIT_OPTIONS.map(u => (
+                        <option key={u.value} value={u.value}>{u.label}</option>
+                      ))}
+                      <option value="__custom">Something else (type it)</option>
+                    </select>
+                    {!UNIT_OPTIONS.some(u => u.value === challengeForm.unit) && challengeForm.unit !== '' && (
+                      <input
+                        type="text"
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        value={challengeForm.unit.trim()}
+                        onChange={(e) => setChallengeForm({ ...challengeForm, unit: e.target.value })}
+                        placeholder="e.g. rounds, calories"
+                        style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', marginTop: '6px' }}
+                      />
+                    )}
                     <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
                       Timed event? Use <b>mm:ss</b> — results enter & display as a clock (8:30 → 08:30.00).
                     </div>
@@ -911,18 +985,32 @@ export default function AdminDashboard() {
                     />
                   </div>
                 </div>
-                <button
-                  onClick={handleCreateChallenge}
-                  disabled={challengeCreating}
-                  style={{
-                    padding: '12px 24px', border: 'none', borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
-                    fontSize: '14px', fontWeight: 700, cursor: 'pointer',
-                    opacity: challengeCreating ? 0.6 : 1, marginTop: '4px',
-                  }}
-                >
-                  {challengeCreating ? 'Creating...' : 'Create Challenge'}
-                </button>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={handleSaveChallenge}
+                    disabled={challengeCreating}
+                    style={{
+                      padding: '12px 24px', border: 'none', borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+                      fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+                      opacity: challengeCreating ? 0.6 : 1,
+                    }}
+                  >
+                    {challengeCreating ? 'Saving...' : editingChallenge ? 'Save Changes' : 'Create Challenge'}
+                  </button>
+                  {editingChallenge && (
+                    <button
+                      onClick={closeChallengeForm}
+                      disabled={challengeCreating}
+                      style={{
+                        padding: '12px 24px', border: '1px solid #ddd', borderRadius: '8px',
+                        background: '#fff', color: '#666', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -976,6 +1064,12 @@ export default function AdminDashboard() {
                               style={{ ...s.btnSmall, background: '#667eea', color: '#fff' }}
                             >
                               {expandedChallenge === ch.id ? 'Hide' : 'Standings'}
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); startEditChallenge(ch); }}
+                              style={{ ...s.btnSmall, background: '#f59e0b', color: '#fff' }}
+                            >
+                              Edit
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); handleDeleteChallenge(ch.id, ch.title); }}
