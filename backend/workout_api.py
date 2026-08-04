@@ -12,6 +12,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import json
 import os
+import re
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -2458,6 +2459,91 @@ def admin_toggle_template():
         if not row:
             return jsonify({"success": False, "message": "Program not found"}), 404
         return jsonify({"success": True, "id": row["id"], "program_name": row["program_name"], "is_template": row["is_template"]})
+    finally:
+        db.close()
+
+
+@workout_bp.route("/lookup-user.php", methods=["POST", "OPTIONS"])
+def lookup_user():
+    """Recall an athlete's saved maxes + body stats so the returning-user form
+    can fill itself in.
+
+    Why this exists: the tracker only ever remembered these in localStorage, and
+    that fails in the two ways clients actually hit it —
+
+      1. On iOS, a PWA added to the home screen gets its OWN storage, separate
+         from Safari. Logging in through Safari then installing the PWA starts
+         from nothing, and deleting/reinstalling the PWA wipes it again.
+      2. The gym-TV QR can only carry the program code — the TV has no idea who
+         is about to scan it — so a client arriving that way has no history on
+         the device at all.
+
+    Profile rows are keyed (access_code, email), so a client on their SECOND
+    program also started blank even on a device that remembered them. We
+    therefore merge across ALL of this email's rows, newest first, taking the
+    most recent non-empty value per field: a fresh empty row for a new program
+    can never erase numbers the coach already entered.
+
+    Requires the access code as a weak shared secret so an email alone can't be
+    used to fish for someone's stats.
+    """
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    email = (data.get("email") or "").lower().strip()
+    code = re.sub(r"\D", "", str(data.get("code") or ""))
+    if not email or not code:
+        return jsonify({"success": False, "message": "email and code required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT 1 FROM workout_programs WHERE access_code = %s LIMIT 1", (code,))
+        if not cur.fetchone():
+            return jsonify({"success": True, "found": False})
+
+        cur.execute("""
+            SELECT user_name, one_rm_bench, one_rm_squat, one_rm_deadlift, one_rm_clean,
+                   height_inches, weight_lbs, age, gender
+            FROM workout_user_position
+            WHERE LOWER(user_email) = %s
+            ORDER BY updated_at DESC
+        """, (email,))
+        rows = cur.fetchall()
+        if not rows:
+            return jsonify({"success": True, "found": False})
+
+        # 0 is what the tracker writes for "not given", so treat it as absent —
+        # otherwise a zeroed row would shadow a real number from an older one.
+        def pick(field, numeric=True):
+            for r in rows:
+                v = r.get(field)
+                if v is None:
+                    continue
+                if numeric:
+                    try:
+                        f = float(v)
+                    except (TypeError, ValueError):
+                        continue
+                    if f > 0:
+                        return f
+                elif str(v).strip():
+                    return str(v).strip()
+            return None
+
+        profile = {
+            "name": pick("user_name", numeric=False),
+            "benchMax": pick("one_rm_bench"),
+            "squatMax": pick("one_rm_squat"),
+            "deadliftMax": pick("one_rm_deadlift"),
+            "cleanMax": pick("one_rm_clean"),
+            "height": pick("height_inches"),
+            "weight": pick("weight_lbs"),
+            "age": pick("age"),
+            "gender": pick("gender", numeric=False),
+        }
+        found = any(v is not None for v in profile.values())
+        return jsonify({"success": True, "found": found, "profile": profile})
     finally:
         db.close()
 
