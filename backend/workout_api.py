@@ -335,23 +335,31 @@ def load_program():
         requested_day = data.get("requested_day")
         name = data.get("name", "")
 
-        if not position:
-            # Check for previous user data from another program
-            cur.execute("SELECT * FROM workout_user_position WHERE user_email = %s ORDER BY updated_at DESC LIMIT 1", (email,))
-            prev = cur.fetchone()
-            cumulative_weeks = int(prev["cumulative_weeks"] or 0) if prev else 0
-            # Carry name and questionnaire status from previous program
-            if not name and prev:
-                name = prev.get("user_name") or ""
+        # An athlete's maxes belong to the ATHLETE, not to one program. Merge
+        # across every program they've opened so switching programs — or being
+        # handed a new one by their coach — never drops their numbers. Merged
+        # per field from the newest non-empty value, so a blank row left behind
+        # by a program they only glanced at can't shadow the real ones.
+        merged = _merged_profile(cur, email)
 
-            bench = data.get("benchMax") or (prev and prev.get("one_rm_bench")) or 0
-            squat = data.get("squatMax") or (prev and prev.get("one_rm_squat")) or 0
-            deadlift = data.get("deadliftMax") or (prev and prev.get("one_rm_deadlift")) or 0
-            clean = data.get("cleanMax") or (prev and prev.get("one_rm_clean")) or 0
-            height = data.get("height") or (prev and prev.get("height_inches")) or None
-            weight = data.get("weight") or (prev and prev.get("weight_lbs")) or None
-            age = data.get("age") or (prev and prev.get("age")) or None
-            gender = data.get("gender") or (prev and prev.get("gender")) or None
+        if not position:
+            prev_rows = merged["rows"]
+            cur.execute(
+                "SELECT cumulative_weeks FROM workout_user_position WHERE LOWER(user_email) = %s ORDER BY updated_at DESC LIMIT 1",
+                (email.lower(),))
+            cw_row = cur.fetchone()
+            cumulative_weeks = int((cw_row or {}).get("cumulative_weeks") or 0)
+            if not name:
+                name = merged["name"] or ""
+
+            bench = data.get("benchMax") or merged["benchMax"] or 0
+            squat = data.get("squatMax") or merged["squatMax"] or 0
+            deadlift = data.get("deadliftMax") or merged["deadliftMax"] or 0
+            clean = data.get("cleanMax") or merged["cleanMax"] or 0
+            height = data.get("height") or merged["height"] or None
+            weight = data.get("weight") or merged["weight"] or None
+            age = data.get("age") or merged["age"] or None
+            gender = data.get("gender") or merged["gender"] or None
 
             cur.execute("""
                 INSERT INTO workout_user_position
@@ -361,7 +369,8 @@ def load_program():
                  questionnaire_completed, consent_accepted)
                 VALUES (%s, %s, %s, 1, 1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (code, email, name, bench, squat, deadlift, clean, height, weight, age, gender, cumulative_weeks,
-                  bool(prev and prev.get("questionnaire_completed")), bool(prev and prev.get("consent_accepted"))))
+                  bool(prev_rows and merged["questionnaire_completed"]),
+                  bool(prev_rows and merged["consent_accepted"])))
             db.commit()
 
             cur.execute("SELECT * FROM workout_user_position WHERE access_code = %s AND user_email = %s", (code, email))
@@ -378,6 +387,30 @@ def load_program():
                     WHERE access_code = %s AND user_email = %s
                 """, (data.get("height"), data.get("weight"), data.get("age"), data.get("gender"), code, email))
                 db.commit()
+
+            # Backfill a row that already exists but is EMPTY. Inheritance used
+            # to run only when creating the row, so a program opened once before
+            # the athlete's numbers existed kept its zeros forever — and every
+            # percentage-based lift in it prescribed off a 0 max.
+            fills, sets = [], []
+            for col, key in (("one_rm_bench", "benchMax"), ("one_rm_squat", "squatMax"),
+                             ("one_rm_deadlift", "deadliftMax"), ("one_rm_clean", "cleanMax"),
+                             ("height_inches", "height"), ("weight_lbs", "weight"), ("age", "age")):
+                cur_val = position.get(col)
+                has = cur_val is not None and float(cur_val) > 0
+                if not has and merged[key] is not None:
+                    sets.append(f"{col} = %s")
+                    fills.append(merged[key])
+            if not (position.get("user_name") or "").strip() and merged["name"]:
+                sets.append("user_name = %s")
+                fills.append(merged["name"])
+            if sets:
+                cur.execute(
+                    f"UPDATE workout_user_position SET {', '.join(sets)} WHERE access_code = %s AND user_email = %s",
+                    (*fills, code, email))
+                db.commit()
+                cur.execute("SELECT * FROM workout_user_position WHERE access_code = %s AND user_email = %s", (code, email))
+                position = cur.fetchone()
 
         current_week = int(requested_week or position["current_week"] or 1)
         current_day = int(requested_day or position["current_day"] or 1)
@@ -2463,6 +2496,61 @@ def admin_toggle_template():
         db.close()
 
 
+def _merged_profile(cur, email):
+    """This athlete's best-known maxes + body stats, merged across EVERY program
+    they've opened — newest non-empty value wins, field by field.
+
+    Profile rows are keyed (access_code, email), so each program gets its own.
+    Carrying forward from only the single most recent row (what this used to do)
+    breaks the moment that row happens to be a blank one: open a new program,
+    bounce off it without entering anything, and that empty row is now "most
+    recent" — so the NEXT program inherits zeros while the real numbers sit one
+    row further back.
+
+    0 means "not given" in this table, so it is treated as absent; otherwise a
+    zeroed row would shadow a real number from an older program.
+    """
+    cur.execute("""
+        SELECT user_name, one_rm_bench, one_rm_squat, one_rm_deadlift, one_rm_clean,
+               height_inches, weight_lbs, age, gender, questionnaire_completed, consent_accepted
+        FROM workout_user_position
+        WHERE LOWER(user_email) = %s
+        ORDER BY updated_at DESC
+    """, ((email or "").lower().strip(),))
+    rows = cur.fetchall()
+
+    def pick(field, numeric=True):
+        for r in rows:
+            v = r.get(field)
+            if v is None:
+                continue
+            if numeric:
+                try:
+                    f = float(v)
+                except (TypeError, ValueError):
+                    continue
+                if f > 0:
+                    return f
+            elif str(v).strip():
+                return str(v).strip()
+        return None
+
+    return {
+        "rows": rows,
+        "name": pick("user_name", numeric=False),
+        "benchMax": pick("one_rm_bench"),
+        "squatMax": pick("one_rm_squat"),
+        "deadliftMax": pick("one_rm_deadlift"),
+        "cleanMax": pick("one_rm_clean"),
+        "height": pick("height_inches"),
+        "weight": pick("weight_lbs"),
+        "age": pick("age"),
+        "gender": pick("gender", numeric=False),
+        "questionnaire_completed": any(bool(r.get("questionnaire_completed")) for r in rows),
+        "consent_accepted": any(bool(r.get("consent_accepted")) for r in rows),
+    }
+
+
 @workout_bp.route("/lookup-user.php", methods=["POST", "OPTIONS"])
 def lookup_user():
     """Recall an athlete's saved maxes + body stats so the returning-user form
@@ -2502,46 +2590,11 @@ def lookup_user():
         if not cur.fetchone():
             return jsonify({"success": True, "found": False})
 
-        cur.execute("""
-            SELECT user_name, one_rm_bench, one_rm_squat, one_rm_deadlift, one_rm_clean,
-                   height_inches, weight_lbs, age, gender
-            FROM workout_user_position
-            WHERE LOWER(user_email) = %s
-            ORDER BY updated_at DESC
-        """, (email,))
-        rows = cur.fetchall()
-        if not rows:
+        merged = _merged_profile(cur, email)
+        if not merged["rows"]:
             return jsonify({"success": True, "found": False})
-
-        # 0 is what the tracker writes for "not given", so treat it as absent —
-        # otherwise a zeroed row would shadow a real number from an older one.
-        def pick(field, numeric=True):
-            for r in rows:
-                v = r.get(field)
-                if v is None:
-                    continue
-                if numeric:
-                    try:
-                        f = float(v)
-                    except (TypeError, ValueError):
-                        continue
-                    if f > 0:
-                        return f
-                elif str(v).strip():
-                    return str(v).strip()
-            return None
-
-        profile = {
-            "name": pick("user_name", numeric=False),
-            "benchMax": pick("one_rm_bench"),
-            "squatMax": pick("one_rm_squat"),
-            "deadliftMax": pick("one_rm_deadlift"),
-            "cleanMax": pick("one_rm_clean"),
-            "height": pick("height_inches"),
-            "weight": pick("weight_lbs"),
-            "age": pick("age"),
-            "gender": pick("gender", numeric=False),
-        }
+        profile = {k: merged[k] for k in
+                   ("name", "benchMax", "squatMax", "deadliftMax", "cleanMax", "height", "weight", "age", "gender")}
         found = any(v is not None for v in profile.values())
         return jsonify({"success": True, "found": found, "profile": profile})
     finally:
