@@ -2493,7 +2493,7 @@ def list_custom_exercises():
         if not uid:
             return jsonify({"success": True, "exercises": []})
         cur.execute("""
-            SELECT id, name, video_uid, status, created_at
+            SELECT id, name, video_uid, status, category, subcategory, created_at
             FROM custom_exercises
             WHERE proposed_by_user_id = %s AND status <> 'removed'
             ORDER BY LOWER(name)
@@ -2511,6 +2511,11 @@ def save_custom_exercise():
     email = (data.get("email") or "").lower().strip()
     name = (data.get("name") or "").strip()
     video_uid = (data.get("video_uid") or "").strip() or None
+    # Where the coach wants this exercise to live in the builder's picker
+    # (e.g. legs / dumbbell). Blank = it only surfaces via search + the
+    # "Your Custom Exercises" shelf.
+    category = (data.get("category") or "").strip() or None
+    subcategory = (data.get("subcategory") or "").strip() or None
     if not email or not name:
         return jsonify({"success": False, "message": "email and name required"}), 400
     db = get_db()
@@ -2522,16 +2527,18 @@ def save_custom_exercise():
         try:
             cur.execute("""
                 INSERT INTO custom_exercises
-                  (proposed_by_user_id, name, source_library, status, video_uid)
-                VALUES (%s, %s, 'custom', 'approved', %s)
-                RETURNING id, name, video_uid, status, created_at
-            """, (uid, name, video_uid))
+                  (proposed_by_user_id, name, source_library, status, video_uid, category, subcategory)
+                VALUES (%s, %s, 'custom', 'approved', %s, %s, %s)
+                RETURNING id, name, video_uid, status, category, subcategory, created_at
+            """, (uid, name, video_uid, category, subcategory))
             row = cur.fetchone()
             db.commit()
             return jsonify({"success": True, "exercise": row})
         except psycopg2.errors.UniqueViolation:
             db.rollback()
-            # Same name already exists — return it, updating the video if given.
+            # Same name already exists — return it, updating whatever was given.
+            # Re-saving is how a coach RE-FILES an exercise into a different
+            # category, so category/subcategory update on the existing row too.
             cur.execute("""
                 SELECT id FROM custom_exercises
                 WHERE LOWER(name) = LOWER(%s) AND source_library = 'custom'
@@ -2543,9 +2550,14 @@ def save_custom_exercise():
                 return jsonify({"success": False, "message": "could not save"}), 500
             if video_uid:
                 cur.execute("UPDATE custom_exercises SET video_uid = %s WHERE id = %s", (video_uid, existing["id"]))
-                db.commit()
+            if category is not None or subcategory is not None:
+                cur.execute(
+                    "UPDATE custom_exercises SET category = %s, subcategory = %s WHERE id = %s",
+                    (category, subcategory, existing["id"]),
+                )
+            db.commit()
             cur.execute("""
-                SELECT id, name, video_uid, status, created_at
+                SELECT id, name, video_uid, status, category, subcategory, created_at
                 FROM custom_exercises WHERE id = %s
             """, (existing["id"],))
             return jsonify({"success": True, "exercise": cur.fetchone(), "existing": True})
