@@ -536,6 +536,9 @@ def load_program():
                     "allWorkouts": all_workouts,
                     "coachId": _resolve_coach_uuid(cur, program.get("created_by")),
                 },
+                # What this athlete has already been through, on any device
+                # and in any program — so the tracker stops replaying it.
+                "onboarding": _onboarding_for(cur, email),
                 "userPosition": {
                     "currentWeek": current_week,
                     "currentDay": current_day,
@@ -2580,6 +2583,85 @@ def _merged_profile(cur, email):
         "questionnaire_completed": any(bool(r.get("questionnaire_completed")) for r in rows),
         "consent_accepted": any(bool(r.get("consent_accepted")) for r in rows),
     }
+
+
+def _onboarding_for(cur, email):
+    """Per-ATHLETE onboarding state — what this person has already been through,
+    on any device, in any program.
+
+    Every one of these gates used to live in localStorage keyed by program code,
+    so a client alternating between two programs replayed the welcome
+    walkthrough, the challenge announce and the questionnaire every time they
+    switched, and again on any second device. Keyed by the person now: seen once
+    is seen forever, which is how every other app they use behaves.
+    """
+    em = (email or "").lower().strip()
+    cur.execute("""
+        SELECT welcome_seen_at, consent_accepted_at, questionnaire_completed_at, dismissed_challenges
+        FROM athlete_onboarding WHERE user_email = %s
+    """, (em,))
+    row = cur.fetchone() or {}
+    # Fall back to the per-program flags for anyone not yet in the table, so
+    # shipping this never re-asks somebody who already answered.
+    cur.execute("""
+        SELECT BOOL_OR(consent_accepted) AS consent, BOOL_OR(questionnaire_completed) AS quest
+        FROM workout_user_position WHERE LOWER(user_email) = %s
+    """, (em,))
+    legacy = cur.fetchone() or {}
+    return {
+        "welcomeSeen": row.get("welcome_seen_at") is not None,
+        "consentAccepted": row.get("consent_accepted_at") is not None or bool(legacy.get("consent")),
+        "questionnaireCompleted": row.get("questionnaire_completed_at") is not None or bool(legacy.get("quest")),
+        "dismissedChallenges": row.get("dismissed_challenges") or [],
+    }
+
+
+@workout_bp.route("/set-onboarding.php", methods=["POST", "OPTIONS"])
+def set_onboarding():
+    """Record that this athlete has been through a first-time gate.
+
+    Body: { email, flag: welcome|consent|questionnaire, challenge_id? }
+    """
+    if request.method == "OPTIONS":
+        return "", 200
+    data = request.json or {}
+    email = (data.get("email") or "").lower().strip()
+    flag = (data.get("flag") or "").strip()
+    challenge_id = (data.get("challenge_id") or "").strip() or None
+    if not email:
+        return jsonify({"success": False, "message": "email required"}), 400
+
+    COLS = {
+        "welcome": "welcome_seen_at",
+        "consent": "consent_accepted_at",
+        "questionnaire": "questionnaire_completed_at",
+    }
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "INSERT INTO athlete_onboarding (user_email) VALUES (%s) ON CONFLICT (user_email) DO NOTHING",
+            (email,))
+        if flag == "challenge" and challenge_id:
+            # Append once; jsonb array of challenge ids the athlete has dismissed.
+            cur.execute("""
+                UPDATE athlete_onboarding
+                SET dismissed_challenges = CASE
+                        WHEN dismissed_challenges @> %s::jsonb THEN dismissed_challenges
+                        ELSE dismissed_challenges || %s::jsonb END,
+                    updated_at = NOW()
+                WHERE user_email = %s
+            """, (json.dumps([challenge_id]), json.dumps([challenge_id]), email))
+        elif flag in COLS:
+            cur.execute(
+                f"UPDATE athlete_onboarding SET {COLS[flag]} = COALESCE({COLS[flag]}, NOW()), "
+                "updated_at = NOW() WHERE user_email = %s", (email,))
+        else:
+            return jsonify({"success": False, "message": "unknown flag"}), 400
+        db.commit()
+        return jsonify({"success": True, "onboarding": _onboarding_for(cur, email)})
+    finally:
+        db.close()
 
 
 @workout_bp.route("/lookup-user.php", methods=["POST", "OPTIONS"])
