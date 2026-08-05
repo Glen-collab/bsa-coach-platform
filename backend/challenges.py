@@ -290,9 +290,16 @@ def submit_result(challenge_id):
             in_grace = now < grace_end
         is_coach = request.current_user.get("role") in ("coach", "admin")
         if not has_sub and not in_grace and not is_coach:
+            # Same rule as the tracker paywall: this caller is authenticated, so
+            # they demonstrably have an account — send them to sign-in with the
+            # upgrade intent, never to the signup form. Tracker is the tier every
+            # in-app subscribe screen offers.
+            from workout_api import subscribe_url_for
             return jsonify({
                 "error": "Active subscription required to participate in challenges",
-                "subscribe_url": "https://app.bestrongagain.com/register/GLENM7NUS?tier=basic",
+                # u["email"] from the row above — the JWT carries only user_id
+                # and role, so current_user has no email to hand over.
+                "subscribe_url": subscribe_url_for(u["email"], has_account=True, tier="tracker"),
             }), 403
 
         cur.execute("SELECT * FROM challenges WHERE id = %s", (challenge_id,))

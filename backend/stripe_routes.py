@@ -212,14 +212,16 @@ def create_checkout():
     # spawning a duplicate — and so the downgrade cleanup can find their old sub).
     db = get_db()
     stripe_customer_id = None
+    user_email = None
     try:
         with db.cursor() as cur:
-            cur.execute("SELECT referred_by_id, stripe_customer_id FROM users WHERE id = %s", (user_id,))
+            cur.execute("SELECT referred_by_id, stripe_customer_id, email FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
             if row:
                 if not coach_id and row[0]:
                     coach_id = str(row[0])
                 stripe_customer_id = row[1]
+                user_email = row[2]
     except Exception:
         pass
     db.close()
@@ -245,6 +247,13 @@ def create_checkout():
         # Reuse the existing customer on a repeat/downgrade purchase.
         if stripe_customer_id:
             session_kwargs["customer"] = stripe_customer_id
+        elif user_email:
+            # Pre-fill the email so a first-time subscriber lands on the card
+            # fields instead of an email prompt. One less screen between them
+            # and paying — the checkout drop-off we actually observed was
+            # someone stalling on the pre-card screens, not on the card itself.
+            # Mutually exclusive with `customer`: Stripe rejects both together.
+            session_kwargs["customer_email"] = user_email
         session = stripe.checkout.Session.create(**session_kwargs)
     except stripe.error.StripeError as e:
         return jsonify({"error": f"Stripe: {str(e)}"}), 400
