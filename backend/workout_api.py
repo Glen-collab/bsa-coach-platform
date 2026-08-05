@@ -140,12 +140,35 @@ def send_email(to, subject, html_body, reply_to=None, attachments=None, kind="ot
 SUBSCRIBE_URL = "https://app.bestrongagain.com/register/GLENM7NUS?tier=tracker"
 
 
-def _paywall_denied(message):
+def subscribe_url_for(email=None, has_account=False, tier="tracker"):
+    """Where the tracker's paywall should send someone to actually pay.
+
+    This used to be one constant pointing at /register for everybody, which
+    dead-ends the people most likely to hit the paywall: existing free-tier
+    members. Their journey was — fill in the whole signup form (name, password,
+    date of birth) → server rejects it as account_exists → bounced to /login →
+    dig up a password they set months ago. Most give up, and it reads as
+    "subscribing sends me in a loop and never reaches payment".
+
+    An email we already know goes straight to /login instead, pre-filled and
+    carrying the upgrade intent, so signing in (or using the emailed magic link)
+    drops them directly into Stripe checkout. Only genuinely new emails get the
+    signup form.
+    """
+    from urllib.parse import urlencode
+    if has_account and email:
+        return "https://app.bestrongagain.com/login?" + urlencode(
+            {"email": email, "reason": "upgrade", "tier": tier})
+    return f"https://app.bestrongagain.com/register/GLENM7NUS?tier={tier}"
+
+
+def _paywall_denied(message, email=None, has_account=False):
     return jsonify({
         "success": False,
         "payment_required": True,
         "message": message,
-        "subscribe_url": SUBSCRIBE_URL,
+        "has_account": bool(has_account),
+        "subscribe_url": subscribe_url_for(email, has_account),
     }), 403
 
 
@@ -230,7 +253,8 @@ def check_payment_access(cur, db, email, data=None, program=None):
         # No BSA account at all — hard block. Previously an account-less email
         # that already had logs matched neither branch and fell through ungated.
         return _paywall_denied(
-            "A subscription is required to access workout programs. Please subscribe to get started!"
+            "A subscription is required to access workout programs. Please subscribe to get started!",
+            email=email, has_account=False,
         ), survey_available, grace_days_remaining
 
     if not has_logs:
@@ -249,7 +273,8 @@ def check_payment_access(cur, db, email, data=None, program=None):
                 trial_end = trial_end.replace(tzinfo=timezone.utc)
             if now >= trial_end:
                 return _paywall_denied(
-                    "Your free trial has ended. Subscribe to continue accessing your workout programs!"
+                    "Your free trial has ended. Sign in to subscribe and keep your programs.",
+                    email=email, has_account=True,
                 ), survey_available, grace_days_remaining
             grace_days_remaining = max(0, (trial_end - now).days)
         return None, survey_available, grace_days_remaining
@@ -281,7 +306,8 @@ def check_payment_access(cur, db, email, data=None, program=None):
         grace_end = grace_end.replace(tzinfo=timezone.utc)
     if now >= grace_end:
         return _paywall_denied(
-            "Your free trial has ended. Subscribe to continue accessing your workout programs!"
+            "Your free trial has ended. Sign in to subscribe and keep your programs.",
+            email=email, has_account=True,
         ), survey_available, grace_days_remaining
 
     grace_days_remaining = max(0, (grace_end - now).days)
