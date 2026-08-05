@@ -2622,7 +2622,27 @@ def lookup_user():
         profile = {k: merged[k] for k in
                    ("name", "benchMax", "squatMax", "deadliftMax", "cleanMax", "height", "weight", "age", "gender")}
         found = any(v is not None for v in profile.values())
-        return jsonify({"success": True, "found": found, "profile": profile})
+
+        # Every program this athlete has actually opened, most recent first.
+        # The gym-TV QR carries whichever program the BOARD is showing, which
+        # is not necessarily this athlete's — a Legacy athlete scanning on a
+        # Prime day silently lands in the wrong program. Handing back the names
+        # lets the tracker ask instead of guessing.
+        cur.execute("""
+            SELECT w.access_code, p.program_name, p.program_nickname, w.updated_at
+            FROM workout_user_position w
+            JOIN workout_programs p ON p.access_code = w.access_code
+            WHERE LOWER(w.user_email) = %s AND p.is_active
+            ORDER BY w.updated_at DESC
+            LIMIT 10
+        """, (email,))
+        programs = [{
+            "code": r["access_code"],
+            "name": r["program_name"],
+            "nickname": r["program_nickname"],
+        } for r in cur.fetchall()]
+
+        return jsonify({"success": True, "found": found, "profile": profile, "programs": programs})
     finally:
         db.close()
 
