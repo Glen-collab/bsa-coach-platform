@@ -523,6 +523,12 @@ def load_program():
             "data": {
                 "program": {
                     "name": program["program_name"],
+                    # Nickname + code so the tracker can state exactly which
+                    # program is loaded. A gym running several squads has more
+                    # than one "August" program on the boards, so the name alone
+                    # doesn't tell an athlete whether they scanned the right TV.
+                    "nickname": program.get("program_nickname"),
+                    "accessCode": code,
                     "userName": position.get("user_name") or name or _lookup_name(email, cur),
                     "daysPerWeek": days_per_week,
                     "hiddenDays": hidden_days,
