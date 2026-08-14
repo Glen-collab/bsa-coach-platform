@@ -201,6 +201,12 @@ export default function CoachDashboard() {
           <a href={`https://leaderboard.bestrongagain.com?from=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #fbbf24, #d97706)' }}>
             Leaderboard
           </a>
+          {/* Strongman scoresheet for the small in-house comps. Lives in the
+              leaderboard app (same EC2 box, its own coach login) — not public,
+              so it needs a sign-in on the far side. */}
+          <a href={`https://leaderboard.bestrongagain.com/contests?from=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #f43f5e, #be123c)' }}>
+            🏆 Contests
+          </a>
           <a href="/admin?tab=challenges" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}>
             Challenges
           </a>
