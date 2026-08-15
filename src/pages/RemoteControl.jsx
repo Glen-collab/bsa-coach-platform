@@ -295,6 +295,9 @@ export default function RemoteControl() {
   // Pi is independent — coach can flip one TV to the leaderboard during a
   // test day while the other gym TVs keep showing workouts.
   const isLeaderboardMode = device?.display_mode === 'leaderboard';
+  // Strongman contest board — this TV shows the running comp (event placings,
+  // then overall standings, on a loop) instead of the metric leaderboard.
+  const isContestMode = device?.display_mode === 'contest';
   const isCardsMode = device?.display_mode === 'cards';
   const lockedMetricId = device?.display_metric_id || null;
   // Multi-metric rotation subset (CSV in the device row → number array). Empty = auto-rotate all.
@@ -476,7 +479,7 @@ export default function RemoteControl() {
         <button
           type="button"
           onClick={() => setDisplay({ mode: 'workout' })}
-          style={{ ...s.modeBtn, ...(!isLeaderboardMode && !isCardsMode ? s.modeBtnActive : {}) }}
+          style={{ ...s.modeBtn, ...(!isLeaderboardMode && !isCardsMode && !isContestMode ? s.modeBtnActive : {}) }}
         >
           Workouts
         </button>
@@ -487,7 +490,31 @@ export default function RemoteControl() {
         >
           Leaderboard
         </button>
+        <button
+          type="button"
+          onClick={() => setDisplay({ mode: 'contest' })}
+          style={{ ...s.modeBtn, ...(isContestMode ? s.modeBtnActive : {}) }}
+        >
+          🏆 Contest
+        </button>
       </div>
+
+      {isContestMode && (
+        <div style={s.metricBlock}>
+          <div style={s.metricLabel}>What's on the TV</div>
+          <div style={{ fontSize: '12px', color: '#94a3b8', margin: '0 2px', lineHeight: 1.4 }}>
+            Your most recent contest, on a loop — each event's placings, then the
+            overall standings. It updates itself as you score, so leave this TV
+            alone once the comp starts. Set up and score the comp from{' '}
+            <a
+              href="https://leaderboard.bestrongagain.com/contests"
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: '#fbbf24', fontWeight: 700 }}
+            >Contests</a>.
+          </div>
+        </div>
+      )}
 
       {/* Metric picker — only shown in Leaderboard mode. Auto-rotate (null
           metric_id) is the default; tap a specific metric to lock the TV
@@ -636,11 +663,13 @@ export default function RemoteControl() {
       </button>
 
       <div style={s.hint}>
-        {isLeaderboardMode
-          ? lockedMetricId
-            ? 'TV is locked to one metric — live updates as the test station saves.'
-            : 'TV is auto-rotating through every metric.'
-          : 'TV updates within ~60 seconds of each tap.'}
+        {isContestMode
+          ? 'TV is showing the running contest — it refreshes itself every few seconds as you score.'
+          : isLeaderboardMode
+            ? lockedMetricId
+              ? 'TV is locked to one metric — live updates as the test station saves.'
+              : 'TV is auto-rotating through every metric.'
+            : 'TV updates within ~60 seconds of each tap.'}
       </div>
     </div>
   );

@@ -903,7 +903,7 @@ def device_set_display():
     """
     Body: {
       device_id,
-      mode:      'workout' | 'leaderboard',
+      mode:      'workout' | 'leaderboard' | 'contest',
       metric_id: int | null,   (only meaningful when mode='leaderboard')
       gender:    'M' | 'F' | null,
       group:     str | null
@@ -924,7 +924,7 @@ def device_set_display():
     data = request.get_json(silent=True) or {}
     device_id = data.get("device_id")
     mode = (data.get("mode") or "").strip()
-    if not device_id or mode not in ("workout", "leaderboard", "cards", "game_nes", "game_snes", "game_n64", "game_gba"):
+    if not device_id or mode not in ("workout", "leaderboard", "contest", "cards", "game_nes", "game_snes", "game_n64", "game_gba"):
         return jsonify({"error": "device_id + valid mode required"}), 400
 
     metric_id = data.get("metric_id")
