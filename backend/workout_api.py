@@ -157,8 +157,11 @@ def subscribe_url_for(email=None, has_account=False, tier="tracker"):
     """
     from urllib.parse import urlencode
     if has_account and email:
-        return "https://app.bestrongagain.com/login?" + urlencode(
-            {"email": email, "reason": "upgrade", "tier": tier})
+        # Straight to the plan picker, NOT the login screen. Sending someone to
+        # sign in at the moment they've decided to pay is where they quit —
+        # they came to hand over money and got asked for a password. Checkout
+        # resolves them by this email, so no session is needed.
+        return "https://app.bestrongagain.com/subscribe?" + urlencode({"email": email})
     return f"https://app.bestrongagain.com/register/GLENM7NUS?tier={tier}"
 
 

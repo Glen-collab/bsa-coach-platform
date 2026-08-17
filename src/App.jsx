@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Landing from './pages/Landing';
 import CoachPitch from './pages/CoachPitch';
 import Login from './pages/Login';
+import Subscribe from './pages/Subscribe';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -42,6 +43,9 @@ function AppRoutes() {
       <Route path="/" element={<Landing />} />
       <Route path="/become-a-coach" element={<CoachPitch />} />
       <Route path="/login" element={<Login />} />
+      {/* PUBLIC on purpose — a paywalled member must be able to pay without
+          first being asked to sign in. Checkout resolves them by email. */}
+      <Route path="/subscribe" element={<Subscribe />} />
       <Route path="/register" element={<Register />} />
       <Route path="/register/:referralCode" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />

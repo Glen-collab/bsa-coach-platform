@@ -199,8 +199,39 @@ def create_checkout():
         except Exception:
             pass
 
+    # Fall back to the EMAIL when there's no session.
+    #
+    # A member whose trial has ended hits the paywall inside the tracker, which
+    # already knows exactly who they are — but checkout needed a JWT, so paying
+    # meant bouncing them out to sign in first. That re-login is where people
+    # give up: they came to hand over money and got asked for a password
+    # instead.
+    #
+    # This is not a new hole. /register?tier=X has always run checkout for a
+    # brand-new account with no prior session, so an unauthenticated path to
+    # Stripe already existed. The payer enters their OWN card on Stripe's page;
+    # the subscription simply attaches to this email's account.
     if not user_id:
-        return jsonify({"error": "Authentication required"}), 401
+        email = (data.get("email") or "").lower().strip()
+        if email:
+            db0 = get_db()
+            try:
+                with db0.cursor() as cur0:
+                    cur0.execute("SELECT id FROM users WHERE LOWER(email) = %s", (email,))
+                    row0 = cur0.fetchone()
+                    if row0:
+                        user_id = str(row0[0])
+            except Exception:
+                pass
+            finally:
+                db0.close()
+        if not user_id:
+            # Deliberately vague about WHY: don't confirm whether an address
+            # has an account to an unauthenticated caller.
+            return jsonify({
+                "error": "no_account",
+                "message": "We couldn't find an account for that email. Check the spelling, or use the email your coach set you up with.",
+            }), 404
 
     if tier not in PRICE_IDS:
         return jsonify({"error": "Invalid tier"}), 400
