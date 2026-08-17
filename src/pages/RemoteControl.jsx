@@ -207,11 +207,18 @@ export default function RemoteControl() {
     fetch(`${LEADERBOARD_BASE}/api/leaderboard/years`).then(r => r.json()).then(setYears).catch(() => {});
   }, []);
 
+  // Kiosk lineup — the programs flipped on for the TVs from the Gym TV page.
+  // Fetched here so the remote can swap what's playing without a trip back
+  // to /gym-tv. Same source + same filter GymTV uses for its tiles.
+  const [programs, setPrograms] = useState([]);
+  const kioskLineup = useMemo(() => programs.filter((p) => p.show_on_kiosk), [programs]);
+
   const load = useCallback(async () => {
     try {
-      const r = await api.kioskMyDevices();
+      const [r, p] = await Promise.all([api.kioskMyDevices(), api.kioskMyPrograms()]);
       const list = r.devices || [];
       setDevices(list);
+      setPrograms(p.programs || []);
       const found = list.find((d) => String(d.id) === String(deviceId));
       if (!found) {
         setErr('Device not found.');
@@ -268,6 +275,18 @@ export default function RemoteControl() {
     }
   };
 
+  // Swap which kiosk program is on this TV. Reloads rather than patching
+  // locally because the new program brings its own access_code + names, and
+  // the TV picks the change up on its next ~60s tv-config poll.
+  const setProgram = async (programId) => {
+    try {
+      await api.kioskDeviceSetActive(deviceId, programId ? Number(programId) : null);
+      await load();
+    } catch (e) {
+      setErr(e.message || 'Failed to change the workout.');
+    }
+  };
+
   // "View Workout" → opens the workout-browse view at /tv/static?tablet=1
   // pre-jumped to the same week/day the gym TV is showing. Same two-day
   // workout layout, plus tappable play buttons on every exercise that has
@@ -286,6 +305,11 @@ export default function RemoteControl() {
       from:   window.location.href,
     });
     if (coachCode) params.set('coach', coachCode);
+    // Hand the tablet this TV's serial so it mirrors the TV from here on —
+    // week/day/layout/program all follow whatever this remote sets, instead
+    // of freezing on the snapshot this URL was built from. Requires ?coach=
+    // too, since tv-config keys on (coach, device).
+    if (coachCode && device?.device_serial) params.set('device', device.device_serial);
     if (layout && layout !== 'two_day') params.set('layout', layout);   // single-day (wod/wod_scaled) matches the TV
     const url = `${TRACKER_BASE}/tv/static?${params.toString()}`;
     window.open(url, '_blank', 'noopener');
@@ -388,6 +412,23 @@ export default function RemoteControl() {
         ) : (
           <div style={s.deviceName}>{device?.display_name || 'Device'}</div>
         )}
+        {/* Second dropdown — what's playing on this TV. Lists the kiosk
+            lineup flipped on from the Gym TV page, so the whole daily job
+            (pick the TV, pick the workout, drive week/day) happens here. */}
+        <div style={s.switchLabel}>🏋️ Workout on this TV</div>
+        <select
+          value={device?.active_program_id ? String(device.active_program_id) : ''}
+          onChange={(e) => setProgram(e.target.value)}
+          style={s.deviceSelect}
+        >
+          <option value="">— Nothing on TV —</option>
+          {kioskLineup.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.program_name || 'Untitled'}{p.program_nickname ? ` · ${p.program_nickname}` : ''}
+            </option>
+          ))}
+        </select>
+
         {device?.program_name ? (
           <>
             <div style={s.programName}>
@@ -398,6 +439,11 @@ export default function RemoteControl() {
           </>
         ) : (
           <div style={s.programName}>No program on TV</div>
+        )}
+        {kioskLineup.length === 0 && (
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '6px' }}>
+            No programs in your kiosk lineup yet — flip some on from the Gym TV page.
+          </div>
         )}
       </div>
 
