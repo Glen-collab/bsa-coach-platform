@@ -94,14 +94,18 @@ export default function Subscribe() {
                 cursor: 'pointer', textDecoration: 'underline' },
     err: { maxWidth: '520px', margin: '0 auto 18px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(248,113,113,0.5)',
            color: '#fecaca', borderRadius: '10px', padding: '11px 14px', fontSize: '13.5px', lineHeight: 1.5, textAlign: 'center' },
-    foot: { textAlign: 'center', marginTop: '26px', fontSize: '12.5px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 },
+    cancelBox: { maxWidth: '620px', margin: '26px auto 0', background: 'rgba(255,255,255,0.05)',
+                 border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '16px 18px' },
+    cancelTitle: { fontSize: '14px', fontWeight: 800, marginBottom: '7px' },
+    cancelText: { fontSize: '13px', color: 'rgba(255,255,255,0.72)', lineHeight: 1.65 },
+    foot: { textAlign: 'center', marginTop: '20px', fontSize: '12.5px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 },
   };
 
   return (
     <div style={s.page}>
       <div style={s.wrap}>
         <h1 style={s.h1}>Keep your training going</h1>
-        <p style={s.sub}>Pick the plan that fits. Cancel any time.</p>
+        <p style={s.sub}>Pick the plan that fits. Cancel any time, in two taps, from your dashboard.</p>
 
         <div style={s.emailWrap}>
           <label style={s.label}>YOUR EMAIL</label>
@@ -141,6 +145,28 @@ export default function Subscribe() {
           <button style={s.quietBtn} disabled={!!busy} onClick={() => start('tracker')}>
             {busy === 'tracker' ? 'Opening checkout…' : 'Or just the Workout Tracker — $5.99/mo (no coaching)'}
           </button>
+        </div>
+
+        {/* Say plainly what cancelling does. "Cancel any time" on its own is
+            the kind of claim people have learned not to trust, and the honest
+            version is a better argument anyway: nothing is destroyed, they
+            simply lose access until they come back.
+
+            Deliberately NOT "your data will be lost" — cancelling deletes
+            nothing. Their logs stay exactly where they are. Saying otherwise
+            would be false, and scaring people out of cancelling is the kind of
+            thing that gets an app rejected, not approved. */}
+        <div style={s.cancelBox}>
+          <div style={s.cancelTitle}>Cancelling is easy, and nothing gets deleted</div>
+          <div style={s.cancelText}>
+            Cancel whenever you like from <b>Your Plan</b> on your dashboard. Billing stops at the
+            end of the month you've paid for — no phone call, no email to us.
+            <br /><br />
+            While you're cancelled you'll <b>lose access to your programs and your tracked
+            progress</b>, and your coach can't send you new training. Nothing is deleted:
+            everything you've logged is still there and comes straight back the moment you
+            subscribe again.
+          </div>
         </div>
 
         <div style={s.foot}>
