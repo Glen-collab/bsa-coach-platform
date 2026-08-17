@@ -187,8 +187,16 @@ def create_checkout():
     # expected pattern" via res.json() — prevent leaking those).
     data = request.get_json(silent=True) or {}
     tier = data.get("tier", "basic")
-    user_id = data.get("user_id")
     coach_id = data.get("coach_id")
+
+    # user_id is NEVER taken from the request body.
+    #
+    # It used to be, which meant anyone could POST {tier, user_id:<any uuid>}
+    # and mint a checkout session against a stranger's account — no token, no
+    # email, no ownership check. Nothing legitimate ever sent it: the frontend
+    # calls api.checkout(tier) with the tier alone. Identity now comes only
+    # from a signed JWT, or from an email we look up ourselves below.
+    user_id = None
 
     # Get user_id from JWT if not in body
     auth = request.headers.get("Authorization", "")

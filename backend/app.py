@@ -23,8 +23,37 @@ if not _secret or _secret == 'dev-secret-change-me':
     )
 app.config['SECRET_KEY'] = _secret
 
-# CORS — allow all origins (workout builder/tracker on Netlify + WordPress)
-CORS(app, origins='*')
+# CORS — explicit allowlist rather than '*'.
+#
+# Modest hardening, not a closed hole: auth here is a Bearer token in a header,
+# never a cookie, so a hostile page could never make an AUTHENTICATED call on a
+# signed-in user's behalf even with '*' — the browser attaches no credentials.
+# And the deliberately-public endpoints (checkout-by-email, the email-keyed
+# tracker routes) are reachable with curl regardless; CORS only ever constrains
+# browsers. This simply stops arbitrary sites scripting against the API from a
+# visitor's machine.
+#
+# Deliberately generous, because a missed origin is a silently broken app in the
+# middle of a training session: every live front-end, the marketing site, the
+# leaderboard, Netlify deploy previews, and localhost for development.
+import re as _re
+
+CORS(app, origins=[
+    "https://bestrongagain.netlify.app",          # workout tracker
+    "https://workoutbuild.netlify.app",           # program builder
+    "https://bsa-trainer-dashboard.netlify.app",  # trainer dashboard
+    "https://app.bestrongagain.com",              # this platform
+    "https://bestrongagain.com",                  # marketing site
+    "https://www.bestrongagain.com",
+    "https://leaderboard.bestrongagain.com",
+    "https://cards.bestrongagain.com",
+    "https://chat.bestrongagain.com",
+    # Netlify deploy previews / branch builds of the three front-ends.
+    _re.compile(r"^https://[a-z0-9-]+--(bestrongagain|workoutbuild|bsa-trainer-dashboard)\.netlify\.app$"),
+    # Local development on any port.
+    _re.compile(r"^http://localhost(:\d+)?$"),
+    _re.compile(r"^http://127\.0\.0\.1(:\d+)?$"),
+])
 
 # ── Database connection helper ──
 import psycopg2
