@@ -69,6 +69,27 @@ export default function MemberDashboard() {
   const [upgrading, setUpgrading] = useState(false);
   const [managing,  setManaging]  = useState(false);
 
+  // Self-serve account deletion. Apple 5.1.1(v) requires it, and cancelling a
+  // subscription doesn't satisfy it — that stops billing, this ends the account.
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteErr, setDeleteErr] = useState('');
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm.trim().toUpperCase() !== 'DELETE') return;
+    setDeleting(true); setDeleteErr('');
+    try {
+      await api.deleteAccount();
+      // Clear the session before anything can try to use a dead account.
+      try { localStorage.clear(); } catch { /* private mode */ }
+      window.location.href = '/?deleted=1';
+    } catch (err) {
+      setDeleteErr(err.message || 'Could not delete your account. Please try again.');
+      setDeleting(false);
+    }
+  };
+
   const handleManageSubscription = async () => {
     setManaging(true);
     try {
@@ -358,6 +379,71 @@ export default function MemberDashboard() {
           >
             {upgrading ? '...' : 'Or just the Workout Tracker — $5.99/mo (no coaching)'}
           </button>
+        </div>
+
+        {/* Danger zone. Deliberately at the bottom of the plan card, plain and
+            findable — Apple 5.1.1(v) wants deletion reachable in the app, not
+            buried behind an email to support. Two gates before anything
+            happens: open the panel, then type the word. */}
+        <div style={{ marginTop: '18px', paddingTop: '16px', borderTop: '1px solid #eee' }}>
+          {!showDelete ? (
+            <button
+              onClick={() => setShowDelete(true)}
+              style={{ background: 'none', border: 'none', color: '#b91c1c', fontSize: '13px',
+                       fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+            >Delete my account</button>
+          ) : (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '14px 16px' }}>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: '#991b1b', marginBottom: '8px' }}>
+                Delete your account?
+              </div>
+              <div style={{ fontSize: '13.5px', color: '#7f1d1d', lineHeight: 1.6, marginBottom: '10px' }}>
+                This is <b>permanent and immediate</b>. There's no undo.
+                <ul style={{ margin: '8px 0 0', paddingLeft: '18px' }}>
+                  <li>You'll be signed out and won't be able to log back in</li>
+                  <li>Your workout history, programs and progress are gone for good</li>
+                  <li>Your coach will no longer see you or be able to send you training</li>
+                  <li>Any active subscription is cancelled — you won't be billed again</li>
+                </ul>
+              </div>
+              <div style={{ fontSize: '12.5px', color: '#7f1d1d', marginBottom: '10px' }}>
+                Just want to stop paying? <b>Cancel your plan instead</b> — that keeps everything,
+                and your history comes back if you return.
+              </div>
+              {deleteErr && (
+                <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b',
+                              borderRadius: '8px', padding: '9px 11px', fontSize: '13px', marginBottom: '10px' }}>
+                  {deleteErr}
+                </div>
+              )}
+              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#7f1d1d', marginBottom: '5px' }}>
+                Type DELETE to confirm
+              </label>
+              <input
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                placeholder="DELETE"
+                style={{ width: '100%', padding: '11px 12px', borderRadius: '8px', border: '2px solid #fca5a5',
+                         fontSize: '15px', boxSizing: 'border-box', marginBottom: '12px' }}
+              />
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting || deleteConfirm.trim().toUpperCase() !== 'DELETE'}
+                  style={{ padding: '11px 20px', borderRadius: '8px', border: 'none', fontSize: '14px', fontWeight: 800,
+                           background: deleteConfirm.trim().toUpperCase() === 'DELETE' ? '#b91c1c' : '#e5e7eb',
+                           color: deleteConfirm.trim().toUpperCase() === 'DELETE' ? '#fff' : '#9ca3af',
+                           cursor: deleteConfirm.trim().toUpperCase() === 'DELETE' ? 'pointer' : 'not-allowed' }}
+                >{deleting ? 'Deleting…' : 'Permanently delete'}</button>
+                <button
+                  onClick={() => { setShowDelete(false); setDeleteConfirm(''); setDeleteErr(''); }}
+                  disabled={deleting}
+                  style={{ padding: '11px 20px', borderRadius: '8px', border: '1px solid #d1d5db',
+                           background: '#fff', color: '#374151', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}
+                >Keep my account</button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Self-serve subscription management. Only show when they

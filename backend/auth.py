@@ -835,3 +835,139 @@ def magic_link_consume():
         })
     finally:
         db.close()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ACCOUNT DELETION (self-serve)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Apple guideline 5.1.1(v): an app that lets people create an account must let
+# them delete it from inside the app. Cancelling a subscription does NOT
+# satisfy that, and neither does deactivating — leaving someone locked out
+# while their name and email stay on file is exactly what the rule exists to
+# stop.
+#
+# We ANONYMIZE rather than drop rows. The email is the identity key across a
+# dozen tables (workout_logs, positions, weekly stats, challenge entries...),
+# so swapping it for an unusable token severs the person from the data in one
+# move: nobody can log in, nobody can look them up, their name is gone from
+# coach views and the leaderboard — while the sets and reps survive as
+# anonymous gym data, and the financial trail (which keys off users.id, kept
+# but scrubbed) stays intact for payouts and accounting.
+#
+# Deliberately NOT touched:
+#   * one_on_one_clients — the coach's own roster of people he trains in
+#     person. Those clients never created an account here; it isn't theirs to
+#     delete, and removing it would erase the coach's record of his own work.
+#   * workout_programs.optional_trainer_email / workout_travel.trainer_email —
+#     the COACH's address on someone else's program, not the deleter's.
+
+# Every table that stores this person's email as their identity.
+_EMAIL_TABLES = [
+    "athlete_onboarding",
+    "cast_sessions",
+    "challenge_submissions",
+    "transition_surveys",
+    "workout_logs",
+    "workout_overrides",
+    "workout_user_position",
+    "workout_weekly_stats",
+    "workout_programs",   # only matches if THEY authored it; coach-owned rows are untouched
+]
+
+
+@auth_bp.route("/delete-account", methods=["POST", "OPTIONS"])
+def delete_account():
+    if request.method == "OPTIONS":
+        return "", 200
+
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "Authentication required"}), 401
+    user_id = user.get("user_id")
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        # NOTE: auth.py's get_db() uses a PLAIN cursor (workout_api.py uses
+        # RealDictCursor) — rows are tuples here, so index them.
+        cur.execute("SELECT id, email, role, stripe_customer_id FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Account not found"}), 404
+        _id, _email, _role, _cust = row
+
+        # Coach and admin accounts carry other people's programs, clients and
+        # commission history — deleting one silently would break records that
+        # aren't the deleter's to remove. Those are business relationships,
+        # closed by a conversation, not a button.
+        if _role in ("coach", "admin"):
+            return jsonify({
+                "error": "not_self_serve",
+                "message": "Coach accounts are closed by contacting Be Strong Again directly, "
+                           "so your clients' programs and payouts can be handed over properly.",
+            }), 403
+
+        old_email = (_email or "").lower().strip()
+
+        # Cancel any live subscription FIRST. Deleting the account but leaving
+        # billing running is the one failure here that costs the member real
+        # money and us a chargeback.
+        cancelled = []
+        try:
+            import stripe as _stripe
+            _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+            cur.execute(
+                "SELECT stripe_subscription_id FROM subscriptions "
+                "WHERE user_id = %s AND status = 'active' AND stripe_subscription_id IS NOT NULL",
+                (user_id,))
+            for sub in cur.fetchall():
+                sid = sub[0]
+                try:
+                    _stripe.Subscription.delete(sid)
+                    cancelled.append(sid)
+                except Exception as e:
+                    print(f"[delete-account] could not cancel {sid}: {e}")
+        except Exception as e:
+            print(f"[delete-account] stripe step skipped: {e}")
+
+        # One transaction: either the whole person is anonymized or nothing is.
+        anon = f"deleted-{uuid.uuid4().hex[:8]}@deleted.invalid"
+        for table in _EMAIL_TABLES:
+            try:
+                cur.execute(
+                    f"UPDATE {table} SET user_email = %s WHERE LOWER(user_email) = %s",
+                    (anon, old_email))
+            except Exception as e:
+                db.rollback()
+                print(f"[delete-account] failed on {table}: {e}")
+                return jsonify({"error": "delete_failed",
+                                "message": "Something went wrong deleting your account. "
+                                           "Nothing was changed — please try again."}), 500
+
+        cur.execute("DELETE FROM password_resets WHERE user_id = %s", (user_id,))
+        cur.execute("""
+            UPDATE users SET
+                email = %s, first_name = 'Deleted', last_name = 'User',
+                password_hash = '', is_active = FALSE,
+                magic_token = NULL, magic_expires_at = NULL,
+                bio = NULL, profile_image_url = NULL, discord_username = NULL,
+                youtube_channel_url = NULL, dob = NULL, goals = NULL,
+                brand_logo_data = NULL, brand_gym_name = NULL,
+                chatbot_config = NULL, specialties = NULL,
+                updated_at = NOW()
+            WHERE id = %s
+        """, (anon, user_id))
+        # stripe_customer_id is intentionally KEPT: it is the link to the
+        # payment record, which we're required to retain for accounting.
+        db.commit()
+
+        print(f"[delete-account] anonymized {old_email} -> {anon} "
+              f"(subscriptions cancelled: {len(cancelled)})")
+        return jsonify({
+            "success": True,
+            "subscriptions_cancelled": len(cancelled),
+            "message": "Your account has been deleted.",
+        })
+    finally:
+        db.close()

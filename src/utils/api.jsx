@@ -51,6 +51,7 @@ export const api = {
 
   // Stripe
   checkout: (tier) => request('/stripe/checkout', { method: 'POST', body: JSON.stringify({ tier }) }),
+  deleteAccount: () => request('/auth/delete-account', { method: 'POST' }),
   billingPortal: () => request('/stripe/billing-portal', { method: 'POST', body: JSON.stringify({ return_url: window.location.origin + '/dashboard' }) }),
   connectOnboard: () => request('/stripe/connect/onboard', { method: 'POST' }),
 
