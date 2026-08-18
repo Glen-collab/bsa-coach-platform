@@ -5,6 +5,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { api } from '../utils/api';
 import { useAuth } from '../hooks/useAuth';
 import useMediaQuery from '../hooks/useMediaQuery';
@@ -313,6 +314,43 @@ export default function RemoteControl() {
     if (layout && layout !== 'two_day') params.set('layout', layout);   // single-day (wod/wod_scaled) matches the TV
     const url = `${TRACKER_BASE}/tv/static?${params.toString()}`;
     window.open(url, '_blank', 'noopener');
+  };
+
+  // Pairing URL for a wall tablet on THIS TV. Deliberately leaner than the
+  // View Workout link above: no week/day/layout (the tablet reads those live
+  // from the TV, and baking them in would just go stale), and no ?from= —
+  // a "Back to Remote" button is a dead end on a wall-mounted tablet since
+  // the remote needs a login. Just the three values it pairs with.
+  const pairUrl = useMemo(() => {
+    const coachCode = (user?.referral_code || '').trim().toUpperCase();
+    if (!device?.access_code || !coachCode || !device?.device_serial) return '';
+    const p = new URLSearchParams({
+      tablet: '1',
+      code:   device.access_code,
+      coach:  coachCode,
+      device: device.device_serial,
+    });
+    return `${TRACKER_BASE}/tv/static?${p.toString()}`;
+  }, [device?.access_code, device?.device_serial, user?.referral_code]);
+
+  const [pairQr, setPairQr] = useState('');
+  const [pairOpen, setPairOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!pairOpen || !pairUrl) { setPairQr(''); return; }
+    QRCode.toDataURL(pairUrl, { errorCorrectionLevel: 'M', margin: 1, width: 640 })
+      .then(setPairQr)
+      .catch(() => setPairQr(''));
+  }, [pairOpen, pairUrl]);
+
+  const copyPairUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(pairUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setErr('Could not copy — long-press the link below to copy it manually.');
+    }
   };
 
   // Display-mode toggles (workout vs youth-leaderboard scoreboard). Each
@@ -717,6 +755,53 @@ export default function RemoteControl() {
               : 'TV is auto-rotating through every metric.'
             : 'TV updates within ~60 seconds of each tap.'}
       </div>
+
+      {/* Pair a tablet — QR of THIS TV's pairing URL. Scan it with a wall
+          tablet's camera and it lands on the paired page, ready to install as
+          the fullscreen Gym TV app. Collapsed by default: it's a one-time
+          setup step per tablet, not part of the daily remote. Re-pointing a
+          tablet at a different TV is the same flow — switch TV above, scan
+          again, the new pairing overwrites the old. */}
+      {pairUrl && (
+        <>
+          <div style={s.divider} />
+          <button
+            type="button"
+            onClick={() => setPairOpen((v) => !v)}
+            style={s.secondaryBtn}
+          >
+            📲 {pairOpen ? 'Hide tablet pairing' : 'Pair a tablet to this TV'}
+          </button>
+
+          {pairOpen && (
+            <div style={{
+              marginTop: '12px', padding: '16px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '14px', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '12px' }}>
+                Scan with the tablet's camera, then tap <b>📲 Install as App</b> on
+                the page that opens. It'll mirror <b>{device?.display_name || 'this TV'}</b> from then on.
+              </div>
+              {pairQr
+                ? <img
+                    src={pairQr}
+                    alt={`Pairing QR for ${device?.display_name || 'this TV'}`}
+                    style={{ width: '220px', maxWidth: '100%', borderRadius: '10px', background: '#fff', padding: '8px' }}
+                  />
+                : <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', padding: '20px' }}>Generating…</div>}
+              <button
+                type="button"
+                onClick={copyPairUrl}
+                style={{ ...s.secondaryBtn, marginTop: '14px' }}
+              >
+                {copied ? '✓ Link copied' : '🔗 Copy link instead'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
