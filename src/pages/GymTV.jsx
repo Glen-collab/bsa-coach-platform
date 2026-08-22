@@ -229,8 +229,6 @@ export default function GymTV() {
     } catch (e) { alert(e.message); }
   };
 
-  if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: '#888' }}>Loading...</div>;
-
   // Group by TITLE with phases nested, the same shape as the builder's Manage
   // Programs. A flat list of 73 individual programs is unusable once a coach
   // works in monthly blocks: "Athletes" alone is six rows that read as six
@@ -257,6 +255,11 @@ export default function GymTV() {
   }, [programs]);
 
   const toggleGroup = (key) => setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  // Every hook must run above this line. An early return placed before a hook
+  // changes the hook count between renders once loading flips, and React tears
+  // the whole page down — which is exactly what blanked this screen.
+  if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: '#888' }}>Loading...</div>;
 
   const piUrl = `https://bestrongagain.netlify.app/tv/static?pi=${user?.id || ''}&device=\${SERIAL}`;
 
