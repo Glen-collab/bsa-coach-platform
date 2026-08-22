@@ -76,6 +76,20 @@ const buildStyles = (isMobile) => ({
     gap: '12px',
   },
   listName: { flex: '1 1 200px', fontSize: '14px', color: '#222', minWidth: 0 },
+  groupWrap: { borderBottom: '1px solid #f0f0f0' },
+  groupHeader: {
+    display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+    padding: '11px 4px', background: 'none', border: 'none', cursor: 'pointer',
+    textAlign: 'left', fontSize: '15px',
+  },
+  groupCaret: { color: '#9ca3af', fontSize: '12px', width: '10px' },
+  groupName: { fontWeight: 700, color: '#1a1a2e', flex: 1 },
+  groupCount: { fontSize: '12px', color: '#888', whiteSpace: 'nowrap' },
+  groupOnKiosk: {
+    fontSize: '11px', fontWeight: 700, color: '#15803d', background: '#dcfce7',
+    borderRadius: '999px', padding: '2px 8px', whiteSpace: 'nowrap',
+  },
+  groupChild: { paddingLeft: '22px', background: '#fbfbfd' },
   listCode: { fontSize: '11px', color: '#888', fontWeight: '600', marginLeft: '8px' },
   toggle: {
     padding: '6px 14px', borderRadius: '8px', border: 'none',
@@ -127,6 +141,7 @@ export default function GymTV() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [programs, setPrograms] = useState([]);
+  const [openGroups, setOpenGroups] = useState({});
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [renamingId, setRenamingId] = useState(null);
@@ -215,6 +230,33 @@ export default function GymTV() {
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: '#888' }}>Loading...</div>;
+
+  // Group by TITLE with phases nested, the same shape as the builder's Manage
+  // Programs. A flat list of 73 individual programs is unusable once a coach
+  // works in monthly blocks: "Athletes" alone is six rows that read as six
+  // unrelated programs. Grouped, it's one row you open to find September,
+  // October, November.
+  //
+  // Phases sort oldest-first inside a group so they read in the order they were
+  // written; groups sort by most recently touched, so what you're working on
+  // now is at the top.
+  const groupedPrograms = useMemo(() => {
+    const map = new Map();
+    for (const p of programs) {
+      const key = (p.program_name || '').trim().toLowerCase() || '(untitled)';
+      if (!map.has(key)) map.set(key, { key, name: p.program_name || 'Untitled', items: [] });
+      map.get(key).items.push(p);
+    }
+    const groups = Array.from(map.values()).map((g) => ({
+      ...g,
+      items: [...g.items].sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)),
+    }));
+    const recency = (g) => Math.max(...g.items.map((p) => new Date(p.updated_at || p.created_at || 0).getTime()));
+    groups.sort((a, b) => recency(b) - recency(a));
+    return groups;
+  }, [programs]);
+
+  const toggleGroup = (key) => setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const piUrl = `https://bestrongagain.netlify.app/tv/static?pi=${user?.id || ''}&device=\${SERIAL}`;
 
@@ -414,21 +456,56 @@ export default function GymTV() {
         {programs.length === 0 ? (
           <div style={s.empty}>No programs built yet.</div>
         ) : (
-          programs.map((p) => (
-            <div key={p.id} style={s.listItem}>
-              <div style={s.listName}>
-                {p.program_name || 'Untitled'}
-                {p.program_nickname ? <span style={{ fontWeight: 600, color: '#667eea' }}> · {p.program_nickname}</span> : null}
-                <span style={s.listCode}>{p.access_code}</span>
+          groupedPrograms.map((group) => {
+            // A title with only one phase renders flat — no point making
+            // someone expand a folder holding a single item.
+            if (group.items.length === 1) {
+              const p = group.items[0];
+              return (
+                <div key={p.id} style={s.listItem}>
+                  <div style={s.listName}>
+                    {p.program_name || 'Untitled'}
+                    {p.program_nickname ? <span style={{ fontWeight: 600, color: '#667eea' }}> · {p.program_nickname}</span> : null}
+                    <span style={s.listCode}>{p.access_code}</span>
+                  </div>
+                  <button
+                    style={{ ...s.toggle, ...(p.show_on_kiosk ? s.toggleOn : s.toggleOff) }}
+                    onClick={() => toggleKiosk(p, !p.show_on_kiosk)}
+                  >
+                    {p.show_on_kiosk ? 'On Kiosk' : 'Add'}
+                  </button>
+                </div>
+              );
+            }
+            const open = !!openGroups[group.key];
+            const onKiosk = group.items.filter((x) => x.show_on_kiosk).length;
+            return (
+              <div key={group.key} style={s.groupWrap}>
+                <button style={s.groupHeader} onClick={() => toggleGroup(group.key)}>
+                  <span style={s.groupCaret}>{open ? '▾' : '▸'}</span>
+                  <span style={s.groupName}>{group.name}</span>
+                  <span style={s.groupCount}>{group.items.length} phases</span>
+                  {onKiosk > 0 && <span style={s.groupOnKiosk}>{onKiosk} on kiosk</span>}
+                </button>
+                {open && group.items.map((p) => (
+                  <div key={p.id} style={{ ...s.listItem, ...s.groupChild }}>
+                    <div style={s.listName}>
+                      <span style={{ fontWeight: 600, color: '#667eea' }}>
+                        {p.program_nickname || 'Untitled phase'}
+                      </span>
+                      <span style={s.listCode}>{p.access_code}</span>
+                    </div>
+                    <button
+                      style={{ ...s.toggle, ...(p.show_on_kiosk ? s.toggleOn : s.toggleOff) }}
+                      onClick={() => toggleKiosk(p, !p.show_on_kiosk)}
+                    >
+                      {p.show_on_kiosk ? 'On Kiosk' : 'Add'}
+                    </button>
+                  </div>
+                ))}
               </div>
-              <button
-                style={{ ...s.toggle, ...(p.show_on_kiosk ? s.toggleOn : s.toggleOff) }}
-                onClick={() => toggleKiosk(p, !p.show_on_kiosk)}
-              >
-                {p.show_on_kiosk ? 'On Kiosk' : 'Add'}
-              </button>
-            </div>
-          ))
+            );
+          })
         )}
       </details>
 
