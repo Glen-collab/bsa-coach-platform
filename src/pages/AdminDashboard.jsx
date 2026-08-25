@@ -388,6 +388,9 @@ export default function AdminDashboard() {
 
       {/* Quick Tools */}
       <div style={s.toolsRow}>
+        <a href="/checkin" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #1F5C7A, #14425a)' }}>
+          ✅ Check In Clients
+        </a>
         <a href={`https://workoutbuild.netlify.app/?sso=${encodeURIComponent(JSON.stringify({token: localStorage.getItem('bsa_token'), user: localStorage.getItem('bsa_user')}))}`} target="_blank" rel="noreferrer" style={{ ...s.toolBtn, background: 'linear-gradient(135deg, #B37602, #8a5b00)' }}>
           Workout Builder
         </a>
