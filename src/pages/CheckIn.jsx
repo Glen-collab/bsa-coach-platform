@@ -126,16 +126,25 @@ function untilAnniv(iso) {
    else is unknown, not overdue — 173 of 180 active clients have no payment
    entered yet, and flagging them all would make the light worthless on day one. */
 function dueState(c) {
-  if (!c.dueOn) return null;
-  if (c.billing !== 'monthly' && c.billing !== 'package') return null;
+  // The dot is a monthly-membership thing and nothing else. Moving somebody to
+  // a session package takes it away entirely — their money question is the
+  // session balance, which the row already carries.
+  if (c.billing !== 'monthly') return null;
+  // Never recorded as paying. Red on purpose: this is the September worklist,
+  // and it empties as each person is either collected from or moved onto the
+  // arrangement they are actually on. It says "no payment recorded", NOT "owes
+  // $150" — the money may well have been handed over in cash years ago and
+  // never written down, and the row must not accuse anybody of a debt the
+  // ledger cannot actually evidence.
+  if (!c.dueOn) return 'never';
   const d = daysAgo(c.dueOn);           // positive = days past due
-  if (d === null) return null;
+  if (d === null) return 'never';
   if (d > 0) return 'over';
   if (d >= -2) return 'due';
   if (d >= -7) return 'soon';
-  return c.billing === 'monthly' ? 'ok' : null;
+  return 'ok';
 }
-const DUE_COLOR = { over: FLAG, due: FLAG, soon: AMBER, ok: OK };
+const DUE_COLOR = { never: FLAG, over: FLAG, due: FLAG, soon: AMBER, ok: OK };
 function fmtDate(iso) {
   if (!iso) return '—';
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined,
@@ -304,7 +313,7 @@ export default function CheckIn() {
     if (needle) set = set.filter(c => matches(c, needle));
     else {
       if (filter.inOnly) set = set.filter(c => isIn(c.id));
-      if (filter.owes) set = set.filter(c => dueState(c) === 'over');
+      if (filter.owes) set = set.filter(c => ['never','over'].includes(dueState(c)));
       if (filter.awayOnly) set = set.filter(c => c.away);
       /* Someone on a beach is not in today's session, and leaving them in the
          list is the same noise the grouping exists to remove. They stay
@@ -615,7 +624,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
   if (!data) return <div style={S.wrap}><p style={S.loading}>Loading your roster…</p></div>;
 
   const inCount = Object.keys(checkedIn).length;
-  const owesCount = clients.filter(c => dueState(c) === 'over').length;
+  const owesCount = clients.filter(c => ['never','over'].includes(dueState(c))).length;
   const awayCount = clients.filter(c => c.away).length;
   const showBar = filter.now && !q.trim() && isToday;
   const settled = isSettled(sess.key);
@@ -1153,7 +1162,8 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
             dot, because it trains you to ignore the real ones. */}
         {due && (
           <span style={{ ...S.dueDot, background: DUE_COLOR[due] }}
-            title={due === 'over' ? `Owes — was due ${fmtDate(c.dueOn)}`
+            title={due === 'never' ? 'No payment recorded yet'
+              : due === 'over' ? `Owes — was due ${fmtDate(c.dueOn)}`
               : due === 'due' ? `Due ${fmtDate(c.dueOn)}`
               : due === 'soon' ? `Due ${fmtDate(c.dueOn)} — within the week`
               : `Paid up — next due ${fmtDate(c.dueOn)}`} />
@@ -1191,6 +1201,9 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
           {primaryTime && <span style={{ ...S.tg, ...S.tgSlot, ...(timeAuto ? S.tgAuto : null) }}>{tagLbl(primaryTime)}</span>}
           {sports.map(s => <span key={s} style={S.tg}>{s}</span>)}
           {(c.sports || []).length > 3 && <span style={{ ...S.tg, ...S.tgMore }}>+{c.sports.length - 3}</span>}
+          {due === 'never' && (
+            <strong style={{ color:FLAG }}>No payment recorded · </strong>
+          )}
           {due === 'over' && (
             <strong style={{ color:FLAG }}>
               Owes{c.monthly ? ` $${c.monthly}` : ''} · </strong>
@@ -1973,7 +1986,7 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
           <>
             <div style={S.secH}>Monthly payment</div>
             <div style={{ ...S.fld,
-              ...(['over','due'].includes(dueState(c)) ? S.fldOverdue
+              ...(['never','over','due'].includes(dueState(c)) ? S.fldOverdue
                  : dueState(c) === 'soon' ? S.fldPaused : null) }}>
               <label style={S.lbl}>
                 {c.lastPaid
