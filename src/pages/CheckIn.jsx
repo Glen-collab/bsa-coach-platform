@@ -1741,6 +1741,7 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
   const [pkgs, setPkgs] = useState(null);
   const [pays, setPays] = useState(null);
   const [bump, setBump] = useState(0);
+  const [pickGroups, setPickGroups] = useState(false);
   const [openPkgs, setOpenPkgs] = useState(false);
   const [openPays, setOpenPays] = useState(false);
   useEffect(() => {
@@ -1883,13 +1884,49 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
               return <span key={k} style={{ ...S.t, ...S.tLearned }}>
                 {sessLabel(k)}{consistent ? ` · ${hourLbl(+top)}` : ''} ({e.n})</span>;
             })}
-            {!pinned.length && !learnedKeys.length &&
+            {!pinned.length && !learnedKeys.length && !pickGroups &&
               <span style={S.dim}>Nothing learned yet — check-ins will fill this in.</span>}
-            {!pinned.includes(sess.key) && (
-              <button type="button" style={S.addBtn}
-                onClick={() => onPatch(c.id, { sessions: [...pinned, sess.key] })}>+ {sessLabel(sess.key)}</button>
+            {!pickGroups && (
+              <button type="button" style={S.addBtn} onClick={() => setPickGroups(true)}>
+                + Add groups
+              </button>
             )}
           </div>
+
+          {/* Tagging one group per visit works, but it means coming back to the
+              same card seven times. Opened up, every day and block is on screen
+              at once and each is a toggle — pick the four a person actually
+              comes to in four taps, then Finished folds it back to just those.
+              Each tap saves on its own, so Finished only tidies up; nothing is
+              waiting on it. */}
+          {pickGroups && (
+            <div style={S.grpPick}>
+              {[1,2,3,4,5,6,0].map(d => (
+                <div key={d} style={S.grpRow}>
+                  <span style={S.grpDay}>{DAYS[d]}</span>
+                  {COARSE.map(b => {
+                    const k = sessKey(d, b);
+                    const on = pinned.includes(k);
+                    return (
+                      <button key={b} type="button"
+                        style={{ ...S.grpCell, ...(on ? S.grpCellOn : null) }}
+                        onClick={() => onPatch(c.id, {
+                          sessions: on ? pinned.filter(x => x !== k) : [...pinned, k],
+                        })}>
+                        {COARSE_LBL[b].slice(0, 3)}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+              <div style={S.btnRow}>
+                <button type="button" style={{ ...S.btn, ...S.btnPrimary }}
+                  onClick={() => setPickGroups(false)}>
+                  Finished{pinned.length ? ` — ${pinned.length} group${pinned.length === 1 ? '' : 's'}` : ''}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={S.secH}>Tags</div>
@@ -2460,6 +2497,16 @@ const S = {
               padding:'10px 12px', borderRadius:9, background:OK_S, border:`1px solid ${OK}` },
   moneyCtxB: { fontSize:14, fontWeight:700, color:OK },
   moneyCtxN: { fontSize:12, color:OK, opacity:.85 },
+  // A 7x3 grid: the whole week on screen at once, each cell a toggle. Compact
+  // enough that no row wraps on a phone.
+  grpPick: { marginTop:10, padding:'10px 10px 4px', borderRadius:10,
+             background:'#fff', border:`1px solid ${HAIR}` },
+  grpRow: { display:'flex', alignItems:'center', gap:5, marginBottom:5 },
+  grpDay: { flex:'0 0 34px', fontSize:12, fontWeight:700, color:STEEL },
+  grpCell: { flex:'1 1 0', fontFamily:'inherit', fontSize:12, fontWeight:600, padding:'8px 2px',
+             borderRadius:7, cursor:'pointer', background:'#fff', color:'#454D52',
+             border:`1px solid ${HAIRS}` },
+  grpCellOn: { background:SKY, color:'#fff', borderColor:SKY, fontWeight:700 },
   foldHd: { display:'flex', alignItems:'center', gap:8, width:'100%', padding:'2px 0 8px',
             background:'transparent', border:0, cursor:'pointer', fontFamily:'inherit', textAlign:'left' },
   foldLbl: { flex:'0 0 auto', fontSize:10.5, letterSpacing:'.09em', textTransform:'uppercase',
