@@ -29,6 +29,15 @@ const STATUS_LBL = {
   paused: 'Paused — membership on hold',
   former: 'No longer a client',
 };
+/* Short forms for the row. 'inactive' and 'prospect' only ever appear when
+   searching beyond the working roster — they are what the ledger import decided
+   about someone who has not been in for a long time, not a judgement to hide. */
+const STATUS_SHORT = {
+  inactive: 'Not currently training',
+  prospect: 'Came once, never returned',
+  paused:   'Paused',
+  former:   'No longer a client',
+};
 const BILLING_LBL = {
   monthly:'Monthly membership', package:'Session package', drop_in:'Drop-in, per session',
   one_on_one:'One-on-one / in-home', untracked:'Sessions only — no money tracked',
@@ -143,6 +152,10 @@ export default function CheckIn() {
      a session that ran last night, which is normal enough to deserve a control
      rather than a workaround. Taps land on THIS date, not on today. */
   const [viewDate, setViewDate] = useState(todayISO);
+  /* The roster is the ~180 people who currently train. Eighteen years of ledger
+     holds 2,826, and someone who stopped in 2012 must not sit in today's list —
+     but "I can't find Debbie" needs an answer better than silence. */
+  const [includeAll, setIncludeAll] = useState(false);
   const [toast, setToast] = useState('');
   const [flash, setFlash] = useState(() => new Set());
   const [newTag, setNewTag] = useState('');
@@ -157,9 +170,11 @@ export default function CheckIn() {
   }, []);
 
   const load = useCallback(async () => {
-    try { setData(await api.checkinRoster(viewDate === todayISO() ? null : viewDate)); setErr(''); }
-    catch (e) { setErr(e.message || 'Could not load the roster'); }
-  }, [viewDate]);
+    try {
+      setData(await api.checkinRoster(viewDate === todayISO() ? null : viewDate, includeAll));
+      setErr('');
+    } catch (e) { setErr(e.message || 'Could not load the roster'); }
+  }, [viewDate, includeAll]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => () => clearTimeout(toastT.current), []);
 
@@ -621,6 +636,26 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
           {q && <button type="button" style={S.sClr} onClick={() => setQ('')} aria-label="Clear search">×</button>}
         </div>
 
+        {/* Searching only the working roster and finding nothing looks exactly
+            like the record was never imported. It was — there are 2,826 people
+            on file and 179 of them train now. This offers the rest instead of
+            leaving a silence to interpret. */}
+        {q.trim() && !includeAll && (
+          <button type="button" style={S.allBtn} onClick={() => setIncludeAll(true)}>
+            {visible.length === 0
+              ? `No one on today's roster matches “${q.trim()}” — search all ${(data.total || 0).toLocaleString()} on file`
+              : `Also search the other ${((data.total || 0) - clients.length).toLocaleString()} on file`}
+          </button>
+        )}
+        {includeAll && (
+          <div style={S.allBar}>
+            <b style={S.allB}>Searching everyone — {(data.total || 0).toLocaleString()} on file</b>
+            <span style={S.allNote}>Includes people who stopped years ago.</span>
+            <button type="button" style={S.catchBtn}
+              onClick={() => setIncludeAll(false)}>Just today's</button>
+          </div>
+        )}
+
         <div style={S.chips}>
           {chip('in', '', 'Checked in', inCount, filter.inOnly,
             () => setFilter(f => ({ ...f, inOnly: !f.inOnly })))}
@@ -1020,6 +1055,11 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
               alarming and wrong. Package and one-on-one people are the ones who
               actually run out, and running out is worth knowing BEFORE the tap
               rather than after. */}
+          {/* Only ever visible when looking beyond the working roster, where
+              knowing someone stopped in 2012 is the whole point of finding them. */}
+          {c.status && c.status !== 'active' && (
+            <strong style={{ color:BRASS }}>{STATUS_SHORT[c.status] || c.status} · </strong>
+          )}
           {left != null && (
             <strong style={{ color: left <= 0 ? FLAG : left <= 3 ? AMBER : SKY }}>
               {left} left{c.householdId ? ' (shared)' : ''} · </strong>
@@ -1957,6 +1997,14 @@ const S = {
   buyN: { flex:'0 1 82px', minWidth:64, textAlign:'center', fontWeight:700 },
   buyX: { flex:'0 0 auto', fontSize:12.5, color:'#6F7880' },
   buyBtn: { flex:'0 0 auto', marginLeft:'auto' },
+  allBtn: { width:'100%', fontFamily:'inherit', fontSize:12.5, fontWeight:600, cursor:'pointer',
+            padding:'9px 12px', marginBottom:11, borderRadius:9, textAlign:'left',
+            background:'#fff', color:SKY, border:`1px dashed ${SKY}` },
+  allBar: { display:'flex', alignItems:'center', flexWrap:'wrap', gap:'2px 8px',
+            margin:'0 0 11px', padding:'9px 12px', borderRadius:9,
+            background:BRASS_S, border:`1px solid ${BRASS}` },
+  allB: { fontSize:13.5, color:BRASS, fontWeight:700, flex:'0 0 auto' },
+  allNote: { fontSize:12, color:BRASS, opacity:.85, flex:'1 1 auto', minWidth:0 },
   pkgList: { display:'flex', flexDirection:'column', gap:1 },
   pkgRow: { display:'flex', gap:10, alignItems:'baseline', padding:'6px 0',
             borderTop:`1px solid ${HAIR}` },

@@ -160,6 +160,11 @@ def roster():
     # people who came exactly once in 2009; loading them puts a 1,499-row payload
     # on a phone and buries today's group. ?include=all reaches them when needed.
     include_all = request.args.get("include") == "all"
+    # `status = 'active'` already excludes 'inactive', so this is the only
+    # filter needed. An extra `status <> 'inactive'` used to sit alongside it and
+    # applied in BOTH branches — so ?include=all quietly withheld the 1,315
+    # inactive people, which is most of the file and exactly who someone reaches
+    # for when they cannot find an old client. "All" has to mean all.
     status_frag = "" if include_all else " AND c.status = 'active'"
     db = get_db()
     try:
@@ -186,7 +191,7 @@ def roster():
             LEFT JOIN client_balance b ON b.client_id = c.id
             LEFT JOIN client_dues    d ON d.client_id = c.id
             LEFT JOIN client_away    aw ON aw.client_id = c.id
-            WHERE {frag} AND c.status <> 'inactive'{status_frag}
+            WHERE {frag}{status_frag}
             ORDER BY b.last_visit DESC NULLS LAST, c.display_name
             """,
             params,
@@ -339,12 +344,20 @@ def roster():
                 "sess": sess.get(c["id"], {}),
             })
 
+        # How many people exist beyond the working roster. Eighteen years of
+        # ledger means someone who trained for a decade and stopped in 2012 is
+        # still on file — findable, but not cluttering today's list.
+        cur.execute(f"SELECT COUNT(*) AS n FROM clients c WHERE {frag}", params)
+        total = (cur.fetchone() or {}).get("n") or 0
+
         return jsonify({
             "success": True,
             "today": today.isoformat(),
             "isToday": today == _today(),
             "clients": out,
             "runs": runs,
+            "total": total,
+            "showingAll": include_all,
             "checkedIn": {str(k): v for k, v in today_map.items()},
         })
     finally:
