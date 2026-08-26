@@ -195,7 +195,7 @@ export default function CheckIn() {
   const [data, setData] = useState(null);       // { clients, runs, checkedIn }
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
-  const [filter, setFilter] = useState({ now:true, day:null, sports:new Set(), times:new Set(), inOnly:false, owes:false, awayOnly:false });
+  const [filter, setFilter] = useState({ now:true, sports:new Set(), inOnly:false, owes:false, awayOnly:false });
   const [tagMode, setTagMode] = useState(false);
   const [selected, setSelected] = useState(() => new Set());
   const [card, setCard] = useState(null);       // client id
@@ -210,7 +210,6 @@ export default function CheckIn() {
      holds 2,826, and someone who stopped in 2012 must not sit in today's list —
      but "I can't find Debbie" needs an answer better than silence. */
   const [includeAll, setIncludeAll] = useState(false);
-  const [pickWhen, setPickWhen] = useState(false);
   const [pickSport, setPickSport] = useState(false);
   const [toast, setToast] = useState('');
   const [flash, setFlash] = useState(() => new Set());
@@ -249,15 +248,12 @@ export default function CheckIn() {
     return { dow:d.getDay(), hour:d.getHours(), blk:coarseOf(d.getHours()), key:sessKey(d.getDay(), coarseOf(d.getHours())) };
   }, [data]);
 
-  /* Moving off today drops the "now" filter for that day's regulars: there is
-     no meaningful time block for a session that finished last night, and
-     pretending otherwise would show the wrong group. Coming back to today
-     restores the default. */
-  useEffect(() => {
-    setFilter(f => isToday
-      ? { ...f, now:true, day:null }
-      : { ...f, now:false, day:viewDow });
-  }, [viewDate, isToday, viewDow]);
+  /* Moving off today just drops the current-session filter and shows the whole
+     roster. It used to narrow to that weekday's regulars, which fought with the
+     date picker: two controls both deciding which day you were looking at, and
+     a check-in landing on one while the list was filtered by the other. The
+     date at the top owns the day now; nothing else does. */
+  useEffect(() => { setFilter(f => ({ ...f, now: isToday })); }, [viewDate, isToday]);
 
   const pinnedTo = useMemo(() => {
     const m = {};
@@ -311,16 +307,7 @@ export default function CheckIn() {
     return Object.keys(m).sort((a, b) => m[b] - m[a] || a.localeCompare(b)).map(s => [s, m[s]]);
   }, [clients]);
 
-  const timeCounts = useMemo(() => {
-    const m = {};
-    clients.forEach(c => timeTags(c).forEach(t => { m[t] = (m[t] || 0) + 1; }));
-    const coarse = COARSE.filter(t => m[t]).map(t => [t, m[t]]);
-    const hrs = Object.keys(m).filter(t => t.charAt(0) === 'h')
-      .sort((a, b) => +a.slice(1) - +b.slice(1)).map(t => [t, m[t]]);
-    return coarse.concat(hrs);
-  }, [clients, timeTags]);
 
-  const regularsOn = d => clients.filter(c => (c.d || []).includes(d)).length;
 
   const matches = (c, needle) => {
     if (c.n.toLowerCase().includes(needle)) return true;
@@ -344,9 +331,7 @@ export default function CheckIn() {
          reachable through the Away chip and through search, and they come
          straight back the moment they're checked in. */
       if (filter.now) set = set.filter(c => (inSession(c, sess) && !c.away) || isIn(c.id));
-      if (filter.day !== null) set = set.filter(c => (c.d || []).includes(filter.day) || isIn(c.id));
       if (filter.sports.size) set = set.filter(c => (c.sports || []).some(s => filter.sports.has(s)));
-      if (filter.times.size) set = set.filter(c => { const t = timeTags(c); for (const x of filter.times) if (t.has(x)) return true; return false; });
     }
     return [...set].sort((a, b) => {
       const ai = isIn(a.id), bi = isIn(b.id);
@@ -658,18 +643,8 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
   const settled = isSettled(sess.key);
   /* What the When pill says. It has to carry day, time-of-day and away in one
      short string, because the whole point is not having to open it to know. */
-  const whenOn = filter.day !== null || filter.times.size > 0 || filter.awayOnly || !filter.now;
-  const whenLabel = (() => {
-    const bits = [];
-    if (filter.awayOnly) bits.push('Away');
-    if (filter.day !== null) bits.push(DAYS[filter.day]);
-    if (filter.times.size) bits.push(filter.times.size === 1
-      ? tagLbl([...filter.times][0]) : `${filter.times.size} times`);
-    if (!bits.length) return filter.now ? 'When' : 'Everyone';
-    return bits.join(' · ');
-  })();
-  const anyFacet = !filter.now || filter.sports.size || filter.times.size || filter.inOnly
-    || filter.day !== null || filter.owes || filter.awayOnly;
+  const anyFacet = !filter.now || filter.sports.size || filter.inOnly
+    || filter.owes || filter.awayOnly;
 
   const chip = (key, cls, label, count, on, go) => (
     <button key={key} type="button" onClick={() => { go(); }}
@@ -777,10 +752,6 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
           {isToday && chip('now', 'slot', 'Now', null, filter.now,
             () => setFilter(f => ({ ...f, now: !f.now, day: !f.now ? null : f.day })))}
           <span style={S.divider} />
-          <button type="button" onClick={() => setPickWhen(true)} aria-pressed={whenOn}
-            style={{ ...S.chip, ...S.chipSlot, ...(whenOn ? S.chipSlotOn : null) }}>
-            {whenLabel} <span style={S.chipCar}>▾</span>
-          </button>
           <button type="button" onClick={() => setPickSport(true)} aria-pressed={filter.sports.size > 0}
             style={{ ...S.chip, ...S.chipSport, ...(filter.sports.size ? S.chipSportOn : null) }}>
             {filter.sports.size
@@ -788,11 +759,13 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
               : 'Sport'} <span style={S.chipCar}>▾</span>
           </button>
           <span style={S.divider} />
+          {awayCount > 0 && chip('away', 'slot', 'Away', awayCount, filter.awayOnly,
+            () => setFilter(f => ({ ...f, awayOnly: !f.awayOnly, now: f.awayOnly ? f.now : false })))}
           {owesCount > 0 && chip('owes', 'owes', 'Owes', owesCount, filter.owes,
             () => setFilter(f => ({ ...f, owes: !f.owes, now: f.owes ? f.now : false })))}
           {anyFacet && chip('clr', 'clear', '✕ Clear', null, false,
-            () => setFilter({ now:isToday, day:isToday ? null : viewDow, sports:new Set(),
-                              times:new Set(), inOnly:false, owes:false, awayOnly:false }))}
+            () => setFilter({ now:isToday, sports:new Set(), inOnly:false,
+                              owes:false, awayOnly:false }))}
         </div>
       </div>
 
@@ -814,20 +787,6 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
             ) : filter.now ? (
               <>Nobody is grouped into {sessLabel(sess.key)} yet.<br />
                 Search a name and check them in — the group builds itself.</>
-            ) : filter.day !== null ? (
-              /* A near-empty weekday list with no way out is how catching up on
-                 a Saturday dead-ended: three people train Saturdays regularly,
-                 the weekday chips only ran Mon–Fri, so the filter that caused it
-                 was not even on screen to turn off. */
-              <>
-                Only {regularsOn(filter.day)} {DAYN[filter.day]} regular
-                {regularsOn(filter.day) === 1 ? '' : 's'} — and anyone who drops
-                in won’t be among them.<br />
-                <button type="button" style={{ ...S.allBtn, marginTop:10 }}
-                  onClick={() => setFilter(f => ({ ...f, day:null, now:false }))}>
-                  Show everyone on the roster
-                </button>
-              </>
             ) : 'Nobody matches those filters.'}
           </div>
         )}
@@ -911,53 +870,6 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
           onToggle={() => { toggle(cardClient); setCard(null); }}
           onAway={() => { setAwayFor(cardClient.id); setCard(null); }}
           onMessage={() => { setMsgFor(cardClient.id); setCard(null); }} />
-      )}
-      {pickWhen && (
-        <FilterSheet title="When" onClose={() => setPickWhen(false)}>
-          <label style={S.lbl}>Day</label>
-          <div style={S.awayWhy}>
-            {[0,1,2,3,4,5,6].map(d => (
-              <button key={d} type="button"
-                style={{ ...S.chip, ...(filter.day === d ? S.chipOn : null) }}
-                onClick={() => setFilter(f => ({ ...f, day: f.day === d ? null : d, now:false }))}>
-                {DAYS[d]}<span style={S.chipC}>{regularsOn(d)}</span>
-              </button>
-            ))}
-          </div>
-          {timeCounts.length > 0 && (
-            <>
-              <label style={S.lbl}>Time of day</label>
-              <div style={S.awayWhy}>
-                {timeCounts.map(([t, n]) => (
-                  <button key={t} type="button"
-                    style={{ ...S.chip, ...S.chipSlot, ...(filter.times.has(t) ? S.chipSlotOn : null) }}
-                    onClick={() => setFilter(f => { const x = new Set(f.times);
-                      x.has(t) ? x.delete(t) : x.add(t); return { ...f, times:x }; })}>
-                    {tagLbl(t)}<span style={S.chipC}>{n}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          <label style={S.lbl}>Show</label>
-          <div style={S.awayWhy}>
-            <button type="button"
-              style={{ ...S.chip, ...(!filter.now && filter.day === null && !filter.times.size
-                                      && !filter.awayOnly ? S.chipOn : null) }}
-              onClick={() => setFilter(f => ({ ...f, now:false, day:null,
-                                               times:new Set(), awayOnly:false }))}>
-              Everyone<span style={S.chipC}>{clients.length}</span>
-            </button>
-            {awayCount > 0 && (
-              <button type="button"
-                style={{ ...S.chip, ...S.chipSlot, ...(filter.awayOnly ? S.chipSlotOn : null) }}
-                onClick={() => setFilter(f => ({ ...f, awayOnly: !f.awayOnly,
-                                                 now: f.awayOnly ? f.now : false }))}>
-                Away<span style={S.chipC}>{awayCount}</span>
-              </button>
-            )}
-          </div>
-        </FilterSheet>
       )}
       {pickSport && (
         <FilterSheet title="Sport" onClose={() => setPickSport(false)}>
