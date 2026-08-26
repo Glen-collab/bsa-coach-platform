@@ -595,11 +595,18 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
     <div style={{ ...S.wrap, paddingBottom: tagMode ? 220 : 60 }}>
       <div style={S.hdr}>
         <div style={S.hdrTop}>
-          <h1 style={S.h1}>{DAYN[viewDow]}, {fmtLong(viewDate)}</h1>
-          <label style={{ ...S.tagBtn, ...(isToday ? null : S.tagBtnCatch) }} title="Enter a different day">
-            {isToday ? '📅' : '📅 ' + fmtShort(viewDate)}
-            {/* A native date input: on a phone this is the OS wheel, which beats
-                anything hand-rolled, and it can't offer a day in the future. */}
+          {/* The date IS the control. It was a bare 📅 pill wedged between
+              Summary and Tag, and it went unnoticed — which made back-dating
+              look impossible rather than merely hidden. Entering a Saturday
+              from a helper's paper list is a routine job here, not an edge
+              case, so the biggest thing on the screen is the thing you tap.
+              The input is a native one: on a phone that is the OS wheel, and it
+              cannot offer a day in the future. */}
+          <label style={S.h1Wrap} title="Tap the date to enter a different day">
+            <h1 style={{ ...S.h1, ...(isToday ? null : S.h1Catch) }}>
+              {DAYN[viewDow]}, {fmtLong(viewDate)}
+              <span style={S.h1Cal}>📅</span>
+            </h1>
             <input type="date" value={viewDate} max={todayISO()} style={S.dateInput}
               onChange={e => { if (e.target.value) setViewDate(e.target.value); }} />
           </label>
@@ -673,7 +680,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
             () => setFilter(f => ({ ...f, now: !f.now, day: !f.now ? null : f.day })))}
           {chip('td', '', `${DAYS[viewDow]} — all day`, regularsOn(viewDow), filter.day === viewDow,
             () => setFilter(f => ({ ...f, day: f.day === viewDow ? null : viewDow, now:false })))}
-          {[1,2,3,4,5].filter(d => d !== viewDow && regularsOn(d) > 2).map(d =>
+          {[1,2,3,4,5,6,0].filter(d => d !== viewDow && regularsOn(d) > 2).map(d =>
             chip(`d${d}`, '', DAYS[d], regularsOn(d), filter.day === d,
               () => setFilter(f => ({ ...f, day: f.day === d ? null : d, now:false }))))}
           {chip('all', '', 'Everyone', clients.length,
@@ -708,6 +715,20 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
             ) : filter.now ? (
               <>Nobody is grouped into {sessLabel(sess.key)} yet.<br />
                 Search a name and check them in — the group builds itself.</>
+            ) : filter.day !== null ? (
+              /* A near-empty weekday list with no way out is how catching up on
+                 a Saturday dead-ended: three people train Saturdays regularly,
+                 the weekday chips only ran Mon–Fri, so the filter that caused it
+                 was not even on screen to turn off. */
+              <>
+                Only {regularsOn(filter.day)} {DAYN[filter.day]} regular
+                {regularsOn(filter.day) === 1 ? '' : 's'} — and anyone who drops
+                in won’t be among them.<br />
+                <button type="button" style={{ ...S.allBtn, marginTop:10 }}
+                  onClick={() => setFilter(f => ({ ...f, day:null, now:false }))}>
+                  Show everyone on the roster
+                </button>
+              </>
             ) : 'Nobody matches those filters.'}
           </div>
         )}
@@ -1824,7 +1845,12 @@ const S = {
   err: { margin:20, padding:16, background:FLAG_S, border:`1px solid ${FLAG}`, borderRadius:10, color:FLAG },
   hdr: { position:'sticky', top:0, zIndex:30, background:GROUND, borderBottom:`1px solid ${HAIR}`, padding:'14px 14px 0' },
   hdrTop: { display:'flex', alignItems:'baseline', gap:9, marginBottom:12 },
-  h1: { fontSize:'1.25rem', fontWeight:700, margin:0, flex:'1 1 auto', letterSpacing:'-.01em' },
+  h1Wrap: { position:'relative', overflow:'hidden', flex:'1 1 auto', minWidth:0,
+            cursor:'pointer', display:'block' },
+  h1: { fontSize:'1.25rem', fontWeight:700, margin:0, letterSpacing:'-.01em',
+        borderBottom:`2px dotted ${HAIRS}`, paddingBottom:2, display:'inline-block' },
+  h1Catch: { color:BRASS, borderBottomColor:BRASS },
+  h1Cal: { fontSize:'.8rem', marginLeft:8, opacity:.8, verticalAlign:'middle' },
   tally: { fontSize:12.5, fontWeight:600, color:OK, background:OK_S, border:`1px solid ${OK}`,
            padding:'3px 9px', borderRadius:99, whiteSpace:'nowrap', fontVariantNumeric:'tabular-nums' },
   tallyZero: { color:STEEL, background:'#E9EBE8', borderColor:HAIRS },
