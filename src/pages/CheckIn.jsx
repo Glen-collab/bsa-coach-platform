@@ -75,6 +75,12 @@ const coarseOf = h => (h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening');
 const hourLbl = h => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'am' : 'pm'}`;
 const tagLbl = t => (t?.charAt(0) === 'h' ? hourLbl(+t.slice(1)) : COARSE_LBL[t] || t);
 const sessKey = (d, b) => `${d}-${b}`;
+/* "3-morning" -> "Wed morning". Short enough for a row pill; sessLabel's
+   "Wednesday morning" is for headings. */
+const sessShort = k => {
+  const [d, b] = k.split('-');
+  return `${DAYS[+d] || '?'} ${b}`;
+};
 const sessLabel = k => {
   const [d, b] = k.split('-');
   return `${DAYN[+d]} ${(COARSE_LBL[b] || b).toLowerCase()}`;
@@ -764,9 +770,20 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
             <button type="button" style={S.bulkA} onClick={() => setSelected(new Set())}>Clear</button>
             <button type="button" style={{ ...S.bulkA, color:'#8E6516' }} onClick={() => { setTagMode(false); setSelected(new Set()); }}>Done</button>
           </div>
+          {/* These apply the instant they are tapped. The session one used to
+              read "◉ Wednesday morning group" in solid blue, which is the exact
+              costume a SELECTED RADIO wears — so it looked like a choice made,
+              waiting on the Apply button below. Apply only ever submitted the
+              free-text box, so nothing happened and nothing said so. */}
+          <p style={S.presetHint}>
+            {selected.size
+              ? `Tap one to tag all ${selected.size} straight away — no Apply needed.`
+              : 'Tap names above to select them first.'}
+          </p>
           <div style={S.presets}>
             <button type="button" disabled={!selected.size} style={{ ...S.preset, ...S.presetSess }}
-              onClick={() => bulk({ session: sess.key }, sessLabel(sess.key))}>◉ {sessLabel(sess.key)} group</button>
+              onClick={() => bulk({ session: sess.key }, sessLabel(sess.key))}>
+              + {sessLabel(sess.key)} group</button>
             {COARSE.map(t => (
               <button key={t} type="button" disabled={!selected.size} style={{ ...S.preset, ...S.presetSlot }}
                 onClick={() => bulk({ slot: t }, COARSE_LBL[t])}>{COARSE_LBL[t]}</button>
@@ -1093,6 +1110,14 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
             <strong style={{ color: left <= 0 ? FLAG : left <= 3 ? AMBER : SKY }}>
               {left} left{c.householdId ? ' (shared)' : ''} · </strong>
           )}
+          {/* Pinning a session group changed nothing visible on the row — it
+              isn't in timeTags, so the only feedback a bulk tag ever gave was a
+              toast that vanished in under two seconds. Solid pill, because a
+              pinned group is something someone stated, not something the clock
+              inferred. */}
+          {(c.pinned || []).slice(0, 2).map(k => (
+            <span key={k} style={{ ...S.tg, ...S.tgPin }}>{sessShort(k)}</span>
+          ))}
           {primaryTime && <span style={{ ...S.tg, ...S.tgSlot, ...(timeAuto ? S.tgAuto : null) }}>{tagLbl(primaryTime)}</span>}
           {sports.map(s => <span key={s} style={S.tg}>{s}</span>)}
           {(c.sports || []).length > 3 && <span style={{ ...S.tg, ...S.tgMore }}>+{c.sports.length - 3}</span>}
@@ -1927,6 +1952,7 @@ const S = {
         marginRight:4, verticalAlign:1, background:BRASS_S, color:BRASS, border:`1px solid ${BRASS}` },
   tgSlot: { background:SKY_S, color:SKY, borderColor:SKY },
   tgAuto: { borderStyle:'dashed' },
+  tgPin: { background:SKY, color:'#fff', borderColor:SKY },
   tgMore: { background:'transparent', color:STEEL, borderColor:HAIRS },
   tickHit: { flex:'0 0 auto', width:52, height:52, border:0, background:'transparent',
              padding:0, margin:'-4px 0', cursor:'pointer',
@@ -1981,6 +2007,7 @@ const S = {
   bulkA: { fontFamily:'inherit', fontSize:13, fontWeight:600, cursor:'pointer', background:'none',
            border:0, color:STEEL, padding:'4px 5px' },
   presets: { display:'flex', gap:6, overflowX:'auto', paddingBottom:9 },
+  presetHint: { margin:'0 0 7px', fontSize:12, color:'#6F7880' },
   preset: { flex:'0 0 auto', fontFamily:'inherit', fontSize:13, fontWeight:600, cursor:'pointer',
             padding:'8px 13px', borderRadius:99, whiteSpace:'nowrap', background:'#fff',
             color:BRASS, border:`1px solid ${BRASS}` },
