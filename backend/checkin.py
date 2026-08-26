@@ -43,9 +43,45 @@ import psycopg2
 import os
 import datetime as dt
 
-from auth import require_auth
+from auth import require_auth, get_current_user
 
 checkin_bp = Blueprint("checkin", __name__)
+
+
+@checkin_bp.before_request
+def _coaches_only():
+    """This whole blueprint is staff-only. Verified exploitable before this
+    existed.
+
+    `require_auth` proves a JWT is valid; it has never looked at `role`, and
+    /api/auth/register is public, self-service and hands back a token
+    immediately. The check-in screen was gated only in the browser, by
+    <ProtectedRoute requiredRole="coach"> — which stops nobody from calling the
+    API directly.
+
+    The chain: register, POST /checkin/client with any email address (that
+    route creates the tenancy row rather than checking one, so `_owns` passes
+    for it ever after), then POST /checkin/message. The mail goes out over the
+    gym's own Gmail, SPF- and DKIM-valid, From: Be Strong Again — an open relay
+    for phishing the gym's own clients. A probe account did exactly that end to
+    end and the message was accepted and sent.
+
+    Tenancy itself held: the probe's roster came back empty, so no client data
+    leaked. This closes the door in front of all of it.
+    """
+    if request.method == "OPTIONS":
+        return None
+    # Server-to-server, carries a shared secret instead of a token.
+    if (request.endpoint or "").endswith("waiver_hook"):
+        return None
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "Authentication required"}), 401
+    if user.get("role") not in ("coach", "admin"):
+        # 404 rather than 403: a member has no business knowing this is here.
+        return jsonify({"error": "Not found"}), 404
+    request.current_user = user
+    return None
 
 # One gym, one timezone. If the platform ever serves a gym in another one, this
 # becomes a column on `gyms` and _today() takes the gym — but until then a
@@ -1795,7 +1831,10 @@ def waiver_hook():
     except Exception as e:
         db.rollback()
         # The leaderboard must never lose a signature because the CRM had a bad
-        # day, so it treats this as advisory. Say what broke and let it move on.
-        return jsonify({"error": str(e)}), 500
+        # day, so it treats this as advisory. The detail goes to the journal,
+        # not down the wire: psycopg2 messages carry table, column and
+        # constraint names, and the caller has no use for them.
+        print(f"[waiver-hook] failed for {tag}: {e}")
+        return jsonify({"error": "Could not record the waiver"}), 500
     finally:
         db.close()
