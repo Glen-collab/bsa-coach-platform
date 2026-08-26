@@ -1421,8 +1421,15 @@ const S = {
   chipC: { opacity:.62, fontVariantNumeric:'tabular-nums', marginLeft:4 },
   divider: { flex:'0 0 auto', width:1, background:HAIRS, margin:'5px 3px' },
   list: { padding:'8px 10px 0' },
-  row: { display:'flex', alignItems:'center', gap:11, minHeight:66, padding:'8px 10px 8px 13px',
-         background:'#fff', border:`1px solid ${HAIR}`, borderRadius:11, marginBottom:7, cursor:'pointer' },
+  // position:relative is load-bearing, not decoration. The swipe reveal behind
+  // this row is absolutely positioned, and a positioned element paints above a
+  // static one whatever the DOM order says — so without this the blue "Away"
+  // backing covers every name on the list permanently. (Which it did, once.)
+  // The margin lives on swipeWrap now; leaving it here too showed a band of the
+  // backing under every row.
+  row: { position:'relative', zIndex:1,
+         display:'flex', alignItems:'center', gap:11, minHeight:66, padding:'8px 10px 8px 13px',
+         background:'#fff', border:`1px solid ${HAIR}`, borderRadius:11, cursor:'pointer' },
   rowIn: { background:OK_S, borderColor:OK },
   rowSel: { background:BRASS_S, borderColor:BRASS },
   rowFlash: { boxShadow:`0 0 0 4px rgba(142,101,22,.35)` },
