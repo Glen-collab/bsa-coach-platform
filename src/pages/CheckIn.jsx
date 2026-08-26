@@ -2037,14 +2037,18 @@ Record a SECOND payment?`)) return;
                   in flight while this closure still holds the OLD value —
                   Libby's payment went in with no amount at all that way. It now
                   reads the box directly. */}
-              <p style={{ ...S.hint, margin:'0 0 8px' }}>
-                Pick the day they paid and it's recorded right then, for{' '}
-                <b>{String(amt).trim() === ''
+              {/* A bare date input renders as an empty box — on a phone it is
+                  indistinguishable from blank space, so there was nothing that
+                  looked pressable here and "Mark paid today" got used instead.
+                  Same trick as the header: a real button with the input laid
+                  invisibly over it, so the whole thing is the tap target. */}
+              <label style={S.dayBtn}>
+                📅 Pick the day — records{' '}
+                {String(amt).trim() === ''
                   ? (c.monthly != null ? `$${c.monthly}` : 'no amount')
-                  : `$${String(amt).trim()}`}</b>. Nothing else to press.
-              </p>
-              <input type="date" max={todayISO()} style={S.input}
-                onChange={async e => {
+                  : `$${String(amt).trim()}`} then
+                <input type="date" max={todayISO()} style={S.dateInput}
+                  onChange={async e => {
                   const on = e.target.value;
                   if (!on) return;
                   const v = String(amt).trim();
@@ -2057,7 +2061,8 @@ Record a SECOND payment?`)) return;
                   await onPay(c.id, money, on);
                   setBump(b => b + 1);
                   e.target.value = '';
-                }} />
+                  }} />
+              </label>
             </div>
 
             {/* Payments taken, and a way to undo one. Without this a payment
@@ -2334,6 +2339,13 @@ const S = {
              overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
   foldCar: { flex:'0 0 auto', fontSize:16, color:STEEL, transition:'transform .15s ease' },
   foldCarOpen: { transform:'rotate(90deg)' },
+  // Looks and behaves like the Mark-paid button beside it, so both money
+  // actions read as buttons. Brass rather than green: same weight, plainly a
+  // different act.
+  dayBtn: { position:'relative', overflow:'hidden', display:'block', width:'100%',
+            boxSizing:'border-box', textAlign:'center', cursor:'pointer',
+            fontFamily:'inherit', fontSize:15, fontWeight:700, padding:'13px 12px',
+            borderRadius:10, background:BRASS, color:'#fff', border:`1px solid ${BRASS}` },
   paidWarn: { margin:'0 0 14px', padding:'10px 12px', borderRadius:9, fontSize:13, lineHeight:1.45,
               background:FLAG_S, color:FLAG, border:`1px solid ${FLAG}` },
   pkgX: { flex:'0 0 auto', width:28, height:28, border:0, background:'transparent',
