@@ -81,6 +81,12 @@ const sessShort = k => {
   const [d, b] = k.split('-');
   return `${DAYS[+d] || '?'} ${b}`;
 };
+/* Tighter still, for the row: "2-morning" -> "Tue AM". The row has to fit a
+   dot, badges, a group, money and a last-seen on one line of a phone. */
+const sessTiny = k => {
+  const [d, b] = k.split('-');
+  return `${DAYS[+d] || '?'} ${b === 'morning' ? 'AM' : b === 'afternoon' ? 'PM' : 'Eve'}`;
+};
 const sessLabel = k => {
   const [d, b] = k.split('-');
   return `${DAYN[+d]} ${(COARSE_LBL[b] || b).toLowerCase()}`;
@@ -1230,7 +1236,8 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
     : ago < 7 ? `${ago} days ago` : ago < 14 ? 'Last week'
     : ago < 60 ? `${Math.round(ago/7)} weeks ago` : `${Math.round(ago/30)} months ago`;
 
-  const sports = (c.sports || []).slice(0, 3);
+  const sports = (c.sports || []).slice(0, 2);
+  const pinnedFirst = (c.pinned || [])[0] || null;
   return (
     <div style={S.swipeWrap}>
       {/* What the swipe reveals. Sits behind the row, so it appears to be
@@ -1299,19 +1306,27 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
           )}
           {left != null && (
             <strong style={{ color: left <= 0 ? FLAG : left <= 3 ? AMBER : SKY }}>
-              {left} left{c.householdId ? ' (shared)' : ''} · </strong>
+              {/* "13 left (shared)" was the one string still overflowing a
+                  390px row. A pooled balance says "shared" instead of "left" —
+                  same meaning, eight characters shorter. */}
+              {left} {c.householdId ? 'shared' : 'left'} · </strong>
           )}
-          {/* Pinning a session group changed nothing visible on the row — it
-              isn't in timeTags, so the only feedback a bulk tag ever gave was a
-              toast that vanished in under two seconds. Solid pill, because a
-              pinned group is something someone stated, not something the clock
-              inferred. */}
-          {(c.pinned || []).slice(0, 2).map(k => (
-            <span key={k} style={{ ...S.tg, ...S.tgPin }}>{sessShort(k)}</span>
-          ))}
-          {primaryTime && <span style={{ ...S.tg, ...S.tgSlot, ...(timeAuto ? S.tgAuto : null) }}>{tagLbl(primaryTime)}</span>}
+          {/* ONE group, abbreviated, plus a count of the rest. Two full-width
+              pills plus the learned-time pill pushed the money and the last-seen
+              clean off the row — the things actually being looked for. The
+              learned time is dropped entirely when a group is pinned: a pinned
+              group is something Glen stated, and it already implies the time. */}
+          {pinnedFirst && (
+            <>
+              <span style={{ ...S.tg, ...S.tgPin }}>{sessTiny(pinnedFirst)}</span>
+              {c.pinned.length > 1 &&
+                <span style={{ ...S.tg, ...S.tgMore }}>+{c.pinned.length - 1}</span>}
+            </>
+          )}
+          {!pinnedFirst && primaryTime &&
+            <span style={{ ...S.tg, ...S.tgSlot, ...(timeAuto ? S.tgAuto : null) }}>{tagLbl(primaryTime)}</span>}
           {sports.map(s => <span key={s} style={S.tg}>{s}</span>)}
-          {(c.sports || []).length > 3 && <span style={{ ...S.tg, ...S.tgMore }}>+{c.sports.length - 3}</span>}
+          {(c.sports || []).length > 2 && <span style={{ ...S.tg, ...S.tgMore }}>+{c.sports.length - 2}</span>}
           {due === 'over' && (
             <strong style={{ color:FLAG }}>
               Owes{c.monthly ? ` $${c.monthly}` : ''} · </strong>
