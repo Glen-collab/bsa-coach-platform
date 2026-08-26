@@ -1290,6 +1290,20 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
   const [shareQ, setShareQ] = useState('');
   const [buySess, setBuySess] = useState('');
   const [buyAmt, setBuyAmt] = useState('');
+  /* Loaded per card rather than shipped with the roster: 2,826 clients times
+     their whole purchase history is a payload nobody opening a check-in screen
+     asked for. `bump` re-reads it after an adjust or a purchase so the list
+     never disagrees with the number above it. */
+  const [pkgs, setPkgs] = useState(null);
+  const [bump, setBump] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setPkgs(null);
+    api.checkinPackages(c.id)
+      .then(r => { if (alive) setPkgs(r.packages || []); })
+      .catch(() => { if (alive) setPkgs([]); });
+    return () => { alive = false; };
+  }, [c.id, bump]);
   const [amt, setAmt] = useState(c.monthly ?? '');
   useEffect(() => { setAmt(c.monthly ?? ''); }, [c.id, c.monthly]);
   const sheetRef = useRef(null);
@@ -1535,7 +1549,10 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
               const v = window.prompt('Correct the number — add or remove sessions '
                 + '(use a minus to remove). For sessions somebody PAID for, use "They paid for sessions" below instead.');
               if (v && !isNaN(Number(v)) && Number(v) !== 0)
-                onAdjust(c.id, Number(v), window.prompt('Why? (optional)') || '');
+                onAdjust(c.id, Number(v),
+                  window.prompt('Why? Shows on their card under "Where these sessions '
+                    + 'came from" — e.g. "evened up after the ledger import".') || '')
+                  .then(() => setBump(b => b + 1));
             }}>Adjust</button>
           </div>
         </div>
@@ -1560,7 +1577,8 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
             <button type="button" style={{ ...S.smallBtn, ...S.buyBtn }}
               disabled={!(Number(buySess) > 0)}
               onClick={() => {
-                onBuy(c.id, Number(buySess), buyAmt.replace(/[^0-9.]/g, '') || null);
+                onBuy(c.id, Number(buySess), buyAmt.replace(/[^0-9.]/g, '') || null)
+                  .then(() => setBump(b => b + 1));
                 setBuySess(''); setBuyAmt('');
               }}>Add</button>
           </div>
@@ -1576,6 +1594,36 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
             </p>
           )}
         </div>
+
+        {/* Where the "why?" goes. Adjust has always asked for a reason and
+            written it to the row, and nothing ever showed it back — a prompt
+            that swallows what you type is worse than one that never asks. This
+            is also the only place the difference between a purchase and a
+            correction is legible: 25 for $300 is an arrangement, "evened up
+            after the ledger import" is a repair. */}
+        {pkgs !== null && pkgs.length > 0 && (
+          <div style={S.fld}>
+            <label style={S.lbl}>Where these sessions came from</label>
+            <div style={S.pkgList}>
+              {pkgs.map(p => (
+                <div key={p.id} style={S.pkgRow}>
+                  <b style={{ ...S.pkgN, color: p.sessions < 0 ? FLAG : p.isAdjustment ? BRASS : OK }}>
+                    {p.sessions > 0 ? '+' : ''}{p.sessions}
+                  </b>
+                  <span style={S.pkgBody}>
+                    <span style={S.pkgTop}>
+                      {fmtDate(p.on)}
+                      {p.amount != null && <b style={S.pkgAmt}> · ${p.amount}</b>}
+                      {p.isAdjustment && <em style={S.pkgTag}> correction</em>}
+                      {p.needsReview && <em style={{ ...S.pkgTag, color:FLAG }}> needs review</em>}
+                    </span>
+                    {p.note && <span style={S.pkgNote}>{p.note}</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {(c.billing === 'monthly' || c.billing === 'package') && (
           <>
             <div style={S.secH}>Monthly payment</div>
@@ -1885,6 +1933,17 @@ const S = {
   buyN: { flex:'0 1 82px', minWidth:64, textAlign:'center', fontWeight:700 },
   buyX: { flex:'0 0 auto', fontSize:12.5, color:'#6F7880' },
   buyBtn: { flex:'0 0 auto', marginLeft:'auto' },
+  pkgList: { display:'flex', flexDirection:'column', gap:1 },
+  pkgRow: { display:'flex', gap:10, alignItems:'baseline', padding:'6px 0',
+            borderTop:`1px solid ${HAIR}` },
+  pkgN: { flex:'0 0 46px', textAlign:'right', fontSize:14.5, fontWeight:700,
+          fontVariantNumeric:'tabular-nums' },
+  pkgBody: { flex:'1 1 auto', minWidth:0, display:'flex', flexDirection:'column', gap:1 },
+  pkgTop: { fontSize:12.5, color:INK },
+  pkgAmt: { color:OK, fontWeight:700 },
+  pkgTag: { fontSize:11, color:BRASS, fontStyle:'normal', fontWeight:700,
+            textTransform:'uppercase', letterSpacing:'.05em' },
+  pkgNote: { fontSize:12, color:STEEL, lineHeight:1.4 },
   awayRow: { display:'flex', alignItems:'center', gap:10, marginTop:2 },
   awayNow: { flex:'1 1 auto', minWidth:0, fontSize:14, color:INK,
              overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
