@@ -1178,6 +1178,16 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
               Owes{c.monthly ? ` $${c.monthly}` : ''} · </strong>
           )}
           {due === 'soon' && <strong style={{ color:AMBER }}>Due soon · </strong>}
+          {/* Recording a payment changed NOTHING visible. The toast cleared in
+              1.7s, the dot correctly stays away for someone paid up, and the row
+              read exactly as it had a moment earlier — so the only way to answer
+              "did that save?" was to do it again. Dan Belman ended up paid three
+              times over. A payment taken today now says so, and keeps saying
+              so. */}
+          {c.lastPaid === todayISO() && (
+            <strong style={{ color:OK }}>
+              Paid{c.monthly != null ? ` $${c.monthly}` : ''} today · </strong>
+          )}
           {seen} · {c.v.toLocaleString()} visits
         </span>
       </div>
@@ -1221,8 +1231,16 @@ function MoneySheet({ c, onBuy, onPay, onClose }) {
     : mode === 'payment' ? `Record $${nAmt} paid`
     : 'Enter sessions, an amount, or both';
 
+  const paidToday = c.lastPaid === todayISO();
+
   const go = async () => {
     if (!mode || busy) return;
+    // Catch the double entry where it happens. Somebody who has already paid
+    // today and is being paid again is nearly always the same money going in
+    // twice because the first attempt gave no sign of having worked.
+    if (mode === 'payment' && paidToday && !window.confirm(
+      `${c.n} is already recorded as paid today.\n\n`
+      + `Record a SECOND payment of $${nAmt}?`)) return;
     setBusy(true);
     const ok = mode === 'package'
       ? await onBuy(c.id, nSess, nAmt || null)
@@ -1252,6 +1270,13 @@ function MoneySheet({ c, onBuy, onPay, onClose }) {
             {c.dueOn ? ` · next due ${fmtShort(c.dueOn)}` : ''}
           </span>
         </div>
+
+        {paidToday && (
+          <div style={S.paidWarn}>
+            <b>Already paid today.</b> If you're here because the last one looked
+            like it didn't save — it did. Check "Payments taken" on their card.
+          </div>
+        )}
 
         <label style={S.lbl}>Money in</label>
         <div style={S.buyRow}>
@@ -1921,8 +1946,15 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
                   onBlur={e => { const v = e.target.value.trim();
                     onPatch(c.id, { monthly_amount: v === '' ? null : Number(v) }); }} />
                 <button type="button" style={S.payBtn}
-                  onClick={() => { const v = String(amt).trim();
-                    onPay(c.id, v === '' ? null : Number(v)); }}>
+                  onClick={async () => {
+                    const v = String(amt).trim();
+                    if (c.lastPaid === todayISO() && !window.confirm(
+                      `${c.n} is already recorded as paid today.
+
+Record a SECOND payment?`)) return;
+                    await onPay(c.id, v === '' ? null : Number(v));
+                    setBump(b => b + 1);
+                  }}>
                   Mark paid today
                 </button>
               </div>
@@ -2193,6 +2225,8 @@ const S = {
               padding:'10px 12px', borderRadius:9, background:OK_S, border:`1px solid ${OK}` },
   moneyCtxB: { fontSize:14, fontWeight:700, color:OK },
   moneyCtxN: { fontSize:12, color:OK, opacity:.85 },
+  paidWarn: { margin:'0 0 14px', padding:'10px 12px', borderRadius:9, fontSize:13, lineHeight:1.45,
+              background:FLAG_S, color:FLAG, border:`1px solid ${FLAG}` },
   pkgX: { flex:'0 0 auto', width:28, height:28, border:0, background:'transparent',
           color:'#B4BAB3', fontSize:19, cursor:'pointer', borderRadius:6, lineHeight:1 },
   rowAway: { background:SKY_S, borderColor:SKY_EDGE },
