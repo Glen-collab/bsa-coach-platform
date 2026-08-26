@@ -204,6 +204,8 @@ export default function CheckIn() {
      holds 2,826, and someone who stopped in 2012 must not sit in today's list —
      but "I can't find Debbie" needs an answer better than silence. */
   const [includeAll, setIncludeAll] = useState(false);
+  const [pickWhen, setPickWhen] = useState(false);
+  const [pickSport, setPickSport] = useState(false);
   const [toast, setToast] = useState('');
   const [flash, setFlash] = useState(() => new Set());
   const [newTag, setNewTag] = useState('');
@@ -233,6 +235,7 @@ export default function CheckIn() {
 
   const now = new Date();
   const isToday = viewDate === todayISO();
+  const ahead = viewDate > todayISO();      // ISO dates compare as strings
   // Parsed at noon UTC so a date-only string can't slide a day either way.
   const viewDow = new Date(`${viewDate}T12:00:00Z`).getUTCDay();
   const sess = useMemo(() => {
@@ -647,6 +650,18 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
   const awayCount = clients.filter(c => c.away).length;
   const showBar = filter.now && !q.trim() && isToday;
   const settled = isSettled(sess.key);
+  /* What the When pill says. It has to carry day, time-of-day and away in one
+     short string, because the whole point is not having to open it to know. */
+  const whenOn = filter.day !== null || filter.times.size > 0 || filter.awayOnly || !filter.now;
+  const whenLabel = (() => {
+    const bits = [];
+    if (filter.awayOnly) bits.push('Away');
+    if (filter.day !== null) bits.push(DAYS[filter.day]);
+    if (filter.times.size) bits.push(filter.times.size === 1
+      ? tagLbl([...filter.times][0]) : `${filter.times.size} times`);
+    if (!bits.length) return filter.now ? 'When' : 'Everyone';
+    return bits.join(' · ');
+  })();
   const anyFacet = !filter.now || filter.sports.size || filter.times.size || filter.inOnly
     || filter.day !== null || filter.owes || filter.awayOnly;
 
@@ -679,7 +694,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
               {DAYN[viewDow]}, {fmtLong(viewDate)}
               <span style={S.h1Cal}>📅</span>
             </h1>
-            <input type="date" value={viewDate} max={todayISO()} style={S.dateInput}
+            <input type="date" value={viewDate} style={S.dateInput}
               onChange={e => { if (e.target.value) setViewDate(e.target.value); }} />
           </label>
           <button type="button" style={S.tagBtn} onClick={async () => {
@@ -693,10 +708,16 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
         </div>
 
         {!isToday && (
-          <div style={S.catchBar}>
-            <b style={S.catchB}>Catching up — {DAYN[viewDow]}, {fmtShort(viewDate)}</b>
-            <span style={S.catchNote}>Taps are recorded on that day, not today.</span>
-            <button type="button" style={S.catchBtn}
+          <div style={{ ...S.catchBar, ...(ahead ? S.aheadBar : null) }}>
+            <b style={{ ...S.catchB, ...(ahead ? S.aheadB : null) }}>
+              {ahead ? 'Planning ahead' : 'Catching up'} — {DAYN[viewDow]}, {fmtShort(viewDate)}
+            </b>
+            <span style={{ ...S.catchNote, ...(ahead ? S.aheadB : null) }}>
+              {ahead
+                ? 'Pre-check who is coming, or take payment early — it all lands on that day.'
+                : 'Taps are recorded on that day, not today.'}
+            </span>
+            <button type="button" style={{ ...S.catchBtn, ...(ahead ? S.aheadBtn : null) }}
               onClick={() => setViewDate(todayISO())}>Today</button>
           </div>
         )}
@@ -739,33 +760,33 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
           </div>
         )}
 
+        {/* Four pills, not thirty. Days, times, sports and everything else used
+            to sit in one strip that ran several screens wide, so choosing
+            anything meant scrolling sideways hunting for it. The two that hold
+            a lot — when and what sport — open a sheet instead, and each pill
+            says what is currently picked so the strip still reads at a glance. */}
         <div style={S.chips}>
-          {chip('in', '', 'Checked in', inCount, filter.inOnly,
+          {chip('in', '', '✓ in', inCount, filter.inOnly,
             () => setFilter(f => ({ ...f, inOnly: !f.inOnly })))}
+          {isToday && chip('now', 'slot', 'Now', null, filter.now,
+            () => setFilter(f => ({ ...f, now: !f.now, day: !f.now ? null : f.day })))}
+          <span style={S.divider} />
+          <button type="button" onClick={() => setPickWhen(true)} aria-pressed={whenOn}
+            style={{ ...S.chip, ...S.chipSlot, ...(whenOn ? S.chipSlotOn : null) }}>
+            {whenLabel} <span style={S.chipCar}>▾</span>
+          </button>
+          <button type="button" onClick={() => setPickSport(true)} aria-pressed={filter.sports.size > 0}
+            style={{ ...S.chip, ...S.chipSport, ...(filter.sports.size ? S.chipSportOn : null) }}>
+            {filter.sports.size
+              ? (filter.sports.size === 1 ? [...filter.sports][0] : `${filter.sports.size} sports`)
+              : 'Sport'} <span style={S.chipCar}>▾</span>
+          </button>
+          <span style={S.divider} />
           {owesCount > 0 && chip('owes', 'owes', 'Owes', owesCount, filter.owes,
             () => setFilter(f => ({ ...f, owes: !f.owes, now: f.owes ? f.now : false })))}
-          {awayCount > 0 && chip('away', 'slot', 'Away', awayCount, filter.awayOnly,
-            () => setFilter(f => ({ ...f, awayOnly: !f.awayOnly, now: f.awayOnly ? f.now : false })))}
-          {anyFacet && chip('clr', 'clear', '✕ Back to now', null, false,
-            () => setFilter({ now:true, day:null, sports:new Set(), times:new Set(), inOnly:false, owes:false, awayOnly:false }))}
-          {isToday && chip('now', 'slot', `Now · ${COARSE_LBL[sess.blk]}`, null, filter.now,
-            () => setFilter(f => ({ ...f, now: !f.now, day: !f.now ? null : f.day })))}
-          {chip('td', '', `${DAYS[viewDow]} — all day`, regularsOn(viewDow), filter.day === viewDow,
-            () => setFilter(f => ({ ...f, day: f.day === viewDow ? null : viewDow, now:false })))}
-          {[1,2,3,4,5,6,0].filter(d => d !== viewDow && regularsOn(d) > 2).map(d =>
-            chip(`d${d}`, '', DAYS[d], regularsOn(d), filter.day === d,
-              () => setFilter(f => ({ ...f, day: f.day === d ? null : d, now:false }))))}
-          {chip('all', '', 'Everyone', clients.length,
-            !filter.now && filter.day === null && !filter.sports.size && !filter.times.size && !filter.inOnly,
-            () => setFilter({ now:false, day:null, sports:new Set(), times:new Set(), inOnly:false, owes:false, awayOnly:false }))}
-
-          {timeCounts.length > 0 && <span style={S.divider} />}
-          {timeCounts.map(([t, n]) => chip(`t${t}`, 'slot', tagLbl(t), n, filter.times.has(t),
-            () => setFilter(f => { const s = new Set(f.times); s.has(t) ? s.delete(t) : s.add(t); return { ...f, times:s }; })))}
-
-          {sportCounts.length > 0 && <span style={S.divider} />}
-          {sportCounts.map(([s, n]) => chip(`s${s}`, 'sport', s, n, filter.sports.has(s),
-            () => setFilter(f => { const x = new Set(f.sports); x.has(s) ? x.delete(s) : x.add(s); return { ...f, sports:x }; })))}
+          {anyFacet && chip('clr', 'clear', '✕ Clear', null, false,
+            () => setFilter({ now:isToday, day:isToday ? null : viewDow, sports:new Set(),
+                              times:new Set(), inOnly:false, owes:false, awayOnly:false }))}
         </div>
       </div>
 
@@ -884,6 +905,77 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
           onToggle={() => { toggle(cardClient); setCard(null); }}
           onAway={() => { setAwayFor(cardClient.id); setCard(null); }}
           onMessage={() => { setMsgFor(cardClient.id); setCard(null); }} />
+      )}
+      {pickWhen && (
+        <FilterSheet title="When" onClose={() => setPickWhen(false)}>
+          <label style={S.lbl}>Day</label>
+          <div style={S.awayWhy}>
+            {[0,1,2,3,4,5,6].map(d => (
+              <button key={d} type="button"
+                style={{ ...S.chip, ...(filter.day === d ? S.chipOn : null) }}
+                onClick={() => setFilter(f => ({ ...f, day: f.day === d ? null : d, now:false }))}>
+                {DAYS[d]}<span style={S.chipC}>{regularsOn(d)}</span>
+              </button>
+            ))}
+          </div>
+          {timeCounts.length > 0 && (
+            <>
+              <label style={S.lbl}>Time of day</label>
+              <div style={S.awayWhy}>
+                {timeCounts.map(([t, n]) => (
+                  <button key={t} type="button"
+                    style={{ ...S.chip, ...S.chipSlot, ...(filter.times.has(t) ? S.chipSlotOn : null) }}
+                    onClick={() => setFilter(f => { const x = new Set(f.times);
+                      x.has(t) ? x.delete(t) : x.add(t); return { ...f, times:x }; })}>
+                    {tagLbl(t)}<span style={S.chipC}>{n}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <label style={S.lbl}>Show</label>
+          <div style={S.awayWhy}>
+            <button type="button"
+              style={{ ...S.chip, ...(!filter.now && filter.day === null && !filter.times.size
+                                      && !filter.awayOnly ? S.chipOn : null) }}
+              onClick={() => setFilter(f => ({ ...f, now:false, day:null,
+                                               times:new Set(), awayOnly:false }))}>
+              Everyone<span style={S.chipC}>{clients.length}</span>
+            </button>
+            {awayCount > 0 && (
+              <button type="button"
+                style={{ ...S.chip, ...S.chipSlot, ...(filter.awayOnly ? S.chipSlotOn : null) }}
+                onClick={() => setFilter(f => ({ ...f, awayOnly: !f.awayOnly,
+                                                 now: f.awayOnly ? f.now : false }))}>
+                Away<span style={S.chipC}>{awayCount}</span>
+              </button>
+            )}
+          </div>
+        </FilterSheet>
+      )}
+      {pickSport && (
+        <FilterSheet title="Sport" onClose={() => setPickSport(false)}>
+          {sportCounts.length === 0
+            ? <p style={S.hint}>No sports tagged yet. Use Tag to add them.</p>
+            : (
+              <div style={S.awayWhy}>
+                {sportCounts.map(([sp, n]) => (
+                  <button key={sp} type="button"
+                    style={{ ...S.chip, ...S.chipSport, ...(filter.sports.has(sp) ? S.chipSportOn : null) }}
+                    onClick={() => setFilter(f => { const x = new Set(f.sports);
+                      x.has(sp) ? x.delete(sp) : x.add(sp); return { ...f, sports:x }; })}>
+                    {sp}<span style={S.chipC}>{n}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          {filter.sports.size > 0 && (
+            <div style={S.btnRow}>
+              <button type="button" style={S.btn}
+                onClick={() => setFilter(f => ({ ...f, sports:new Set() }))}>Clear sports</button>
+            </div>
+          )}
+        </FilterSheet>
       )}
       {moneyClient && (
         <MoneySheet c={moneyClient} onBuy={buyPackage} onPay={pay}
@@ -1250,6 +1342,26 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
       {!tagMode && <span style={S.cardBtn} aria-hidden="true">›</span>}
       </div>
     </div>
+  );
+}
+
+/* ── Filter sheet ──────────────────────────────────────────────────────── */
+/* Plain wrapper: a scrim, a titled bar, and whatever pills the caller passes.
+   Choices apply as they are tapped and the list behind updates live, so there
+   is no Save — Done just gets the sheet out of the way. */
+function FilterSheet({ title, children, onClose }) {
+  return (
+    <>
+      <div style={S.scrim} onClick={onClose} />
+      <div style={{ ...S.sheet, maxHeight:'80vh', overflowY:'auto' }}>
+        <div style={S.awayTop}>
+          <span style={{ width:56 }} />
+          <b style={S.awayName}>{title}</b>
+          <button type="button" style={{ ...S.tagBtn, ...S.tagBtnOn }} onClick={onClose}>Done</button>
+        </div>
+        {children}
+      </div>
+    </>
   );
 }
 
@@ -2246,6 +2358,11 @@ const S = {
   catchNote: { fontSize:12, color:BRASS, opacity:.85, flex:'1 1 auto', minWidth:0 },
   catchBtn: { flex:'0 0 auto', fontFamily:'inherit', fontSize:12.5, fontWeight:700, cursor:'pointer',
               padding:'4px 12px', borderRadius:99, background:BRASS, color:'#fff', border:`1px solid ${BRASS}` },
+  // Ahead of today is a different act from catching up, so it does not wear the
+  // catching-up colour. Blue: nothing has happened yet.
+  aheadBar: { background:SKY_S, borderColor:SKY },
+  aheadB: { color:SKY },
+  aheadBtn: { background:SKY, borderColor:SKY },
   tagBtnCatch: { background:BRASS, color:'#fff', borderColor:BRASS },
   // The input covers its label so the whole pill is the tap target, but stays
   // invisible — the label already says what it does.
@@ -2276,6 +2393,7 @@ const S = {
             boxShadow:'0 0 0 2px rgba(255,255,255,.95)' },
   chipSlot: { color:SKY, borderColor:SKY, background:SKY_S },
   chipSlotOn: { background:SKY, color:'#fff' },
+  chipCar: { opacity:.7, marginLeft:3, fontSize:11 },
   chipC: { opacity:.62, fontVariantNumeric:'tabular-nums', marginLeft:4 },
   divider: { flex:'0 0 auto', width:1, background:HAIRS, margin:'5px 3px' },
   list: { padding:'8px 10px 0' },
