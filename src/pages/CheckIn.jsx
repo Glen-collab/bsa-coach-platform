@@ -475,6 +475,15 @@ export default function CheckIn() {
     } catch (e) { say(`Didn't save — ${e.message}`); load(); }
   };
 
+  const deletePayment = async (paymentId) => {
+    try {
+      await api.checkinDeletePayment(paymentId);
+      await load();
+      say('Payment removed');
+      return true;
+    } catch (e) { say(`Couldn't delete — ${e.message}`); return false; }
+  };
+
   const deletePackage = async (packageId) => {
     try {
       const r = await api.checkinDeletePackage(packageId);
@@ -825,7 +834,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
       {cardClient && (
         <Card c={cardClient} sess={sess} isIn={isIn(cardClient.id)}
           onClose={() => setCard(null)} onPatch={patch} onPay={pay}
-          all={clients} onAdjust={adjustSessions} onBuy={buyPackage} onDeletePackage={deletePackage}
+          all={clients} onAdjust={adjustSessions} onBuy={buyPackage} onDeletePackage={deletePackage} onDeletePayment={deletePayment}
           onShare={shareWith} onUnshare={unshare} onDelete={removeClient}
           onToggle={() => { toggle(cardClient); setCard(null); }}
           onAway={() => { setAwayFor(cardClient.id); setCard(null); }}
@@ -1533,7 +1542,7 @@ function AwaySheet({ c, onSave, onClose }) {
 }
 
 /* ── Card ──────────────────────────────────────────────────────────────── */
-function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust, onBuy, onDeletePackage, onShare, onUnshare, onDelete, onAway, onMessage }) {
+function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust, onBuy, onDeletePackage, onDeletePayment, onShare, onUnshare, onDelete, onAway, onMessage }) {
   const [shareQ, setShareQ] = useState('');
   const [buySess, setBuySess] = useState('');
   const [buyAmt, setBuyAmt] = useState('');
@@ -1542,13 +1551,17 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
      asked for. `bump` re-reads it after an adjust or a purchase so the list
      never disagrees with the number above it. */
   const [pkgs, setPkgs] = useState(null);
+  const [pays, setPays] = useState(null);
   const [bump, setBump] = useState(0);
   useEffect(() => {
     let alive = true;
-    setPkgs(null);
+    setPkgs(null); setPays(null);
     api.checkinPackages(c.id)
       .then(r => { if (alive) setPkgs(r.packages || []); })
       .catch(() => { if (alive) setPkgs([]); });
+    api.checkinPayments(c.id)
+      .then(r => { if (alive) setPays(r.payments || []); })
+      .catch(() => { if (alive) setPays([]); });
     return () => { alive = false; };
   }, [c.id, bump]);
   const [amt, setAmt] = useState(c.monthly ?? '');
@@ -1926,6 +1939,49 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
               <input type="date" style={S.input}
                 onChange={e => e.target.value && onPay(c.id, c.monthly, e.target.value)} />
             </div>
+
+            {/* Payments taken, and a way to undo one. Without this a payment
+                entered twice is invisible and permanent: the card showed only
+                "last paid", which reads identically whether the money went in
+                once or three times. Dan Belman was charged $200 twice on the
+                same morning and nothing on this screen could have shown it. */}
+            {pays !== null && pays.length > 0 && (
+              <div style={S.fld}>
+                <label style={S.lbl}>Payments taken</label>
+                <div style={S.pkgList}>
+                  {pays.map(p => (
+                    <div key={p.id} style={S.pkgRow}>
+                      <b style={{ ...S.pkgN, color:OK }}>
+                        {p.amount != null ? `$${p.amount}` : '—'}
+                      </b>
+                      <span style={S.pkgBody}>
+                        <span style={S.pkgTop}>{fmtDate(p.paid_on)}</span>
+                        {p.note && <span style={S.pkgNote}>{p.note}</span>}
+                      </span>
+                      <button type="button" style={S.pkgX} aria-label="Delete this payment"
+                        onClick={async () => {
+                          if (!window.confirm(
+                            `Delete the ${p.amount != null ? `$${p.amount} ` : ''}payment `
+                            + `recorded on ${fmtDate(p.paid_on)}?\n\n`
+                            + `Use this for one entered twice — it does not refund anything.`)) return;
+                          await onDeletePayment(p.id);
+                          setBump(b => b + 1);
+                        }}>×</button>
+                    </div>
+                  ))}
+                </div>
+                {pays.length > 1 && (() => {
+                  const dupes = pays.filter((p, i) =>
+                    pays.some((q, j) => j !== i && q.paid_on === p.paid_on && q.amount === p.amount));
+                  return dupes.length > 1 ? (
+                    <p style={{ ...S.hint, color:FLAG }}>
+                      Two or more of these are the same amount on the same day — likely
+                      one payment entered twice.
+                    </p>
+                  ) : null;
+                })()}
+              </div>
+            )}
           </>
         )}
 
