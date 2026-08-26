@@ -947,6 +947,9 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
   };
 
   const due = dueState(c);
+  // Sessions remaining, for the arrangements where that is a real number.
+  const left = (c.billing === 'package' || c.billing === 'one_on_one') && c.remaining != null
+    ? c.remaining : null;
   const bs = [];
   const bd = untilAnniv(c.dob);
   if (bd === 0) bs.push(['🎂','Birthday today']);
@@ -1006,6 +1009,16 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
               it is the answer to the question the coach is asking when he
               can't find someone. */}
           {away && <strong style={{ color:SKY }}>{awaySummary(away)} · </strong>}
+          {/* Only where a balance means anything. A monthly member never bought
+              sessions, so their "remaining" is just visits counted against a
+              total that was never there — a big red -412 on the row would be
+              alarming and wrong. Package and one-on-one people are the ones who
+              actually run out, and running out is worth knowing BEFORE the tap
+              rather than after. */}
+          {left != null && (
+            <strong style={{ color: left <= 0 ? FLAG : left <= 3 ? AMBER : SKY }}>
+              {left} left{c.householdId ? ' (shared)' : ''} · </strong>
+          )}
           {primaryTime && <span style={{ ...S.tg, ...S.tgSlot, ...(timeAuto ? S.tgAuto : null) }}>{tagLbl(primaryTime)}</span>}
           {sports.map(s => <span key={s} style={S.tg}>{s}</span>)}
           {(c.sports || []).length > 3 && <span style={{ ...S.tg, ...S.tgMore }}>+{c.sports.length - 3}</span>}
