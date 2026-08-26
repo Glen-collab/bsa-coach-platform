@@ -71,7 +71,18 @@ const awaySummary = a => {
   return bits.join(' · ');
 };
 
-const coarseOf = h => (h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening');
+/* The gym's own hours, not the dictionary's: morning 5–11, afternoon 11–3,
+   evening 3–8. Hours outside those fall to the nearest block rather than a
+   fourth bucket, so a 4am or a 9pm check-in still groups somewhere sensible
+   instead of vanishing from every session.
+
+   MUST MATCH `_block` in backend/checkin.py. The two halves of this feature
+   disagreeing about which block an hour belongs to is exactly how the UTC bug
+   broke grouping for a day — the phone asked for one key while the server had
+   filed the visit under another. */
+const AFTERNOON_FROM = 11;   // 11am
+const EVENING_FROM = 15;     // 3pm
+const coarseOf = h => (h < AFTERNOON_FROM ? 'morning' : h < EVENING_FROM ? 'afternoon' : 'evening');
 const hourLbl = h => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'am' : 'pm'}`;
 const tagLbl = t => (t?.charAt(0) === 'h' ? hourLbl(+t.slice(1)) : COARSE_LBL[t] || t);
 const sessKey = (d, b) => `${d}-${b}`;

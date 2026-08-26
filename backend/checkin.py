@@ -144,8 +144,22 @@ def _balances_after(cur, client_id):
             for r in cur.fetchall()}
 
 
+# The gym's own hours: morning 5-11, afternoon 11-3, evening 3-8. Hours outside
+# those fall to the nearest block rather than a fourth bucket, so an early or
+# late check-in still groups somewhere sensible.
+#
+# MUST MATCH `coarseOf` in src/pages/CheckIn.jsx. When these two disagree about
+# which block an hour belongs to, the phone asks for a key the server never
+# filed anything under and the group silently never narrows — which is precisely
+# how the UTC bug presented.
+AFTERNOON_FROM = 11
+EVENING_FROM = 15
+
+
 def _block(hour):
-    return "morning" if hour < 12 else "afternoon" if hour < 17 else "evening"
+    return ("morning" if hour < AFTERNOON_FROM
+            else "afternoon" if hour < EVENING_FROM
+            else "evening")
 
 
 def _end_absence(cur, client_id, on):
