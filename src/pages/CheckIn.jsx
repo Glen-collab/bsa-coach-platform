@@ -243,10 +243,21 @@ export default function CheckIn() {
   const ahead = viewDate > todayISO();      // ISO dates compare as strings
   // Parsed at noon UTC so a date-only string can't slide a day either way.
   const viewDow = new Date(`${viewDate}T12:00:00Z`).getUTCDay();
+  /* The clock has to keep moving while the screen is open. This used to be
+     computed once per roster load, so a phone left on the counter at ten to
+     five still showed the afternoon group at half past — the app only rolled
+     over to evening if you happened to reload it. A minute is fine-grained
+     enough for a boundary that moves three times a day, and re-rendering a
+     list this size costs nothing. */
+  const [minute, setMinute] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setMinute(m => m + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
   const sess = useMemo(() => {
     const d = new Date();
     return { dow:d.getDay(), hour:d.getHours(), blk:coarseOf(d.getHours()), key:sessKey(d.getDay(), coarseOf(d.getHours())) };
-  }, [data]);
+  }, [data, minute]);
 
   /* Moving off today just drops the current-session filter and shows the whole
      roster. It used to narrow to that weekday's regulars, which fought with the
