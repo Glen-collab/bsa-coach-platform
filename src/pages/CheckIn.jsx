@@ -2026,8 +2026,38 @@ Record a SECOND payment?`)) return;
             </div>
             <div style={S.fld}>
               <label style={S.lbl}>Paid on a different day</label>
-              <input type="date" style={S.input}
-                onChange={e => e.target.value && onPay(c.id, c.monthly, e.target.value)} />
+              {/* Picking the date IS the action, and always was — but nothing
+                  said so, so it read as step one of two and "Mark paid today"
+                  got pressed as the confirm. That recorded the back-date AND
+                  today, and the second one had to be deleted.
+
+                  It also used to send `c.monthly` rather than the amount in the
+                  box above. Typing an amount and going straight to the date
+                  picker fires the amount field's onBlur, so the patch is still
+                  in flight while this closure still holds the OLD value —
+                  Libby's payment went in with no amount at all that way. It now
+                  reads the box directly. */}
+              <p style={{ ...S.hint, margin:'0 0 8px' }}>
+                Pick the day they paid and it's recorded right then, for{' '}
+                <b>{String(amt).trim() === ''
+                  ? (c.monthly != null ? `$${c.monthly}` : 'no amount')
+                  : `$${String(amt).trim()}`}</b>. Nothing else to press.
+              </p>
+              <input type="date" max={todayISO()} style={S.input}
+                onChange={async e => {
+                  const on = e.target.value;
+                  if (!on) return;
+                  const v = String(amt).trim();
+                  const money = v === '' ? (c.monthly ?? null) : Number(v);
+                  const clash = (pays || []).find(p => p.paid_on === on);
+                  if (clash && !window.confirm(
+                    `${c.n} already has a payment recorded for ${fmtDate(on)}`
+                    + `${clash.amount != null ? ` of $${clash.amount}` : ''}.\n\n`
+                    + `Record a second one?`)) { e.target.value = ''; return; }
+                  await onPay(c.id, money, on);
+                  setBump(b => b + 1);
+                  e.target.value = '';
+                }} />
             </div>
 
             {/* Payments taken, and a way to undo one. Without this a payment
@@ -2047,8 +2077,11 @@ Record a SECOND payment?`)) return;
                 <div style={{ ...S.pkgList, display: openPays ? 'flex' : 'none' }}>
                   {pays.map(p => (
                     <div key={p.id} style={S.pkgRow}>
-                      <b style={{ ...S.pkgN, color:OK }}>
-                        {p.amount != null ? `$${p.amount}` : '—'}
+                      {/* A blank amount is a payment that went in without the
+                          money attached — worth spotting, not a dash. */}
+                      <b style={{ ...S.pkgN, color: p.amount != null ? OK : FLAG,
+                                  fontSize: p.amount != null ? 14.5 : 11 }}>
+                        {p.amount != null ? `$${p.amount}` : 'no amt'}
                       </b>
                       <span style={S.pkgBody}>
                         <span style={S.pkgTop}>{fmtDate(p.paid_on)}</span>
