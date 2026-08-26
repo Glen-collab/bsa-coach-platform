@@ -441,6 +441,25 @@ def toggle():
         # Entering last Tuesday's session must not cancel the holiday they left
         # for on Friday.
         came_back = _end_absence(cur, client_id, attended_on) if live else 0
+
+        # Someone who trains is a current client, whatever the ledger import
+        # decided. Debbie Karnes has 496 visits and was marked inactive because
+        # her last one was four months ago; checking her in left her reading
+        # "not currently training" while standing in the gym, and she would have
+        # dropped off the roster again by morning.
+        #
+        # Unlike the absence rule above this applies to a back-dated check-in
+        # too: an absence is a claim about where someone is *right now*, but a
+        # visit on any day is evidence they are a client. Only 'inactive' and
+        # 'prospect' are touched — 'paused' and 'former' are Glen's own words
+        # about somebody and are not ours to overrule.
+        cur.execute(
+            """UPDATE clients SET status = 'active', status_changed_at = NOW()
+                WHERE id = %s::uuid AND status IN ('inactive', 'prospect')
+            RETURNING display_name""",
+            (client_id,),
+        )
+        woke = cur.fetchone()
         bal = _balances_after(cur, client_id)
         db.commit()
         return jsonify({
@@ -449,6 +468,7 @@ def toggle():
             "at": row["attended_at"].isoformat() if row and row["attended_at"] else None,
             "balances": bal,
             "away_cleared": bool(came_back),
+            "reactivated": bool(woke),
         })
     finally:
         db.close()

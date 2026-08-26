@@ -334,8 +334,12 @@ export default function CheckIn() {
         // They walked in, so the server ended the vacation. Drop the badge here
         // too, otherwise the row keeps insisting they're in Florida.
         if (r.away_cleared) cl = cl.map(x => x.id === c.id ? { ...x, away: null } : x);
+        // They train here again, so the card should stop saying otherwise —
+        // and they'll be on tomorrow's roster without anyone editing anything.
+        if (r.reactivated) cl = cl.map(x => x.id === c.id ? { ...x, status: 'active' } : x);
         return { ...d, checkedIn: next, clients: cl };
       });
+      if (r.reactivated) say(`✓ ${c.n} — back on the roster`);
       if (r.away_cleared) say(`✓ ${c.n} — back from ${awayOf(c.away?.reason).label.toLowerCase()}`);
     } catch (e) {
       setData(d => {                                  // roll back and say so
@@ -995,7 +999,11 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
   const next = Math.ceil((c.v + 1) / 250) * 250;
   if (c.v >= 100 && next - c.v <= 3) bs.push(['⭐',`${next} visits coming up`]);
   const ago = daysAgo(c.last);
-  if (ago !== null && ago > 45) bs.push(['💤',`Not in for ${Math.round(ago/30)} months`]);
+  // `c.last` is whatever the roster was loaded with, so checking someone in
+  // does not move it — Debbie was standing in the gym still wearing "not in for
+  // 4 months". Someone who is here today is not missing, whatever the last
+  // load said.
+  if (!inn && ago !== null && ago > 45) bs.push(['💤',`Not in for ${Math.round(ago/30)} months`]);
   // Monthly dues, same treatment as a birthday: visible on the row, not a report
   // you have to remember to run.
 
@@ -1057,7 +1065,7 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
               rather than after. */}
           {/* Only ever visible when looking beyond the working roster, where
               knowing someone stopped in 2012 is the whole point of finding them. */}
-          {c.status && c.status !== 'active' && (
+          {!inn && c.status && c.status !== 'active' && (
             <strong style={{ color:BRASS }}>{STATUS_SHORT[c.status] || c.status} · </strong>
           )}
           {left != null && (
