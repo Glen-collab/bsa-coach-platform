@@ -1024,8 +1024,20 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
   };
 
   const due = dueState(c);
-  // Sessions remaining, for the arrangements where that is a real number.
-  const left = (c.billing === 'package' || c.billing === 'one_on_one') && c.remaining != null
+  /* Sessions remaining, wherever that number means something.
+     Keying it to billing type alone was too narrow: the Raasches paid for
+     sessions and saw nothing, because Eiley is filed monthly and Kate drop-in.
+     Someone who has bought sessions has a balance whatever their arrangement
+     says.
+     Keying it to "has ever purchased" is far too wide — 105 monthly members
+     have ledger purchase rows and 55 of those are deeply negative, because the
+     old ledger subtracted visits from a total that was never there. Diana
+     Benben would read -2,628.
+     A POSITIVE balance is always real: you cannot drift into credit. So show
+     any positive number, and for package and one-on-one people show it even at
+     zero or below, since running out is the whole point of tracking it. */
+  const left = c.remaining != null
+    && (c.remaining > 0 || c.billing === 'package' || c.billing === 'one_on_one')
     ? c.remaining : null;
   const bs = [];
   const bd = untilAnniv(c.dob);
