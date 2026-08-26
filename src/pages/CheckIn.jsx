@@ -487,7 +487,11 @@ export default function CheckIn() {
     const c = clients.find(x => x.id === id);
     say(`✓ Paid — ${c ? c.n : ''}`);
     try {
-      const r = await api.checkinPayment(id, { amount: amount ?? null, paid_on: on || null });
+      // buyPackage already dates purchases to the day being viewed; payments
+      // used to always land on today, so catching up on Saturday put the
+      // sessions on Saturday and the money on Wednesday.
+      const when = on || (viewDate === todayISO() ? null : viewDate);
+      const r = await api.checkinPayment(id, { amount: amount ?? null, paid_on: when });
       // One payment settles the whole pool, so every member's due date moves.
       setData(d => ({ ...d, clients: d.clients.map(x => {
         const du = r.dues && r.dues[x.id];
@@ -1275,7 +1279,9 @@ function MoneySheet({ c, onBuy, onPay, onClose }) {
     : mode === 'payment' ? `Record $${nAmt} paid`
     : 'Enter sessions, an amount, or both';
 
-  const paidToday = c.lastPaid === todayISO();
+  // Same month, not same day: the mistake is paying twice in a month, and the
+  // two entries are rarely on the same date.
+  const paidToday = (c.lastPaid || '').slice(0, 7) === todayISO().slice(0, 7);
 
   const go = async () => {
     if (!mode || busy) return;
@@ -1317,8 +1323,9 @@ function MoneySheet({ c, onBuy, onPay, onClose }) {
 
         {paidToday && (
           <div style={S.paidWarn}>
-            <b>Already paid today.</b> If you're here because the last one looked
-            like it didn't save — it did. Check "Payments taken" on their card.
+            <b>Already paid this month{c.lastPaid ? ` — ${fmtDate(c.lastPaid)}` : ''}.</b>{' '}
+            If you're here because the last one looked like it didn't save — it
+            did. Check "Payments taken" on their card.
           </div>
         )}
 
@@ -1644,6 +1651,8 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
     return () => { alive = false; };
   }, [c.id, bump]);
   const [amt, setAmt] = useState(c.monthly ?? '');
+  const [payDate, setPayDate] = useState(todayISO);
+  const [paying, setPaying] = useState(false);
   useEffect(() => { setAmt(c.monthly ?? ''); }, [c.id, c.monthly]);
   const sheetRef = useRef(null);
   const drag = useRef({ y0: 0, dy: 0, on: false });
@@ -1997,6 +2006,18 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
         {(c.billing === 'monthly' || c.billing === 'package') && (
           <>
             <div style={S.secH}>Monthly payment</div>
+            {/* ONE control, ONE button that writes.
+
+                There used to be two: "Mark paid today" and a date input whose
+                own change event recorded the payment. On iOS, tapping a date
+                input opens the picker AND fires change immediately with the
+                default value — so merely opening it booked a payment for today,
+                before any day was chosen. That is how Libby Fox collected three
+                $200s. Any design where a date picker has a side effect is
+                broken on a phone.
+
+                So the picker only ever sets local state now. Nothing leaves the
+                screen until Record is pressed. */}
             <div style={{ ...S.fld,
               ...(['never','over','due'].includes(dueState(c)) ? S.fldOverdue
                  : dueState(c) === 'soon' ? S.fldPaused : null) }}>
@@ -2005,29 +2026,47 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
                   ? `Last paid ${fmtDate(c.lastPaid)} · next due ${fmtDate(c.dueOn)}`
                   : 'No payment recorded yet'}
               </label>
-              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
                 <span style={{ fontSize:18, fontWeight:700, color:STEEL_C }}>$</span>
                 <input type="number" inputMode="decimal" placeholder="How much"
                   value={amt} onChange={e => setAmt(e.target.value)}
                   style={{ ...S.input, flex:'1 1 auto', fontSize:18, fontWeight:700 }}
                   onBlur={e => { const v = e.target.value.trim();
                     onPatch(c.id, { monthly_amount: v === '' ? null : Number(v) }); }} />
-                <button type="button" style={S.payBtn}
-                  onClick={async () => {
-                    const v = String(amt).trim();
-                    const clash = samePaidMonth(pays, todayISO());
-                    if (clash && !window.confirm(
-                      `${c.n} already has a payment recorded this month — `
-                      + `${clash.amount != null ? `$${clash.amount} ` : ''}on ${fmtDate(clash.paid_on)}.
+                <label style={S.dayPick}>
+                  📅 {payDate === todayISO() ? 'Today' : fmtShort(payDate)}
+                  <input type="date" value={payDate} max={todayISO()} style={S.dateInput}
+                    onChange={e => setPayDate(e.target.value || todayISO())} />
+                </label>
+              </div>
+              <button type="button" style={{ ...S.btn, ...S.payWide, ...(paying ? S.btnOff : null) }}
+                disabled={paying}
+                onClick={async () => {
+                  const v = String(amt).trim();
+                  const money = v === '' ? (c.monthly ?? null) : Number(v);
+                  const clash = samePaidMonth(pays, payDate);
+                  if (clash && !window.confirm(
+                    `${c.n} already has a payment recorded this month — `
+                    + `${clash.amount != null ? `$${clash.amount} ` : ''}on ${fmtDate(clash.paid_on)}.
 
 `
-                      + `Record a SECOND payment for today?`)) return;
-                    await onPay(c.id, v === '' ? null : Number(v));
-                    setBump(b => b + 1);
-                  }}>
-                  Mark paid today
-                </button>
-              </div>
+                    + `Record a SECOND payment?`)) return;
+                  setPaying(true);
+                  await onPay(c.id, money, payDate === todayISO() ? null : payDate);
+                  setPaying(false);
+                  setPayDate(todayISO());
+                  setBump(b => b + 1);
+                }}>
+                {paying ? 'Recording…'
+                  : `Record ${String(amt).trim() === ''
+                      ? (c.monthly != null ? `$${c.monthly}` : 'payment')
+                      : `$${String(amt).trim()}`}`
+                    + (payDate === todayISO() ? ' for today' : ` for ${fmtShort(payDate)}`)}
+              </button>
+              <p style={S.hint}>
+                Tap the date to change the day — nothing is recorded until you
+                press Record.
+              </p>
               {c.householdId && (
                 <p style={S.hint}>
                   One bill for the whole {c.household} pool — shared with{' '}
@@ -2035,47 +2074,6 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
                       .map(x => x.n).join(', ')}. Record it once, on either card.
                 </p>
               )}
-            </div>
-            <div style={S.fld}>
-              <label style={S.lbl}>Paid on a different day</label>
-              {/* Picking the date IS the action, and always was — but nothing
-                  said so, so it read as step one of two and "Mark paid today"
-                  got pressed as the confirm. That recorded the back-date AND
-                  today, and the second one had to be deleted.
-
-                  It also used to send `c.monthly` rather than the amount in the
-                  box above. Typing an amount and going straight to the date
-                  picker fires the amount field's onBlur, so the patch is still
-                  in flight while this closure still holds the OLD value —
-                  Libby's payment went in with no amount at all that way. It now
-                  reads the box directly. */}
-              {/* A bare date input renders as an empty box — on a phone it is
-                  indistinguishable from blank space, so there was nothing that
-                  looked pressable here and "Mark paid today" got used instead.
-                  Same trick as the header: a real button with the input laid
-                  invisibly over it, so the whole thing is the tap target. */}
-              <label style={S.dayBtn}>
-                📅 Pick the day — records{' '}
-                {String(amt).trim() === ''
-                  ? (c.monthly != null ? `$${c.monthly}` : 'no amount')
-                  : `$${String(amt).trim()}`} then
-                <input type="date" max={todayISO()} style={S.dateInput}
-                  onChange={async e => {
-                  const on = e.target.value;
-                  if (!on) return;
-                  const v = String(amt).trim();
-                  const money = v === '' ? (c.monthly ?? null) : Number(v);
-                  const clash = samePaidMonth(pays, on);
-                  if (clash && !window.confirm(
-                    `${c.n} already has a payment recorded this month — `
-                    + `${clash.amount != null ? `$${clash.amount} ` : ''}on ${fmtDate(clash.paid_on)}.\n\n`
-                    + `If you just pressed "Mark paid today", that one is already saved.\n\n`
-                    + `Record a SECOND payment, for ${fmtDate(on)}?`)) { e.target.value = ''; return; }
-                  await onPay(c.id, money, on);
-                  setBump(b => b + 1);
-                  e.target.value = '';
-                  }} />
-              </label>
             </div>
 
             {/* Payments taken, and a way to undo one. Without this a payment
@@ -2359,6 +2357,13 @@ const S = {
             boxSizing:'border-box', textAlign:'center', cursor:'pointer',
             fontFamily:'inherit', fontSize:15, fontWeight:700, padding:'13px 12px',
             borderRadius:10, background:BRASS, color:'#fff', border:`1px solid ${BRASS}` },
+  // The date is a chooser, never an action. Sits inside the amount row so the
+  // two things a payment needs are side by side, with one button under them.
+  dayPick: { position:'relative', overflow:'hidden', display:'inline-block', flex:'0 0 auto',
+             cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:700,
+             padding:'11px 12px', borderRadius:10, whiteSpace:'nowrap',
+             background:'#fff', color:SKY, border:`1px solid ${SKY}` },
+  payWide: { width:'100%', flex:'0 0 auto', background:OK, color:'#fff', borderColor:OK },
   paidWarn: { margin:'0 0 14px', padding:'10px 12px', borderRadius:9, fontSize:13, lineHeight:1.45,
               background:FLAG_S, color:FLAG, border:`1px solid ${FLAG}` },
   pkgX: { flex:'0 0 auto', width:28, height:28, border:0, background:'transparent',
