@@ -19,6 +19,19 @@ STARTER_CODES = {
 }
 
 
+def _header_safe(value):
+    """Strip CR/LF out of anything going into a mail header.
+
+    Python's compat32 email policy writes header values through verbatim, so a
+    newline in one ends the header and starts another — a value like
+    "Hi\\r\\nBcc: someone@example.com" silently adds a recipient. Every caller
+    used to hand this function values that originate from a form field
+    somewhere, so the guard belongs here at the sink rather than in each of
+    them.
+    """
+    return " ".join(str(value or "").replace("\r", "\n").split("\n")).strip()
+
+
 def send_email(to, subject, html_body, reply_to=None):
     """Send email via Gmail SMTP. Returns True on success."""
     try:
@@ -26,6 +39,15 @@ def send_email(to, subject, html_body, reply_to=None):
         gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
         if not gmail_pass:
             print("No GMAIL_APP_PASSWORD set — skipping email")
+            return False
+
+        to = _header_safe(to)
+        subject = _header_safe(subject)
+        reply_to = _header_safe(reply_to) if reply_to else None
+        # One recipient, one address. Anything else is a caller passing through
+        # something it should not have.
+        if not to or " " in to or "," in to or "@" not in to:
+            print(f"Refusing to send to a malformed address: {to!r}")
             return False
 
         msg = MIMEMultipart("alternative")

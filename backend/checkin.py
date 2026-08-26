@@ -929,8 +929,14 @@ def send_message():
                            "reminder": "See you at the gym",
                            }.get(kind, "A note from Be Strong Again")
             from email_helper import send_email
+            # Escape before it becomes HTML. The body is typed by a coach and
+            # goes out over the gym's own address, so unescaped markup here is a
+            # way to send a convincing link from a trusted sender. Newlines
+            # become <br> after escaping, never before.
+            import html as _html
+            safe = "<br>".join(_html.escape(line) for line in body.split("\n"))
             html = ("<div style=\"font-family:Arial,sans-serif;font-size:15px;line-height:1.6\">"
-                    + "<br>".join(body.split("\n"))
+                    + safe
                     + "<br><br>— Coach Glen<br>Be Strong Again</div>")
             ok = send_email(addr, subject, html)
             if not ok:
