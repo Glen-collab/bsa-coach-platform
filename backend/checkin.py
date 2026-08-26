@@ -1284,6 +1284,48 @@ def sell_package():
         db.close()
 
 
+@checkin_bp.route("/package/<package_id>", methods=["DELETE"])
+@require_auth
+def delete_package(package_id):
+    """
+    Remove a session row entered by mistake — 50 sessions for $2 when it was 2
+    for $50. Correcting that with an adjustment fixes the count and leaves the
+    wrong money on the record forever, so a typo needs deleting, not offsetting.
+
+    Returns what was destroyed and the resulting balance, so the UI can say what
+    changed rather than just blinking.
+    """
+    user_id = request.current_user["user_id"]
+    db = get_db()
+    try:
+        cur = db.cursor()
+        frag, params = _scope(cur, user_id)
+        cur.execute(
+            f"""SELECT p.id, p.client_id, p.sessions_purchased, p.amount_paid,
+                       p.is_adjustment, p.purchased_on, c.display_name
+                  FROM session_packages p JOIN clients c ON c.id = p.client_id
+                 WHERE p.id = %s::uuid AND {frag}""",
+            (package_id, *params),
+        )
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+
+        cur.execute("DELETE FROM session_packages WHERE id = %s::uuid", (package_id,))
+        bal = _balances_after(cur, str(row["client_id"]))
+        db.commit()
+        return jsonify({
+            "success": True,
+            "name": row["display_name"],
+            "sessions": float(row["sessions_purchased"]),
+            "amount": float(row["amount_paid"]) if row["amount_paid"] is not None else None,
+            "balances": bal,
+            "remaining": bal.get(str(row["client_id"])),
+        })
+    finally:
+        db.close()
+
+
 @checkin_bp.route("/packages/<client_id>", methods=["GET"])
 @require_auth
 def list_packages(client_id):

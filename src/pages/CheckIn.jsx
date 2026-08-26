@@ -154,6 +154,7 @@ export default function CheckIn() {
   const [card, setCard] = useState(null);       // client id
   const [awayFor, setAwayFor] = useState(null); // client id whose away sheet is open
   const [msgFor, setMsgFor] = useState(null);   // client id whose message sheet is open
+  const [moneyFor, setMoneyFor] = useState(null); // client id whose money sheet is open
   /* The day being entered. Almost always today; the exception is catching up on
      a session that ran last night, which is normal enough to deserve a control
      rather than a workaround. Taps land on THIS date, not on today. */
@@ -474,6 +475,16 @@ export default function CheckIn() {
     } catch (e) { say(`Didn't save — ${e.message}`); load(); }
   };
 
+  const deletePackage = async (packageId) => {
+    try {
+      const r = await api.checkinDeletePackage(packageId);
+      setData(d => ({ ...d, clients: d.clients.map(x =>
+        (r.balances && x.id in r.balances) ? { ...x, remaining: r.balances[x.id] } : x) }));
+      say(`Removed ${r.sessions > 0 ? '+' : ''}${r.sessions}${r.amount != null ? ` · $${r.amount}` : ''} · now ${r.remaining}`);
+      return true;
+    } catch (e) { say(`Couldn't delete — ${e.message}`); load(); return false; }
+  };
+
   const transferSessions = async (fromId, toId, sessions, note) => {
     try {
       const r = await api.checkinTransferSessions(fromId, toId, sessions, note);
@@ -596,6 +607,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
   const cardClient = card ? clients.find(c => c.id === card) : null;
   const awayClient = awayFor ? clients.find(c => c.id === awayFor) : null;
   const msgClient  = msgFor  ? clients.find(c => c.id === msgFor)  : null;
+  const moneyClient = moneyFor ? clients.find(c => c.id === moneyFor) : null;
 
   return (
     <div style={{ ...S.wrap, paddingBottom: tagMode ? 220 : 60 }}>
@@ -755,7 +767,8 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
                   ? setSelected(s => { const n = new Set(s); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n; })
                   : setCard(c.id)}
                 onAway={() => setAwayFor(c.id)}
-                onBack={() => endAway(c.id)} />
+                onBack={() => endAway(c.id)}
+                onMoney={() => setMoneyFor(c.id)} />
             </div>
           );
         })}
@@ -812,11 +825,15 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
       {cardClient && (
         <Card c={cardClient} sess={sess} isIn={isIn(cardClient.id)}
           onClose={() => setCard(null)} onPatch={patch} onPay={pay}
-          all={clients} onAdjust={adjustSessions} onBuy={buyPackage}
+          all={clients} onAdjust={adjustSessions} onBuy={buyPackage} onDeletePackage={deletePackage}
           onShare={shareWith} onUnshare={unshare} onDelete={removeClient}
           onToggle={() => { toggle(cardClient); setCard(null); }}
           onAway={() => { setAwayFor(cardClient.id); setCard(null); }}
           onMessage={() => { setMsgFor(cardClient.id); setCard(null); }} />
+      )}
+      {moneyClient && (
+        <MoneySheet c={moneyClient} onBuy={buyPackage} onPay={pay}
+          onClose={() => setMoneyFor(null)} />
       )}
       {msgClient && (
         <MessageSheet c={msgClient}
@@ -969,7 +986,7 @@ function Summary({ data, onClose }) {
 }
 
 /* ── Row ───────────────────────────────────────────────────────────────── */
-function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard, onAway, onBack }) {
+function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard, onAway, onBack, onMoney }) {
   /* Swipe the name to the right to say why they're not here.
      Three things this has to get right, all learned the hard way elsewhere in
      this screen:
@@ -1008,19 +1025,23 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
       // horizontal to count, a scroll only has to be roughly vertical.
       s.lock = Math.abs(ddx) > Math.abs(ddy) * 1.5 ? 'x' : 'y';
     }
-    if (s.lock !== 'x' || ddx <= 0) return;
+    if (s.lock !== 'x') return;
     s.moved = true;
-    // Rubber-band past the reveal width so it feels bounded rather than broken.
-    setDx(ddx > REVEAL ? REVEAL + (ddx - REVEAL) * 0.18 : ddx);
+    // Rubber-band past the reveal width, in whichever direction. Right is why
+    // they're absent; left is money in.
+    const mag = Math.abs(ddx);
+    const eased = mag > REVEAL ? REVEAL + (mag - REVEAL) * 0.18 : mag;
+    setDx(ddx < 0 ? -eased : eased);
   };
   const swEnd = e => {
     const s = sw.current;
     if (!s.on) return;
     s.on = false;
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already gone */ }
-    const fired = s.moved && dx >= TRIGGER;
+    const fired = s.moved && Math.abs(dx) >= TRIGGER;
+    const left = dx < 0;
     setDx(0);
-    if (fired) (away ? onBack : onAway)();
+    if (fired) (left ? onMoney : (away ? onBack : onAway))();
   };
 
   const due = dueState(c);
@@ -1067,13 +1088,23 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
   return (
     <div style={S.swipeWrap}>
       {/* What the swipe reveals. Sits behind the row, so it appears to be
-          underneath it rather than sliding in alongside. */}
-      <div style={S.swipeBack} aria-hidden={dx === 0}>
-        <span style={{ ...S.swipeIco, ...(dx >= TRIGGER ? S.swipeIcoArmed : null) }}>
-          {away ? '↩' : awayOf(away?.reason).emoji}
-        </span>
-        <span style={S.swipeLbl}>{away ? 'Back' : 'Away'}</span>
-      </div>
+          underneath it rather than sliding in alongside. Right is why they are
+          not here; left is money in — opposite directions because they are
+          opposite errands, and neither should be reachable by accident. */}
+      {dx >= 0 ? (
+        <div style={S.swipeBack} aria-hidden={dx === 0}>
+          <span style={{ ...S.swipeIco, ...(dx >= TRIGGER ? S.swipeIcoArmed : null) }}>
+            {away ? '↩' : awayOf(away?.reason).emoji}
+          </span>
+          <span style={S.swipeLbl}>{away ? 'Back' : 'Away'}</span>
+        </div>
+      ) : (
+        <div style={{ ...S.swipeBack, ...S.swipeBackMoney }}>
+          <span style={{ ...S.swipeIco, ...S.swipeIcoMoney,
+                         ...(-dx >= TRIGGER ? S.swipeIcoMoneyArmed : null) }}>$</span>
+          <span style={{ ...S.swipeLbl, ...S.swipeLblMoney }}>Paid</span>
+        </div>
+      )}
       <div
         onClick={() => { if (!sw.current.moved) onCard(); }}
         onPointerDown={swStart} onPointerMove={swMove}
@@ -1152,6 +1183,98 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
       {!tagMode && <span style={S.cardBtn} aria-hidden="true">›</span>}
       </div>
     </div>
+  );
+}
+
+/* ── Money sheet ───────────────────────────────────────────────────────── */
+/* Swipe left on a name: money changed hands. One sheet for both arrangements,
+   because at the moment cash is handed over the coach should not have to
+   remember which kind of client this is.
+
+   Either box on its own is enough. Sessions with no amount is a real thing —
+   they paid, he didn't note how much, and the sessions still need adding.
+   Amount with no sessions is a monthly member paying their month. Both filled
+   is a package purchase with the money recorded. The button says which of those
+   is about to happen, so it is never a guess. */
+function MoneySheet({ c, onBuy, onPay, onClose }) {
+  const [sess, setSess] = useState('');
+  const [amt, setAmt] = useState(c.monthly != null ? String(c.monthly) : '');
+  const [busy, setBusy] = useState(false);
+  const nSess = Number(sess) || 0;
+  const nAmt = Number(String(amt).replace(/[^0-9.]/g, '')) || 0;
+  const monthly = c.billing === 'monthly';
+
+  // Sessions win when present: adding sessions is the more specific act, and a
+  // package purchase already carries the money with it.
+  const mode = nSess > 0 ? 'package' : nAmt > 0 ? 'payment' : null;
+  const label = mode === 'package'
+    ? `Add ${nSess} session${nSess === 1 ? '' : 's'}${nAmt ? ` · $${nAmt}` : ' · no amount'}`
+    : mode === 'payment' ? `Record $${nAmt} paid`
+    : 'Enter sessions, an amount, or both';
+
+  const go = async () => {
+    if (!mode || busy) return;
+    setBusy(true);
+    const ok = mode === 'package'
+      ? await onBuy(c.id, nSess, nAmt || null)
+      : await onPay(c.id, nAmt);
+    setBusy(false);
+    if (ok !== false) onClose();
+  };
+
+  return (
+    <>
+      <div style={S.scrim} onClick={onClose} />
+      <div style={S.sheet}>
+        <div style={S.awayTop}>
+          <button type="button" style={S.tagBtn} onClick={onClose}>Cancel</button>
+          <b style={S.awayName}>{c.n}</b>
+          <span style={{ width:56 }} />
+        </div>
+
+        <div style={S.moneyCtx}>
+          <b style={S.moneyCtxB}>
+            {monthly ? 'Monthly member' : BILLING_LBL[c.billing] || c.billing}
+            {c.monthly != null ? ` · $${c.monthly} a month` : ''}
+          </b>
+          <span style={S.moneyCtxN}>
+            {c.remaining != null && (c.remaining > 0 || c.billing === 'package' || c.billing === 'one_on_one')
+              ? `${c.remaining} sessions left` : 'No session balance'}
+            {c.dueOn ? ` · next due ${fmtShort(c.dueOn)}` : ''}
+          </span>
+        </div>
+
+        <label style={S.lbl}>Money in</label>
+        <div style={S.buyRow}>
+          <input value={sess} onChange={e => setSess(e.target.value)} inputMode="decimal"
+            placeholder="sessions" aria-label="Sessions added" style={{ ...S.input2, ...S.buyN }} />
+          <span style={S.buyX}>for</span>
+          <input value={amt} onChange={e => setAmt(e.target.value)} inputMode="decimal"
+            placeholder="$" aria-label="Amount paid" style={{ ...S.input2, ...S.buyN }} />
+        </div>
+        <p style={S.hint}>
+          Fill in either one. Sessions on their own still get added; an amount on
+          its own is recorded as a payment.
+        </p>
+
+        <div style={S.btnRow}>
+          <button type="button" onClick={go} disabled={!mode || busy}
+            style={{ ...S.btn, ...S.btnPrimary, ...((!mode || busy) ? S.btnOff : null) }}>
+            {busy ? 'Saving…' : label}
+          </button>
+        </div>
+
+        {monthly && c.monthly != null && (
+          <div style={S.btnRow}>
+            <button type="button" disabled={busy}
+              style={{ ...S.btn, ...(busy ? S.btnOff : null) }}
+              onClick={async () => { setBusy(true); await onPay(c.id, c.monthly); setBusy(false); onClose(); }}>
+              Just mark ${c.monthly} paid today
+            </button>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -1410,7 +1533,7 @@ function AwaySheet({ c, onSave, onClose }) {
 }
 
 /* ── Card ──────────────────────────────────────────────────────────────── */
-function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust, onBuy, onShare, onUnshare, onDelete, onAway, onMessage }) {
+function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust, onBuy, onDeletePackage, onShare, onUnshare, onDelete, onAway, onMessage }) {
   const [shareQ, setShareQ] = useState('');
   const [buySess, setBuySess] = useState('');
   const [buyAmt, setBuyAmt] = useState('');
@@ -1749,6 +1872,20 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
                     </span>
                     {p.note && <span style={S.pkgNote}>{p.note}</span>}
                   </span>
+                  {/* A typo needs deleting, not offsetting: correcting "50 for
+                      $2" with a -50 adjustment fixes the count and leaves the
+                      wrong money on the record for good. */}
+                  <button type="button" style={S.pkgX} aria-label="Delete this entry"
+                    onClick={async () => {
+                      const what = `${p.sessions > 0 ? '+' : ''}${p.sessions} session`
+                        + `${Math.abs(p.sessions) === 1 ? '' : 's'}`
+                        + `${p.amount != null ? ` for $${p.amount}` : ''} on ${fmtDate(p.on)}`;
+                      if (!window.confirm(
+                        `Delete ${what}?\n\nThis removes the entry entirely — `
+                        + `${c.n}'s balance becomes ${(c.remaining ?? 0) - p.sessions}.`)) return;
+                      await onDeletePackage(p.id);
+                      setBump(b => b + 1);
+                    }}>×</button>
                 </div>
               ))}
             </div>
@@ -1989,6 +2126,19 @@ const S = {
               transition:'transform .12s ease' },
   swipeIcoArmed: { transform:'scale(1.16)', background:SKY, color:'#fff' },
   swipeLbl: { fontSize:10.5, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', color:SKY },
+  // Money in, revealed from the other side. Green, and right-aligned so the
+  // icon appears from under the edge the finger came from.
+  swipeBackMoney: { alignItems:'flex-end', paddingLeft:0, paddingRight:16,
+                    background:OK_S, borderColor:OK },
+  swipeIcoMoney: { borderColor:OK, color:OK, fontWeight:700, fontSize:18 },
+  swipeIcoMoneyArmed: { transform:'scale(1.16)', background:OK, color:'#fff' },
+  swipeLblMoney: { color:OK },
+  moneyCtx: { display:'flex', flexDirection:'column', gap:2, margin:'0 0 16px',
+              padding:'10px 12px', borderRadius:9, background:OK_S, border:`1px solid ${OK}` },
+  moneyCtxB: { fontSize:14, fontWeight:700, color:OK },
+  moneyCtxN: { fontSize:12, color:OK, opacity:.85 },
+  pkgX: { flex:'0 0 auto', width:28, height:28, border:0, background:'transparent',
+          color:'#B4BAB3', fontSize:19, cursor:'pointer', borderRadius:6, lineHeight:1 },
   rowAway: { background:SKY_S, borderColor:SKY_EDGE },
   nmAway: { color:SKY },
 

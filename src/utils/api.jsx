@@ -185,6 +185,7 @@ export const api = {
   checkinBuyPackage: (clientId, body) =>
     request('/checkin/sessions/package', { method: 'POST', body: JSON.stringify({ client_id: clientId, ...body }) }),
   checkinPackages: (clientId) => request(`/checkin/packages/${clientId}`),
+  checkinDeletePackage: (packageId) => request(`/checkin/package/${packageId}`, { method: 'DELETE' }),
   checkinTransferSessions: (fromId, toId, sessions, note) =>
     request('/checkin/sessions/transfer', { method: 'POST', body: JSON.stringify({ from_client_id: fromId, to_client_id: toId, sessions, note }) }),
   checkinHouseholdAdd: (clientId, withClientId) =>
