@@ -193,6 +193,9 @@ export const api = {
   checkinEndAway: (clientId) =>
     request('/checkin/away/end', { method: 'POST', body: JSON.stringify({ client_id: clientId }) }),
   checkinAwayHistory: (clientId) => request(`/checkin/away/${clientId}`),
+  checkinMessage: (clientId, body) =>
+    request('/checkin/message', { method: 'POST', body: JSON.stringify({ client_id: clientId, ...body }) }),
+  checkinMessages: (clientId) => request(`/checkin/messages/${clientId}`),
   checkinDay: (date) => request(`/checkin/day${date ? `?date=${encodeURIComponent(date)}` : ''}`),
 
   // Health

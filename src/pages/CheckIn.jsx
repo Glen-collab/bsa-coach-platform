@@ -138,6 +138,7 @@ export default function CheckIn() {
   const [selected, setSelected] = useState(() => new Set());
   const [card, setCard] = useState(null);       // client id
   const [awayFor, setAwayFor] = useState(null); // client id whose away sheet is open
+  const [msgFor, setMsgFor] = useState(null);   // client id whose message sheet is open
   /* The day being entered. Almost always today; the exception is catching up on
      a session that ran last night, which is normal enough to deserve a control
      rather than a workaround. Taps land on THIS date, not on today. */
@@ -356,6 +357,26 @@ export default function CheckIn() {
     catch (e) { say(`Didn't save — ${e.message}`); load(); }
   };
 
+  /* `optimistic` is true for a text: the phone has already been handed the
+     message and there is no undoing that, so the log write must not be allowed
+     to look like a failure to send. An email is the opposite — nothing has left
+     until the server says so. */
+  const sendMessage = async (id, body, optimistic) => {
+    const c = clients.find(x => x.id === id);
+    const who = c?.to?.name || 'them';
+    if (optimistic) {
+      say(`Opening Messages — ${who}`);
+      api.checkinMessage(id, body).catch(() => {});
+      setMsgFor(null);
+      return true;
+    }
+    try {
+      const r = await api.checkinMessage(id, body);
+      say(`✉ Sent to ${r.to || who}`);
+      return true;
+    } catch (e) { say(e.message || "Couldn't send"); return false; }
+  };
+
   const patch = async (id, body) => {
     setData(d => ({ ...d, clients: d.clients.map(c => c.id === id ? { ...c, ...mapPatch(body) } : c) }));
     try {
@@ -527,6 +548,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
 
   const cardClient = card ? clients.find(c => c.id === card) : null;
   const awayClient = awayFor ? clients.find(c => c.id === awayFor) : null;
+  const msgClient  = msgFor  ? clients.find(c => c.id === msgFor)  : null;
 
   return (
     <div style={{ ...S.wrap, paddingBottom: tagMode ? 220 : 60 }}>
@@ -694,7 +716,13 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
           all={clients} onAdjust={adjustSessions}
           onShare={shareWith} onUnshare={unshare} onDelete={removeClient}
           onToggle={() => { toggle(cardClient); setCard(null); }}
-          onAway={() => { setAwayFor(cardClient.id); setCard(null); }} />
+          onAway={() => { setAwayFor(cardClient.id); setCard(null); }}
+          onMessage={() => setMsgFor(cardClient.id)} />
+      )}
+      {msgClient && (
+        <MessageSheet c={msgClient}
+          onSend={(body, optimistic) => sendMessage(msgClient.id, body, optimistic)}
+          onClose={() => setMsgFor(null)} />
       )}
       {awayClient && (
         <AwaySheet c={awayClient}
@@ -980,6 +1008,109 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
   );
 }
 
+/* ── Message sheet ─────────────────────────────────────────────────────── */
+/* Templates that fill the box rather than send by themselves. Every one of
+   these gets read by a parent, and the difference between a good note and a
+   creepy one is the sentence Glen adds — so the drafts are a starting point he
+   edits, never a thing that fires on one tap. */
+const MSG_TEMPLATES = [
+  { kind:'birthday', emoji:'🎂', label:'Happy birthday',
+    make:(c, to) => to.is_guardian
+      ? `Happy birthday to ${c.first}! Hope they have a great day — we'll see them at the gym.`
+      : `Happy birthday, ${c.first}! Hope you have a great day.` },
+  { kind:'reminder', emoji:'⏰', label:'Miss you',
+    make:(c, to) => to.is_guardian
+      ? `Haven't seen ${c.first} in a bit — everything alright? The door's open whenever they're ready.`
+      : `Haven't seen you in a bit, ${c.first} — everything alright? Door's open whenever you are.` },
+  { kind:'dues', emoji:'💵', label:'Payment due',
+    make:(c, to) => `Quick note — ${to.is_guardian ? `${c.first}'s` : 'your'} membership`
+      + `${c.monthly ? ` ($${c.monthly})` : ''} is due. No rush, just so it doesn't slip.` },
+  { kind:'note', emoji:'✍️', label:'Blank', make:() => '' },
+];
+
+function MessageSheet({ c, onSend, onClose }) {
+  const to = c.to || {};
+  const first = c.n.split(' ')[0];
+  const ctx = { first, monthly: c.monthly };
+  const initial = untilAnniv(c.dob) === 0 ? MSG_TEMPLATES[0] : MSG_TEMPLATES[3];
+  const [kind, setKind] = useState(initial.kind);
+  const [body, setBody] = useState(() => initial.make(ctx, to));
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(null);
+
+  const pick = t => { setKind(t.kind); setBody(t.make(ctx, to)); };
+
+  /* The text goes through the phone's own Messages app, not through a server.
+     There is no SMS provider here, and a text from the gym's real number is the
+     one people actually reply to. We tell the server afterwards so the send is
+     still on the record — see 040_client_messages. */
+  const text = () => {
+    if (!to.phone || !body.trim()) return;
+    window.location.href = `sms:${to.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(body)}`;
+    onSend({ channel:'sms', kind, body }, true);
+  };
+  const email = async () => {
+    if (!to.email || !body.trim() || busy) return;
+    setBusy(true);
+    const ok = await onSend({ channel:'email', kind, body }, false);
+    setBusy(false);
+    if (ok) setSent('email');
+  };
+
+  return (
+    <>
+      <div style={S.scrim} onClick={onClose} />
+      <div style={{ ...S.sheet, maxHeight:'88vh', overflowY:'auto' }}>
+        <div style={S.awayTop}>
+          <button type="button" style={S.tagBtn} onClick={onClose}>Close</button>
+          <b style={S.awayName}>{c.n}</b>
+          <span style={{ width:56 }} />
+        </div>
+
+        <div style={S.toBar}>
+          <b style={S.toB}>{to.name || 'No contact on file'}</b>
+          <span style={S.toNote}>
+            {to.is_guardian ? 'Parent or guardian' : to.name ? 'The client' : ''}
+            {to.email ? ` · ${to.email}` : ''}{to.phone ? ` · ${to.phone}` : ''}
+          </span>
+        </div>
+
+        <label style={S.lbl}>Quick message</label>
+        <div style={S.awayWhy}>
+          {MSG_TEMPLATES.map(t => (
+            <button key={t.kind} type="button" onClick={() => pick(t)}
+              style={{ ...S.chip, ...S.chipSlot, ...(kind === t.kind ? S.chipSlotOn : null) }}>
+              {t.emoji} {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={S.fld}>
+          <textarea value={body} onChange={e => setBody(e.target.value)} maxLength={900}
+            placeholder="Type your message…"
+            style={{ ...S.input, minHeight:110, resize:'vertical' }} />
+        </div>
+        <p style={S.hint}>
+          Read it before you send — these go to a parent more often than not.
+          The email signs off as Coach Glen; the text comes from your own number.
+        </p>
+
+        <div style={S.btnRow}>
+          <button type="button" onClick={text} disabled={!to.phone || !body.trim()}
+            style={{ ...S.btn, ...((!to.phone || !body.trim()) ? S.btnOff : null) }}>
+            {to.phone ? '💬 Text' : 'No number'}
+          </button>
+          <button type="button" onClick={email} disabled={!to.email || !body.trim() || busy}
+            style={{ ...S.btn, ...S.btnPrimary,
+                     ...((!to.email || !body.trim() || busy) ? S.btnOff : null) }}>
+            {busy ? 'Sending…' : sent === 'email' ? '✓ Sent' : to.email ? '✉ Email' : 'No email'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ── Away sheet ────────────────────────────────────────────────────────── */
 /* Why, when, and where — in that order, because the reason is the only part
    the coach always knows. The dates are a range picked by tapping twice, and
@@ -1087,7 +1218,7 @@ function AwaySheet({ c, onSave, onClose }) {
 }
 
 /* ── Card ──────────────────────────────────────────────────────────────── */
-function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust, onShare, onUnshare, onDelete, onAway }) {
+function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust, onShare, onUnshare, onDelete, onAway, onMessage }) {
   const [shareQ, setShareQ] = useState('');
   const [amt, setAmt] = useState(c.monthly ?? '');
   useEffect(() => { setAmt(c.monthly ?? ''); }, [c.id, c.monthly]);
@@ -1371,8 +1502,27 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
         <div style={S.secH}>Details</div>
         <div style={S.fld}>
           <label style={S.lbl}>Birthday</label>
-          <input type="date" defaultValue={c.dob || ''} style={S.input}
-            onChange={e => onPatch(c.id, { date_of_birth: e.target.value || null })} />
+          <div style={S.bdayRow}>
+            <input type="date" defaultValue={c.dob || ''} style={{ ...S.input, flex:'1 1 auto' }}
+              onChange={e => onPatch(c.id, { date_of_birth: e.target.value || null })} />
+            {/* Right next to the birthday, because "it's her birthday" and
+                "say something" are one thought. Disabled rather than hidden
+                when there's nobody to reach: an absent button reads as a
+                missing feature, a dead one reads as missing information. */}
+            <button type="button" onClick={onMessage}
+              disabled={!c.to?.email && !c.to?.phone}
+              style={{ ...S.msgBtn, ...((!c.to?.email && !c.to?.phone) ? S.msgBtnOff : null) }}
+              title={(c.to?.email || c.to?.phone)
+                ? `Message ${c.to.name}${c.to.is_guardian ? ' (guardian)' : ''}`
+                : 'No contact details on file — they arrive with a signed waiver'}>
+              ✉ Message
+            </button>
+          </div>
+          {(c.to?.email || c.to?.phone) && (
+            <p style={S.bdayHint}>
+              Goes to <b>{c.to.name}</b>{c.to.is_guardian ? ' — their parent or guardian' : ''}
+            </p>
+          )}
         </div>
         <div style={S.fld}>
           <label style={S.lbl}>Notes</label>
@@ -1600,6 +1750,17 @@ const S = {
   kpiS: { display:'block', fontSize:10.5, letterSpacing:'.08em', textTransform:'uppercase', color:STEEL, marginTop:3 },
   fldPaused: { borderColor:'#8A6410', background:'#FAF0D5' },
   fldAway: { borderColor:SKY, background:SKY_S },
+  bdayRow: { display:'flex', alignItems:'center', gap:8 },
+  msgBtn: { flex:'0 0 auto', fontFamily:'inherit', fontSize:13, fontWeight:700, cursor:'pointer',
+            padding:'9px 13px', borderRadius:9, background:SKY, color:'#fff', border:`1px solid ${SKY}`,
+            whiteSpace:'nowrap' },
+  msgBtnOff: { background:'#E9EBE8', color:STEEL, borderColor:HAIRS, cursor:'not-allowed' },
+  bdayHint: { margin:'7px 0 0', fontSize:12, color:STEEL },
+  toBar: { display:'flex', flexDirection:'column', gap:2, margin:'0 0 16px', padding:'10px 12px',
+           borderRadius:9, background:SKY_S, border:`1px solid ${SKY}` },
+  toB: { fontSize:14.5, fontWeight:700, color:SKY },
+  toNote: { fontSize:12, color:SKY, opacity:.85, overflow:'hidden', textOverflow:'ellipsis' },
+  btnOff: { opacity:.45, cursor:'not-allowed' },
   awayRow: { display:'flex', alignItems:'center', gap:10, marginTop:2 },
   awayNow: { flex:'1 1 auto', minWidth:0, fontSize:14, color:INK,
              overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },

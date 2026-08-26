@@ -171,6 +171,7 @@ def roster():
             SELECT c.id, c.display_name, c.first_name, c.last_name, c.date_of_birth,
                    c.billing_type, c.rate_amount, c.sports, c.sessions, c.slot,
                    c.status, c.status_note, c.cell_phone, c.email, c.notes, c.legacy_name,
+                   c.guardian_first, c.guardian_last, c.guardian_email, c.guardian_phone,
                    b.visits, b.first_visit, b.last_visit,
                    b.purchased, b.used, b.remaining, b.household_name, b.household_id,
                    b.credits_expire_on, b.balance_needs_review,
@@ -331,6 +332,9 @@ def roster():
                     "back": ((c["away_until"] + dt.timedelta(days=1)).isoformat()
                              if c["away_until"] else None),
                 } if c["away_reason"] else None),
+                # Who a message would actually reach, worked out here so the card
+                # can name them before anything is sent rather than after.
+                "to": _recipient(c),
                 "h": hist.get(c["id"], []),
                 "sess": sess.get(c["id"], {}),
             })
@@ -784,6 +788,157 @@ def away_history(client_id):
             "id": str(r["id"]), "reason": r["reason"], "note": r["note"],
             "since": r["starts_on"].isoformat(),
             "back": (r["ends_on"] + dt.timedelta(days=1)).isoformat() if r["ends_on"] else None,
+        } for r in cur.fetchall()]})
+    finally:
+        db.close()
+
+
+# ── Messaging a client ───────────────────────────────────────────────────────
+#
+# Who a message actually goes to is the whole problem here. Of 179 active
+# clients not one has their own email or phone on file; 54 have a parent's,
+# carried in by a signed waiver. So "message the client" nearly always means
+# "message their mother", and the screen has to say so out loud — texting a
+# 12-year-old's parent and texting the 12-year-old are not the same act.
+#
+# Email goes out from the server through the existing Gmail SMTP. Text does not:
+# there is no SMS provider, and adding one is a monthly bill for something the
+# phone in his hand already does better — a text from the gym's real number is
+# the one people reply to. The client opens an `sms:` link and reports back here
+# so the send is still on the record.
+
+MESSAGE_KINDS = {"birthday", "reminder", "dues", "note"}
+
+
+def _recipient(c):
+    """Who to contact for this client, and whether that is a guardian.
+
+    A minor's guardian comes first and an adult's own details come first, but
+    either will fall back to the other rather than refuse to send: an address on
+    file is an address on file, and the UI names whoever it lands on.
+    """
+    own_e = (c.get("email") or "").strip()
+    own_p = (c.get("cell_phone") or "").strip()
+    g_e = (c.get("guardian_email") or "").strip()
+    g_p = (c.get("guardian_phone") or "").strip()
+    g_name = " ".join(x for x in [(c.get("guardian_first") or "").strip(),
+                                  (c.get("guardian_last") or "").strip()] if x).strip()
+
+    minor = False
+    dob = c.get("date_of_birth")
+    if dob:
+        today = _today()
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        minor = age < 18
+
+    order = [("guardian", g_e, g_p, g_name), ("self", own_e, own_p, c.get("display_name"))]
+    if not minor:
+        order.reverse()
+
+    email = phone = None
+    who = None
+    is_guardian = False
+    for kind, e, p, name in order:
+        if (e or p) and who is None:
+            who, is_guardian = name, kind == "guardian"
+        email = email or e or None
+        phone = phone or p or None
+    return {"name": who, "email": email, "phone": phone,
+            "is_guardian": is_guardian, "minor": minor}
+
+
+@checkin_bp.route("/message", methods=["POST"])
+@require_auth
+def send_message():
+    """
+    Send an email to a client's contact, or record that a text was handed to the
+    phone. `channel='sms'` never sends anything here — see 040_client_messages.
+    """
+    user_id = request.current_user["user_id"]
+    data = request.json or {}
+    client_id = data.get("client_id")
+    channel = data.get("channel")
+    body = (data.get("body") or "").strip()
+    if not client_id or channel not in ("email", "sms"):
+        return jsonify({"error": "client_id and channel (email|sms) required"}), 400
+    if not body:
+        return jsonify({"error": "Nothing to send"}), 400
+    kind = data.get("kind") if data.get("kind") in MESSAGE_KINDS else "note"
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        if not _owns(cur, user_id, client_id):
+            return jsonify({"error": "Not found"}), 404
+        cur.execute(
+            """SELECT display_name, first_name, email, cell_phone, date_of_birth,
+                      guardian_first, guardian_last, guardian_email, guardian_phone
+                 FROM clients WHERE id = %s::uuid""",
+            (client_id,),
+        )
+        c = cur.fetchone()
+        to = _recipient(c)
+        addr = to["email"] if channel == "email" else to["phone"]
+        if not addr:
+            return jsonify({
+                "error": ("No email on file for them — contact details come in with a "
+                          "signed waiver." if channel == "email" else
+                          "No phone number on file for them — contact details come in "
+                          "with a signed waiver."),
+                "code": "no_contact",
+            }), 409
+
+        subject = (data.get("subject") or "").strip()[:180] or None
+        if channel == "email":
+            if not subject:
+                subject = {"birthday": f"Happy birthday, {c['first_name'] or c['display_name']}!",
+                           "dues": "A note from Be Strong Again",
+                           "reminder": "See you at the gym",
+                           }.get(kind, "A note from Be Strong Again")
+            from email_helper import send_email
+            html = ("<div style=\"font-family:Arial,sans-serif;font-size:15px;line-height:1.6\">"
+                    + "<br>".join(body.split("\n"))
+                    + "<br><br>— Coach Glen<br>Be Strong Again</div>")
+            ok = send_email(addr, subject, html)
+            if not ok:
+                return jsonify({"error": "The mail server wouldn't take it. Try again, "
+                                         "or send it from your own mail app."}), 502
+
+        cur.execute(
+            """INSERT INTO client_messages
+                 (client_id, channel, to_address, to_name, is_guardian, kind, subject, body, sent_by)
+               VALUES (%s::uuid,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id, sent_at""",
+            (client_id, channel, addr, to["name"], to["is_guardian"], kind, subject, body, user_id),
+        )
+        row = cur.fetchone()
+        db.commit()
+        return jsonify({"success": True, "id": str(row["id"]),
+                        "sent_at": row["sent_at"].isoformat(),
+                        "to": to["name"], "address": addr,
+                        "is_guardian": to["is_guardian"], "channel": channel})
+    finally:
+        db.close()
+
+
+@checkin_bp.route("/messages/<client_id>", methods=["GET"])
+@require_auth
+def list_messages(client_id):
+    user_id = request.current_user["user_id"]
+    db = get_db()
+    try:
+        cur = db.cursor()
+        if not _owns(cur, user_id, client_id):
+            return jsonify({"error": "Not found"}), 404
+        cur.execute(
+            """SELECT id, channel, to_name, is_guardian, kind, subject, body, sent_at
+                 FROM client_messages WHERE client_id = %s::uuid
+                ORDER BY sent_at DESC LIMIT 20""",
+            (client_id,),
+        )
+        return jsonify({"success": True, "messages": [{
+            "id": str(r["id"]), "channel": r["channel"], "to": r["to_name"],
+            "isGuardian": r["is_guardian"], "kind": r["kind"], "subject": r["subject"],
+            "body": r["body"], "sentAt": r["sent_at"].isoformat(),
         } for r in cur.fetchall()]})
     finally:
         db.close()
