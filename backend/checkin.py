@@ -20,10 +20,25 @@ per-session and not per-person.
 Scoping is always (coach_id = me) OR (gym_id = my gym), because a solo trainer
 has gym_id NULL while gym partners share one. Never trust a client-supplied
 coach_id.
+
+EVERY CLOCK QUESTION HERE IS ABOUT THE GYM'S WALL CLOCK, NOT THE SERVER'S.
+The box runs UTC and Wisconsin is five or six hours behind it, so reading a
+timestamp back in the server's timezone silently files the Tuesday 3pm group as
+"Tuesday evening, 8pm". The phone then asks for "Tuesday afternoon", matches
+nothing, never counts a run against the key it queries, and falls back to every
+Tuesday regular in eighteen years of ledger — forever. That is the whole
+grouping feature quietly not working, with no error to notice.
+
+So the connection is pinned to GYM_TZ (see get_db) and every "today" comes from
+_today(). That makes EXTRACT(...) on a timestamptz, CURRENT_DATE, and the
+client_dues / client_balance views all speak Central. `attended_at` is
+timestamptz, so this is a read-side fix: existing rows re-read correctly and
+nothing needs migrating.
 """
 
 from flask import Blueprint, request, jsonify
 from psycopg2.extras import RealDictCursor
+from zoneinfo import ZoneInfo
 import psycopg2
 import os
 import datetime as dt
@@ -32,9 +47,28 @@ from auth import require_auth
 
 checkin_bp = Blueprint("checkin", __name__)
 
+# One gym, one timezone. If the platform ever serves a gym in another one, this
+# becomes a column on `gyms` and _today() takes the gym — but until then a
+# constant is honest about what is actually true.
+GYM_TZ = ZoneInfo("America/Chicago")
+
+
+def _today():
+    """Today on the gym's wall clock. Never dt.date.today(), which is UTC here
+    and rolls over at 7pm Central — mid-session, onto tomorrow's date."""
+    return dt.datetime.now(GYM_TZ).date()
+
 
 def get_db():
-    return psycopg2.connect(os.environ.get("DATABASE_URL"), cursor_factory=RealDictCursor)
+    # `options` is a libpq connection parameter, so the timezone is set as part
+    # of connecting. Doing it with a `SET TIME ZONE` statement instead would put
+    # it inside psycopg2's implicit transaction, where a later rollback silently
+    # reverts it and the bug comes back only on the error path.
+    return psycopg2.connect(
+        os.environ.get("DATABASE_URL"),
+        options="-c timezone=America/Chicago",
+        cursor_factory=RealDictCursor,
+    )
 
 
 BILLING_TYPES = {"monthly", "package", "drop_in", "one_on_one", "untracked"}
@@ -89,7 +123,7 @@ def roster():
     that let the list narrow to whoever trains at this hour on this day.
     """
     user_id = request.current_user["user_id"]
-    today = dt.date.today()
+    today = _today()
     # Default to the working roster only. An eighteen-year ledger carries ~1,300
     # people who came exactly once in 2009; loading them puts a 1,499-row payload
     # on a phone and buries today's group. ?include=all reaches them when needed.
@@ -285,7 +319,7 @@ def toggle():
 
     on = (data.get("date") or "").strip()
     try:
-        attended_on = dt.date.fromisoformat(on) if on else dt.date.today()
+        attended_on = dt.date.fromisoformat(on) if on else _today()
     except ValueError:
         return jsonify({"error": "date must be YYYY-MM-DD"}), 400
 
@@ -353,7 +387,7 @@ def set_paid():
     if not client_id:
         return jsonify({"error": "client_id required"}), 400
     try:
-        attended_on = dt.date.fromisoformat(data["date"]) if data.get("date") else dt.date.today()
+        attended_on = dt.date.fromisoformat(data["date"]) if data.get("date") else _today()
     except (ValueError, KeyError):
         return jsonify({"error": "date must be YYYY-MM-DD"}), 400
 
@@ -598,7 +632,7 @@ def record_payment():
     if not client_id:
         return jsonify({"error": "client_id required"}), 400
     try:
-        paid_on = dt.date.fromisoformat(data["paid_on"]) if data.get("paid_on") else dt.date.today()
+        paid_on = dt.date.fromisoformat(data["paid_on"]) if data.get("paid_on") else _today()
         covers = dt.date.fromisoformat(data["covers_until"]) if data.get("covers_until") else None
     except ValueError:
         return jsonify({"error": "dates must be YYYY-MM-DD"}), 400
@@ -978,7 +1012,7 @@ def day():
     user_id = request.current_user["user_id"]
     on = request.args.get("date")
     try:
-        d = dt.date.fromisoformat(on) if on else dt.date.today()
+        d = dt.date.fromisoformat(on) if on else _today()
     except ValueError:
         return jsonify({"error": "date must be YYYY-MM-DD"}), 400
 
@@ -1009,5 +1043,258 @@ def day():
         unpaid = [r for r in rows if r["billing"] == "drop_in" and r["paid"] is not True]
         return jsonify({"success": True, "date": d.isoformat(),
                         "count": len(rows), "rows": rows, "unpaid": unpaid})
+    finally:
+        db.close()
+
+
+# ── The waiver hook ──────────────────────────────────────────────────────────
+#
+# The liability waiver is signed on the leaderboard (Node + SQLite). The CRM is
+# Flask + Postgres. Until this existed the only bridge between them was
+# scripts/import_waivers.py, run by hand — so a waiver signed on Tuesday was
+# invisible on the check-in screen until somebody remembered to run a script.
+# There was no error and nothing to notice: the person simply wasn't there.
+#
+# This is that script's decision table, for one signature, live. It deliberately
+# keeps the script's central rule: NEVER MATCH PEOPLE ON A SIMILARITY SCORE.
+# Fuzzy matching once merged two boys both called James Wagner — stepbrothers,
+# different parents — and put one child's liability release on the other's card.
+# So the only automatic link is an exact normalized name with exactly one hit.
+# Everything else creates a new client, flagged for review.
+#
+# That asymmetry is on purpose. A duplicate client is visible in the roster and
+# mergeable with scripts/merge_clients.py. A release filed against the wrong
+# child is neither.
+
+WAIVER_HOOK_COACH_EMAIL = os.environ.get("WAIVER_HOOK_COACH_EMAIL", "wisco.barbell@gmail.com")
+
+
+def _name_key(s):
+    """'James (Jed) Wagner' -> 'james wagner'. Same normalization the import
+    script uses, so the hook and a later re-run agree on who is who."""
+    import re
+    import unicodedata
+    s = unicodedata.normalize("NFKD", s or "").replace("’", "'")
+    s = re.sub(r"\(.*?\)", " ", s)                      # drop "(Jed)" nicknames
+    s = re.sub(r"[^a-z ]", " ", s.lower())
+    return " ".join(t for t in s.split() if len(t) > 1)
+
+
+def _split_person(name):
+    """'Jane Smith' or 'Smith, Jane' -> ('Jane', 'Smith')."""
+    import re
+    n = re.sub(r"\s+", " ", (name or "").strip())
+    if not n:
+        return "", ""
+    if "," in n:
+        last, _, first = n.partition(",")
+        return first.strip(), last.strip()
+    parts = n.split(" ")
+    return (" ".join(parts[:-1]), parts[-1]) if len(parts) > 1 else (n, "")
+
+
+def _signed_at(raw):
+    """The leaderboard sends an ISO-8601 UTC instant. Parse it as one.
+
+    This matters more than it looks: `signed_at` is timestamptz and this
+    connection is pinned to Central, so handing Postgres a naive
+    '2026-08-26 00:45:06' would book a 7:45pm signature at 12:45am — five hours
+    late, on the wrong day. An aware datetime is unambiguous whatever the
+    session timezone is."""
+    if not raw:
+        return dt.datetime.now(dt.timezone.utc)
+    try:
+        s = str(raw).strip().replace("Z", "+00:00")
+        parsed = dt.datetime.fromisoformat(s)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
+    except ValueError:
+        return dt.datetime.now(dt.timezone.utc)
+
+
+@checkin_bp.route("/waiver-hook", methods=["POST"])
+def waiver_hook():
+    """
+    Called by the leaderboard the moment a release is signed. Server to server,
+    so it carries a shared secret rather than a user's JWT.
+
+    Idempotent on `imported_from = 'leaderboard:<waiver id>'`, which already has
+    a unique index. Retries, replays and a later run of import_waivers.py all
+    land on the same row, so the leaderboard is free to be dumb about failure.
+    """
+    import hmac
+
+    secret = os.environ.get("WAIVER_HOOK_SECRET")
+    if not secret:
+        # Fail closed. An unset secret must never mean "let everyone in".
+        return jsonify({"error": "Waiver hook is not configured"}), 503
+    if not hmac.compare_digest(request.headers.get("X-BSA-Waiver-Secret", ""), secret):
+        return jsonify({"error": "Not authorised"}), 401
+
+    w = request.json or {}
+    try:
+        waiver_id = int(w["waiver_id"])
+        athlete_id = int(w["athlete_id"])
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"error": "waiver_id and athlete_id required"}), 400
+
+    first = (w.get("first_name") or "").strip()
+    last = (w.get("last_name") or "").strip()
+    if not first and not last:
+        return jsonify({"error": "the athlete needs a name"}), 400
+    display = f"{first} {last}".strip()
+    tag = f"leaderboard:{waiver_id}"
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+
+        # Already have this signature? Say so and change nothing. Checked before
+        # anything is created, so a retry can't leave a duplicate client behind.
+        cur.execute("SELECT client_id FROM client_waivers WHERE imported_from = %s", (tag,))
+        seen = cur.fetchone()
+        if seen:
+            return jsonify({"success": True, "already": True,
+                            "client_id": str(seen["client_id"]), "action": "none"})
+
+        cur.execute("SELECT id, gym_id FROM users WHERE lower(email) = %s",
+                    (WAIVER_HOOK_COACH_EMAIL.lower(),))
+        me = cur.fetchone()
+        if not me:
+            return jsonify({"error": f"No coach with email {WAIVER_HOOK_COACH_EMAIL}"}), 500
+        coach_id, gym_id = me["id"], me["gym_id"]
+
+        # ── Who is this? ────────────────────────────────────────────────────
+        client_id = None
+        action = None
+        review = None
+
+        # 1. Signed before. The athlete link is the only identifier here that is
+        #    an actual identifier rather than an inference, so it wins outright.
+        cur.execute(
+            "SELECT id FROM clients WHERE coach_id = %s AND leaderboard_athlete_id = %s",
+            (coach_id, athlete_id),
+        )
+        row = cur.fetchone()
+        if row:
+            client_id, action = row["id"], "linked-by-athlete"
+
+        # 2. Exactly one client whose normalized name is exactly this name.
+        if client_id is None:
+            key = _name_key(display)
+            cur.execute(
+                "SELECT id, display_name, status, leaderboard_athlete_id FROM clients WHERE coach_id = %s",
+                (coach_id,),
+            )
+            hits = [r for r in cur.fetchall() if _name_key(r["display_name"]) == key] if key else []
+
+            if len(hits) == 1 and hits[0]["leaderboard_athlete_id"] in (None, athlete_id):
+                client_id, action = hits[0]["id"], "linked-by-name"
+                # Signing a release means they are coming. Wake up a dormant
+                # ledger row — but never override a decision Glen made by hand:
+                # 'paused' and 'former' are his words and stay his.
+                if hits[0]["status"] in ("inactive", "prospect"):
+                    cur.execute(
+                        "UPDATE clients SET status = 'active', status_changed_at = NOW() WHERE id = %s",
+                        (client_id,),
+                    )
+            elif len(hits) == 1:
+                # The one name match is already spoken for by a DIFFERENT
+                # athlete. This is precisely the Wagner brothers, and the right
+                # answer is a second card, not a shared one.
+                review = (f"Waiver hook: name matches '{hits[0]['display_name']}', who is already "
+                          f"linked to a different leaderboard athlete. Made a separate client — "
+                          f"check whether these are two people or one.")
+            elif len(hits) > 1:
+                review = (f"Waiver hook: {len(hits)} existing clients are also called '{display}'. "
+                          f"Made a separate client rather than guess — merge with "
+                          f"scripts/merge_clients.py if this is one of them.")
+
+        # 3. Nobody, or nobody we dare pick. Make a card.
+        if client_id is None:
+            cur.execute(
+                """
+                INSERT INTO clients (coach_id, gym_id, first_name, last_name, display_name,
+                                     date_of_birth, status, billing_type, notes)
+                VALUES (%s,%s,%s,%s,%s,%s,'active','monthly',%s) RETURNING id
+                """,
+                (coach_id, gym_id, first, last, display, w.get("dob") or None, review),
+            )
+            client_id = cur.fetchone()["id"]
+            action = "created-for-review" if review else "created"
+
+        # ── Everything the waiver carries that the ledger never had ─────────
+        # Only fill blanks. A waiver is not allowed to overwrite something Glen
+        # typed on the card himself.
+        g_first, g_last = _split_person(w.get("parent_name"))
+        cur.execute(
+            """
+            UPDATE clients SET
+              leaderboard_athlete_id = COALESCE(leaderboard_athlete_id, %s),
+              date_of_birth  = COALESCE(date_of_birth, %s),
+              street         = COALESCE(NULLIF(street,''), %s),
+              city           = COALESCE(NULLIF(city,''), %s),
+              state          = COALESCE(NULLIF(state,''), %s),
+              zip            = COALESCE(NULLIF(zip,''), %s),
+              guardian_first = COALESCE(NULLIF(guardian_first,''), %s),
+              guardian_last  = COALESCE(NULLIF(guardian_last,''), %s),
+              guardian_email = COALESCE(NULLIF(guardian_email,''), %s),
+              guardian_phone = COALESCE(NULLIF(guardian_phone,''), %s),
+              updated_at = NOW()
+            WHERE id = %s
+            """,
+            (athlete_id, w.get("dob") or None,
+             # The leaderboard collects the address as four fields and only
+             # joins them for display, so ask for the parts and skip the
+             # guesswork the import script has to do on a flattened string.
+             (w.get("address_street") or "").strip() or None,
+             (w.get("address_city") or "").strip() or None,
+             (w.get("address_state") or "").strip().upper() or None,
+             (w.get("address_zip") or "").strip() or None,
+             g_first or None, g_last or None,
+             (w.get("parent_email") or "").strip() or None,
+             (w.get("parent_phone") or "").strip() or None,
+             client_id),
+        )
+
+        # Adult or minor at the moment of signing decides who the signature is
+        # attributed to — a guardian's release does not cover an adult.
+        signed_at = _signed_at(w.get("signed_at"))
+        signed_by = "guardian"
+        try:
+            born = dt.date.fromisoformat(str(w.get("dob"))[:10])
+            when = signed_at.date()
+            age = when.year - born.year - ((when.month, when.day) < (born.month, born.day))
+            signed_by = "self" if age >= 18 else "guardian"
+        except (TypeError, ValueError):
+            pass
+
+        cur.execute(
+            """
+            INSERT INTO client_waivers
+              (client_id, version, signed_at, typed_name, signed_by,
+               guardian_name, guardian_email, guardian_phone, ip, user_agent, imported_from)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (imported_from) WHERE imported_from IS NOT NULL DO NOTHING
+            RETURNING id
+            """,
+            (client_id, w.get("waiver_version") or "unknown", signed_at,
+             (w.get("signed_name") or w.get("parent_name") or display).strip(), signed_by,
+             (w.get("parent_name") or "").strip() or None,
+             (w.get("parent_email") or "").strip() or None,
+             (w.get("parent_phone") or "").strip() or None,
+             (w.get("ip_address") or "").strip() or None,
+             (w.get("user_agent") or "").strip() or None,
+             tag),
+        )
+        wrote = cur.fetchone()
+        db.commit()
+        return jsonify({"success": True, "client_id": str(client_id), "action": action,
+                        "waiver_recorded": bool(wrote), "needs_review": bool(review),
+                        "name": display})
+    except Exception as e:
+        db.rollback()
+        # The leaderboard must never lose a signature because the CRM had a bad
+        # day, so it treats this as advisory. Say what broke and let it move on.
+        return jsonify({"error": str(e)}), 500
     finally:
         db.close()

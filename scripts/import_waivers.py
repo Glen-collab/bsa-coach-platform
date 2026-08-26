@@ -63,6 +63,25 @@ def key(s):
     return " ".join(t for t in clean(s).split() if len(t) > 1)
 
 
+def utc(raw):
+    """SQLite writes signed_at as a naive 'YYYY-MM-DD HH:MM:SS' in UTC.
+
+    Postgres reads a naive timestamp into a timestamptz using the *session*
+    timezone, so this only ever worked because the box happens to run UTC. The
+    live hook in checkin.py pins its connection to America/Chicago, and anything
+    else that follows may too — at which point every signature silently lands
+    five hours late. Be explicit instead of lucky.
+    """
+    if raw is None:
+        return None
+    try:
+        s = str(raw).strip().replace("Z", "+00:00")
+        parsed = dt.datetime.fromisoformat(s)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
+    except ValueError:
+        return raw
+
+
 def split_person(name):
     """'Jane Smith' or 'Smith, Jane' -> ('Jane', 'Smith')."""
     n = re.sub(r"\s+", " ", (name or "").strip())
@@ -296,7 +315,7 @@ def main():
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (imported_from) WHERE imported_from IS NOT NULL DO NOTHING
             """,
-            (c["id"], w["waiver_version"], w["signed_at"],
+            (c["id"], w["waiver_version"], utc(w["signed_at"]),
              (w["signed_name"] or w["parent_name"] or "").strip(), signed_by,
              (w["parent_name"] or "").strip() or None,
              (w["parent_email"] or "").strip() or None,
