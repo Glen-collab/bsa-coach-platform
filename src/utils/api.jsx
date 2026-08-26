@@ -188,6 +188,11 @@ export const api = {
   checkinDeleteClient: (clientId) =>
     request(`/checkin/client/${clientId}`, { method: 'DELETE' }),
   checkinSummary: () => request('/checkin/summary'),
+  checkinSetAway: (clientId, body) =>
+    request('/checkin/away', { method: 'POST', body: JSON.stringify({ client_id: clientId, ...body }) }),
+  checkinEndAway: (clientId) =>
+    request('/checkin/away/end', { method: 'POST', body: JSON.stringify({ client_id: clientId }) }),
+  checkinAwayHistory: (clientId) => request(`/checkin/away/${clientId}`),
   checkinDay: (date) => request(`/checkin/day${date ? `?date=${encodeURIComponent(date)}` : ''}`),
 
   // Health

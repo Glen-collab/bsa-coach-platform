@@ -112,6 +112,31 @@ def _block(hour):
     return "morning" if hour < 12 else "afternoon" if hour < 17 else "evening"
 
 
+def _end_absence(cur, client_id, on):
+    """They walked in, so they are not away any more — whatever the card said.
+
+    Someone standing in the gym is the most reliable fact available, and making
+    Glen go and cancel the vacation by hand before the check-in reads right is
+    exactly the kind of admin that leaves a field permanently stale. An absence
+    that hadn't started yet is deleted outright: it never happened, and leaving
+    a zero-length row behind would just be litter.
+    """
+    cur.execute(
+        """DELETE FROM client_absences
+            WHERE client_id = %s::uuid AND starts_on >= %s::date
+              AND (ends_on IS NULL OR ends_on >= %s::date)""",
+        (client_id, on, on),
+    )
+    removed = cur.rowcount
+    cur.execute(
+        """UPDATE client_absences SET ends_on = %s::date - 1
+            WHERE client_id = %s::uuid AND starts_on < %s::date
+              AND (ends_on IS NULL OR ends_on >= %s::date)""",
+        (on, client_id, on, on),
+    )
+    return removed + cur.rowcount
+
+
 # ── Roster ───────────────────────────────────────────────────────────────────
 
 @checkin_bp.route("/roster", methods=["GET"])
@@ -143,6 +168,8 @@ def roster():
                    b.purchased, b.used, b.remaining, b.household_name, b.household_id,
                    b.credits_expire_on, b.balance_needs_review,
                    d.monthly_amount, d.last_paid, d.due_on, d.days_until_due,
+                   aw.reason AS away_reason, aw.note AS away_note,
+                   aw.starts_on AS away_since, aw.ends_on AS away_until,
                    (SELECT signed_at FROM client_waivers w
                      WHERE w.client_id = c.id ORDER BY signed_at DESC LIMIT 1) AS waiver_signed_at,
                    (SELECT signed_by FROM client_waivers w
@@ -150,6 +177,7 @@ def roster():
             FROM clients c
             LEFT JOIN client_balance b ON b.client_id = c.id
             LEFT JOIN client_dues    d ON d.client_id = c.id
+            LEFT JOIN client_away    aw ON aw.client_id = c.id
             WHERE {frag} AND c.status <> 'inactive'{status_frag}
             ORDER BY b.last_visit DESC NULLS LAST, c.display_name
             """,
@@ -286,6 +314,16 @@ def roster():
                 "waiver": (
                     c["waiver_signed_by"] if c["waiver_signed_at"] else None
                 ),
+                # `back` is the day they return — one past the last day away —
+                # because that is the thing the coach actually wants to read off
+                # the row. null means open-ended: gone, back when they're back.
+                "away": ({
+                    "reason": c["away_reason"],
+                    "note": c["away_note"],
+                    "since": c["away_since"].isoformat() if c["away_since"] else None,
+                    "back": ((c["away_until"] + dt.timedelta(days=1)).isoformat()
+                             if c["away_until"] else None),
+                } if c["away_reason"] else None),
                 "h": hist.get(c["id"], []),
                 "sess": sess.get(c["id"], {}),
             })
@@ -365,6 +403,7 @@ def toggle():
              data.get("note")),
         )
         row = cur.fetchone()
+        came_back = _end_absence(cur, client_id, attended_on)
         bal = _balances_after(cur, client_id)
         db.commit()
         return jsonify({
@@ -372,6 +411,7 @@ def toggle():
             "checked_in": True,
             "at": row["attended_at"].isoformat() if row and row["attended_at"] else None,
             "balances": bal,
+            "away_cleared": bool(came_back),
         })
     finally:
         db.close()
@@ -613,6 +653,118 @@ def create_client():
         new_id = cur.fetchone()["id"]
         db.commit()
         return jsonify({"success": True, "id": str(new_id)})
+    finally:
+        db.close()
+
+
+# ── Away: vacation, work, injured ────────────────────────────────────────────
+#
+# Deliberately NOT the `status` column. 'paused' is a decision about a
+# membership — on hold, probably not billing. Away is a fact about a person:
+# in Florida until the 8th, still a member, still owes September. Folding one
+# into the other would mean either pausing people who should still be billed,
+# or having no way at all to say why a regular hasn't been in for two weeks.
+
+@checkin_bp.route("/away", methods=["POST"])
+@require_auth
+def set_away():
+    """
+    Mark someone away. `ends_on` is the LAST day away and may be null — gone,
+    back when they're back, which is what the coach usually actually knows.
+    """
+    user_id = request.current_user["user_id"]
+    data = request.json or {}
+    client_id = data.get("client_id")
+    reason = (data.get("reason") or "").strip()[:40]
+    if not client_id or not reason:
+        return jsonify({"error": "client_id and reason required"}), 400
+
+    try:
+        starts_on = dt.date.fromisoformat(data["starts_on"]) if data.get("starts_on") else _today()
+        ends_on = dt.date.fromisoformat(data["ends_on"]) if data.get("ends_on") else None
+    except ValueError:
+        return jsonify({"error": "dates must be YYYY-MM-DD"}), 400
+    if ends_on and ends_on < starts_on:
+        return jsonify({"error": "They can't be back before they've gone"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        if not _owns(cur, user_id, client_id):
+            return jsonify({"error": "Not found"}), 404
+
+        # One absence at a time. Re-marking someone who is already away is an
+        # edit — a corrected return date, a changed reason — not a second trip,
+        # and two overlapping rows would make `client_away` pick a winner
+        # arbitrarily rather than obviously.
+        cur.execute(
+            """DELETE FROM client_absences
+                WHERE client_id = %s::uuid
+                  AND (ends_on IS NULL OR ends_on >= %s::date)""",
+            (client_id, _today()),
+        )
+        cur.execute(
+            """INSERT INTO client_absences (client_id, reason, note, starts_on, ends_on, created_by)
+               VALUES (%s::uuid, %s, %s, %s, %s, %s) RETURNING id""",
+            (client_id, reason, (data.get("note") or "").strip()[:120] or None,
+             starts_on, ends_on, user_id),
+        )
+        aid = cur.fetchone()["id"]
+        db.commit()
+        return jsonify({
+            "success": True, "id": str(aid), "reason": reason,
+            "note": (data.get("note") or "").strip()[:120] or None,
+            "since": starts_on.isoformat(),
+            "back": (ends_on + dt.timedelta(days=1)).isoformat() if ends_on else None,
+        })
+    finally:
+        db.close()
+
+
+@checkin_bp.route("/away/end", methods=["POST"])
+@require_auth
+def end_away():
+    """They're back. Closes the absence rather than deleting the history of it."""
+    user_id = request.current_user["user_id"]
+    data = request.json or {}
+    client_id = data.get("client_id")
+    if not client_id:
+        return jsonify({"error": "client_id required"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        if not _owns(cur, user_id, client_id):
+            return jsonify({"error": "Not found"}), 404
+        n = _end_absence(cur, client_id, _today())
+        db.commit()
+        return jsonify({"success": True, "ended": n})
+    finally:
+        db.close()
+
+
+@checkin_bp.route("/away/<client_id>", methods=["GET"])
+@require_auth
+def away_history(client_id):
+    """Every absence on record. 'That's her fourth trip since March' is the
+    thing worth knowing when she asks about her session balance."""
+    user_id = request.current_user["user_id"]
+    db = get_db()
+    try:
+        cur = db.cursor()
+        if not _owns(cur, user_id, client_id):
+            return jsonify({"error": "Not found"}), 404
+        cur.execute(
+            """SELECT id, reason, note, starts_on, ends_on
+                 FROM client_absences WHERE client_id = %s::uuid
+                ORDER BY starts_on DESC LIMIT 24""",
+            (client_id,),
+        )
+        return jsonify({"success": True, "absences": [{
+            "id": str(r["id"]), "reason": r["reason"], "note": r["note"],
+            "since": r["starts_on"].isoformat(),
+            "back": (r["ends_on"] + dt.timedelta(days=1)).isoformat() if r["ends_on"] else None,
+        } for r in cur.fetchall()]})
     finally:
         db.close()
 

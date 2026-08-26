@@ -38,6 +38,30 @@ const BILLING_LBL = {
    pinned to it by hand. See inSession() for why that matters. */
 const SETTLE_AFTER = 3;
 
+/* Why someone isn't here. Four, because the coach picking one is standing in a
+   gym between sets and a longer list is a list he reads instead of taps. The
+   backend stores the reason as free text, so adding a fifth is a line here and
+   no migration. */
+const AWAY_REASONS = [
+  { key:'vacation', emoji:'🌴', label:'Vacation' },
+  { key:'work',     emoji:'🏭', label:'Away for work' },
+  { key:'injured',  emoji:'🩹', label:'Injured' },
+  { key:'away',     emoji:'✈️', label:'Away' },
+];
+const awayOf = k => AWAY_REASONS.find(r => r.key === k) || { key:k, emoji:'✈️', label:k || 'Away' };
+
+/* How the absence reads on the row: "Vacation · back Sep 1" — or, when nobody
+   knows when they're back, just "Vacation · Florida". Never a bare "Away" with
+   no handle on it, which tells the coach nothing he didn't already see. */
+const awaySummary = a => {
+  if (!a) return null;
+  const bits = [awayOf(a.reason).label];
+  if (a.back) bits.push(`back ${fmtShort(a.back)}`);
+  else if (a.note) bits.push(a.note);
+  if (a.back && a.note) bits.push(a.note);
+  return bits.join(' · ');
+};
+
 const coarseOf = h => (h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening');
 const hourLbl = h => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'am' : 'pm'}`;
 const tagLbl = t => (t?.charAt(0) === 'h' ? hourLbl(+t.slice(1)) : COARSE_LBL[t] || t);
@@ -85,15 +109,30 @@ function fmtDate(iso) {
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined,
     { year:'numeric', month:'short', day:'numeric', timeZone:'UTC' });
 }
+/* Noon UTC, so a date-only string can never slide a day either way when the
+   browser renders it in Central. */
+function fmtShort(iso) {
+  if (!iso) return '';
+  return new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined,
+    { month:'short', day:'numeric', timeZone:'UTC' });
+}
+const isoOf = (y, m, d) =>
+  `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+const addDaysISO = (iso, n) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return isoOf(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate());
+};
 
 export default function CheckIn() {
   const [data, setData] = useState(null);       // { clients, runs, checkedIn }
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
-  const [filter, setFilter] = useState({ now:true, day:null, sports:new Set(), times:new Set(), inOnly:false, owes:false });
+  const [filter, setFilter] = useState({ now:true, day:null, sports:new Set(), times:new Set(), inOnly:false, owes:false, awayOnly:false });
   const [tagMode, setTagMode] = useState(false);
   const [selected, setSelected] = useState(() => new Set());
   const [card, setCard] = useState(null);       // client id
+  const [awayFor, setAwayFor] = useState(null); // client id whose away sheet is open
   const [toast, setToast] = useState('');
   const [flash, setFlash] = useState(() => new Set());
   const [newTag, setNewTag] = useState('');
@@ -204,7 +243,12 @@ export default function CheckIn() {
     else {
       if (filter.inOnly) set = set.filter(c => isIn(c.id));
       if (filter.owes) set = set.filter(c => dueState(c) === 'over');
-      if (filter.now) set = set.filter(c => inSession(c, sess) || isIn(c.id));
+      if (filter.awayOnly) set = set.filter(c => c.away);
+      /* Someone on a beach is not in today's session, and leaving them in the
+         list is the same noise the grouping exists to remove. They stay
+         reachable through the Away chip and through search, and they come
+         straight back the moment they're checked in. */
+      if (filter.now) set = set.filter(c => (inSession(c, sess) && !c.away) || isIn(c.id));
       if (filter.day !== null) set = set.filter(c => (c.d || []).includes(filter.day) || isIn(c.id));
       if (filter.sports.size) set = set.filter(c => (c.sports || []).some(s => filter.sports.has(s)));
       if (filter.times.size) set = set.filter(c => { const t = timeTags(c); for (const x of filter.times) if (t.has(x)) return true; return false; });
@@ -243,11 +287,15 @@ export default function CheckIn() {
         // A shared pool changes for everyone in it, so the server returns the
         // new figure for each member — otherwise their cards keep showing the
         // number they were loaded with and it looks like nothing was deducted.
-        const cl = r.balances
+        let cl = r.balances
           ? d.clients.map(x => x.id in r.balances ? { ...x, remaining: r.balances[x.id] } : x)
           : d.clients;
+        // They walked in, so the server ended the vacation. Drop the badge here
+        // too, otherwise the row keeps insisting they're in Florida.
+        if (r.away_cleared) cl = cl.map(x => x.id === c.id ? { ...x, away: null } : x);
         return { ...d, checkedIn: next, clients: cl };
       });
+      if (r.away_cleared) say(`✓ ${c.n} — back from ${awayOf(c.away?.reason).label.toLowerCase()}`);
     } catch (e) {
       setData(d => {                                  // roll back and say so
         const next = { ...d.checkedIn };
@@ -256,6 +304,31 @@ export default function CheckIn() {
       });
       say(`Didn't save — ${e.message || 'try again'}`);
     }
+  };
+
+  /* Marking someone away, and clearing it. Optimistic like every other write on
+     this screen — the tap must land before the network does. */
+  const setAway = async (id, body) => {
+    const c = clients.find(x => x.id === id);
+    if (!body) return endAway(id);
+    setAwayFor(null);
+    setData(d => ({ ...d, clients: d.clients.map(x => x.id === id
+      ? { ...x, away: { reason: body.reason, note: body.note,
+                        since: body.starts_on,
+                        back: body.ends_on ? addDaysISO(body.ends_on, 1) : null } }
+      : x) }));
+    say(`${awayOf(body.reason).emoji} ${c ? c.n : 'Marked'} — ${awayOf(body.reason).label.toLowerCase()}`);
+    try { await api.checkinSetAway(id, body); }
+    catch (e) { say(`Didn't save — ${e.message}`); load(); }
+  };
+
+  const endAway = async (id) => {
+    const c = clients.find(x => x.id === id);
+    setAwayFor(null);
+    setData(d => ({ ...d, clients: d.clients.map(x => x.id === id ? { ...x, away: null } : x) }));
+    say(`${c ? c.n : 'They'} — back`);
+    try { await api.checkinEndAway(id); }
+    catch (e) { say(`Didn't save — ${e.message}`); load(); }
   };
 
   const patch = async (id, body) => {
@@ -413,9 +486,11 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
 
   const inCount = Object.keys(checkedIn).length;
   const owesCount = clients.filter(c => dueState(c) === 'over').length;
+  const awayCount = clients.filter(c => c.away).length;
   const showBar = filter.now && !q.trim();
   const settled = isSettled(sess.key);
-  const anyFacet = !filter.now || filter.sports.size || filter.times.size || filter.inOnly || filter.day !== null || filter.owes;
+  const anyFacet = !filter.now || filter.sports.size || filter.times.size || filter.inOnly
+    || filter.day !== null || filter.owes || filter.awayOnly;
 
   const chip = (key, cls, label, count, on, go) => (
     <button key={key} type="button" onClick={() => { go(); }}
@@ -426,6 +501,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
   );
 
   const cardClient = card ? clients.find(c => c.id === card) : null;
+  const awayClient = awayFor ? clients.find(c => c.id === awayFor) : null;
 
   return (
     <div style={{ ...S.wrap, paddingBottom: tagMode ? 220 : 60 }}>
@@ -465,8 +541,10 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
             () => setFilter(f => ({ ...f, inOnly: !f.inOnly })))}
           {owesCount > 0 && chip('owes', 'owes', 'Owes', owesCount, filter.owes,
             () => setFilter(f => ({ ...f, owes: !f.owes, now: f.owes ? f.now : false })))}
+          {awayCount > 0 && chip('away', 'slot', 'Away', awayCount, filter.awayOnly,
+            () => setFilter(f => ({ ...f, awayOnly: !f.awayOnly, now: f.awayOnly ? f.now : false })))}
           {anyFacet && chip('clr', 'clear', '✕ Back to now', null, false,
-            () => setFilter({ now:true, day:null, sports:new Set(), times:new Set(), inOnly:false, owes:false }))}
+            () => setFilter({ now:true, day:null, sports:new Set(), times:new Set(), inOnly:false, owes:false, awayOnly:false }))}
           {chip('now', 'slot', `Now · ${COARSE_LBL[sess.blk]}`, null, filter.now,
             () => setFilter(f => ({ ...f, now: !f.now, day: !f.now ? null : f.day })))}
           {chip('td', '', `${DAYS[now.getDay()]} — all day`, regularsOn(now.getDay()), filter.day === now.getDay(),
@@ -476,7 +554,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
               () => setFilter(f => ({ ...f, day: f.day === d ? null : d, now:false }))))}
           {chip('all', '', 'Everyone', clients.length,
             !filter.now && filter.day === null && !filter.sports.size && !filter.times.size && !filter.inOnly,
-            () => setFilter({ now:false, day:null, sports:new Set(), times:new Set(), inOnly:false, owes:false }))}
+            () => setFilter({ now:false, day:null, sports:new Set(), times:new Set(), inOnly:false, owes:false, awayOnly:false }))}
 
           {timeCounts.length > 0 && <span style={S.divider} />}
           {timeCounts.map(([t, n]) => chip(`t${t}`, 'slot', tagLbl(t), n, filter.times.has(t),
@@ -524,7 +602,9 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
                   : toggle(c)}
                 onCard={() => tagMode
                   ? setSelected(s => { const n = new Set(s); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n; })
-                  : setCard(c.id)} />
+                  : setCard(c.id)}
+                onAway={() => setAwayFor(c.id)}
+                onBack={() => endAway(c.id)} />
             </div>
           );
         })}
@@ -572,7 +652,13 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
           onClose={() => setCard(null)} onPatch={patch} onPay={pay}
           all={clients} onAdjust={adjustSessions}
           onShare={shareWith} onUnshare={unshare} onDelete={removeClient}
-          onToggle={() => { toggle(cardClient); setCard(null); }} />
+          onToggle={() => { toggle(cardClient); setCard(null); }}
+          onAway={() => { setAwayFor(cardClient.id); setCard(null); }} />
+      )}
+      {awayClient && (
+        <AwaySheet c={awayClient}
+          onSave={body => setAway(awayClient.id, body)}
+          onClose={() => setAwayFor(null)} />
       )}
       {toast && <div style={S.toast}>{toast}</div>}
     </div>
@@ -714,7 +800,51 @@ function Summary({ data, onClose }) {
 }
 
 /* ── Row ───────────────────────────────────────────────────────────────── */
-function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard }) {
+function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard, onAway, onBack }) {
+  /* Swipe the name to the right to say why they're not here.
+     Three things this has to get right, all learned the hard way elsewhere in
+     this screen:
+       - It must never fight the list scrolling. The axis is locked on the first
+         few pixels of movement and a vertical drag is left entirely alone.
+       - It must not open the card on release. The row's onClick is the card, so
+         a swipe sets a flag the click checks.
+       - Only rightward. A left swipe on a name is where a delete would go in
+         every other app, and there is no delete here worth reaching by accident. */
+  const [dx, setDx] = useState(0);
+  const sw = useRef({ x0:0, y0:0, on:false, lock:null, moved:false });
+  const REVEAL = 96, TRIGGER = 58;
+  const away = c.away;
+
+  const swStart = e => {
+    if (tagMode) return;
+    sw.current = { x0:e.touches[0].clientX, y0:e.touches[0].clientY, on:true, lock:null, moved:false };
+  };
+  const swMove = e => {
+    const s = sw.current;
+    if (!s.on) return;
+    const ddx = e.touches[0].clientX - s.x0;
+    const ddy = e.touches[0].clientY - s.y0;
+    if (s.lock === null) {
+      if (Math.abs(ddx) < 7 && Math.abs(ddy) < 7) return;
+      // Biased towards letting the list scroll: a swipe has to be clearly
+      // horizontal to count, a scroll only has to be roughly vertical.
+      s.lock = Math.abs(ddx) > Math.abs(ddy) * 1.5 ? 'x' : 'y';
+    }
+    if (s.lock !== 'x' || ddx <= 0) return;
+    s.moved = true;
+    // Rubber-band past the reveal width so it feels bounded rather than broken.
+    setDx(ddx > REVEAL ? REVEAL + (ddx - REVEAL) * 0.18 : ddx);
+    e.preventDefault();
+  };
+  const swEnd = () => {
+    const s = sw.current;
+    if (!s.on) return;
+    s.on = false;
+    const fired = s.moved && dx >= TRIGGER;
+    setDx(0);
+    if (fired) (away ? onBack : onAway)();
+  };
+
   const due = dueState(c);
   const bs = [];
   const bd = untilAnniv(c.dob);
@@ -738,13 +868,29 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
 
   const sports = (c.sports || []).slice(0, 3);
   return (
-    <div onClick={onCard} style={{
-      ...S.row,
-      ...(sel ? S.rowSel : inn ? S.rowIn : null),
-      ...(flash ? S.rowFlash : null),
-    }}>
+    <div style={S.swipeWrap}>
+      {/* What the swipe reveals. Sits behind the row, so it appears to be
+          underneath it rather than sliding in alongside. */}
+      <div style={S.swipeBack} aria-hidden={dx === 0}>
+        <span style={{ ...S.swipeIco, ...(dx >= TRIGGER ? S.swipeIcoArmed : null) }}>
+          {away ? '↩' : awayOf(away?.reason).emoji}
+        </span>
+        <span style={S.swipeLbl}>{away ? 'Back' : 'Away'}</span>
+      </div>
+      <div
+        onClick={() => { if (!sw.current.moved) onCard(); }}
+        onTouchStart={swStart} onTouchMove={swMove} onTouchEnd={swEnd} onTouchCancel={swEnd}
+        style={{
+          ...S.row,
+          ...(sel ? S.rowSel : inn ? S.rowIn : away ? S.rowAway : null),
+          ...(flash ? S.rowFlash : null),
+          transform: dx ? `translateX(${dx}px)` : '',
+          transition: dx ? 'none' : 'transform .2s cubic-bezier(.32,.72,0,1)',
+        }}>
       <div style={S.rowBody}>
-        <span style={{ ...S.nm, ...(inn ? S.nmIn : sel ? S.nmSel : null) }}>{c.n}</span>
+        <span style={{ ...S.nm, ...(inn ? S.nmIn : sel ? S.nmSel : null),
+                       ...(away && !inn ? S.nmAway : null) }}>{c.n}</span>
+        {away && <span style={S.bdg} title={awaySummary(away)}>{awayOf(away.reason).emoji}</span>}
         {due && (
           <span style={{ ...S.dueDot, background: due === 'over' ? FLAG : AMBER }}
             title={due === 'over'
@@ -754,6 +900,10 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
         {bs.length > 0 && <span style={S.badges}>{bs.map((b, i) =>
           <span key={i} title={b[1]} style={S.bdg}>{b[0]}</span>)}</span>}
         <span style={{ ...S.meta, ...(inn ? S.metaIn : null) }}>
+          {/* Why they're not here leads the line, ahead of even the money —
+              it is the answer to the question the coach is asking when he
+              can't find someone. */}
+          {away && <strong style={{ color:SKY }}>{awaySummary(away)} · </strong>}
           {primaryTime && <span style={{ ...S.tg, ...S.tgSlot, ...(timeAuto ? S.tgAuto : null) }}>{tagLbl(primaryTime)}</span>}
           {sports.map(s => <span key={s} style={S.tg}>{s}</span>)}
           {(c.sports || []).length > 3 && <span style={{ ...S.tg, ...S.tgMore }}>+{c.sports.length - 3}</span>}
@@ -774,12 +924,119 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
         </span>
       </button>
       {!tagMode && <span style={S.cardBtn} aria-hidden="true">›</span>}
+      </div>
     </div>
   );
 }
 
+/* ── Away sheet ────────────────────────────────────────────────────────── */
+/* Why, when, and where — in that order, because the reason is the only part
+   the coach always knows. The dates are a range picked by tapping twice, and
+   both taps are optional: "gone, back when they're back" is a real answer and
+   the most common one. */
+function AwaySheet({ c, onSave, onClose }) {
+  const [reason, setReason] = useState(c.away?.reason || 'vacation');
+  const [note, setNote] = useState(c.away?.note || '');
+  const [from, setFrom] = useState(c.away?.since || todayISO());
+  // Stored as the LAST day away; the sheet and the row both talk in "back on".
+  const [to, setTo] = useState(c.away?.back ? addDaysISO(c.away.back, -1) : null);
+  const [picking, setPicking] = useState('to');
+  const [cursor, setCursor] = useState(() => {
+    const [y, m] = (c.away?.since || todayISO()).split('-').map(Number);
+    return { y, m: m - 1 };
+  });
+
+  const first = new Date(Date.UTC(cursor.y, cursor.m, 1));
+  const pad = first.getUTCDay();
+  const days = new Date(Date.UTC(cursor.y, cursor.m + 1, 0)).getUTCDate();
+  const cells = [...Array(pad).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
+  const step = n => setCursor(k => {
+    const t = new Date(Date.UTC(k.y, k.m + n, 1));
+    return { y: t.getUTCFullYear(), m: t.getUTCMonth() };
+  });
+
+  const tap = iso => {
+    if (picking === 'from' || iso < from) { setFrom(iso); setTo(null); setPicking('to'); }
+    else { setTo(iso); setPicking('from'); }
+  };
+
+  return (
+    <>
+      <div style={S.scrim} onClick={onClose} />
+      <div style={{ ...S.sheet, maxHeight:'88vh', overflowY:'auto' }}>
+        <div style={S.awayTop}>
+          <button type="button" style={S.tagBtn} onClick={onClose}>Cancel</button>
+          <b style={S.awayName}>{c.n}</b>
+          <button type="button" style={{ ...S.tagBtn, ...S.tagBtnOn }}
+            onClick={() => onSave({ reason, note: note.trim() || null, starts_on: from, ends_on: to })}>
+            Save
+          </button>
+        </div>
+
+        <label style={S.lbl}>Why</label>
+        <div style={S.awayWhy}>
+          {AWAY_REASONS.map(r => (
+            <button key={r.key} type="button" onClick={() => setReason(r.key)}
+              style={{ ...S.chip, ...S.chipSlot, ...(reason === r.key ? S.chipSlotOn : null) }}>
+              {r.emoji} {r.label}
+            </button>
+          ))}
+        </div>
+
+        <label style={S.lbl}>When</label>
+        <div style={S.cal}>
+          <div style={S.calHead}>
+            <button type="button" style={S.calNav} onClick={() => step(-1)} aria-label="Previous month">‹</button>
+            <b style={S.calMon}>
+              {new Date(Date.UTC(cursor.y, cursor.m, 1))
+                .toLocaleDateString(undefined, { month:'long', year:'numeric', timeZone:'UTC' })}
+            </b>
+            <button type="button" style={S.calNav} onClick={() => step(1)} aria-label="Next month">›</button>
+          </div>
+          <div style={S.calGrid}>
+            {['S','M','T','W','T','F','S'].map((d, i) => <span key={i} style={S.calDow}>{d}</span>)}
+            {cells.map((d, i) => {
+              if (!d) return <span key={`p${i}`} />;
+              const iso = isoOf(cursor.y, cursor.m, d);
+              const isFrom = iso === from, isTo = iso === to;
+              const inRange = to && iso > from && iso < to;
+              return (
+                <button key={iso} type="button" onClick={() => tap(iso)}
+                  style={{ ...S.calDay,
+                    ...(inRange ? S.calDayIn : null),
+                    ...(isFrom || isTo ? S.calDayOn : null) }}>
+                  {d}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <p style={S.hint}>
+          {picking === 'to' && !to
+            ? `Away from ${fmtShort(from)}. Tap the last day away, or just save — "back when they're back" is fine.`
+            : `Away ${fmtShort(from)} – ${fmtShort(to)} · back ${fmtShort(addDaysISO(to, 1))}. Tap again to start over.`}
+        </p>
+
+        <label style={S.lbl}>Where</label>
+        <div style={S.fld}>
+          <input value={note} onChange={e => setNote(e.target.value)} maxLength={120}
+            placeholder="Florida" style={S.input} />
+        </div>
+        <p style={S.hint}>Optional. It shows on their row while they are away.</p>
+
+        {c.away && (
+          <div style={S.btnRow}>
+            <button type="button" style={S.btn}
+              onClick={() => onSave(null)}>They're back — clear it</button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 /* ── Card ──────────────────────────────────────────────────────────────── */
-function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust, onShare, onUnshare, onDelete }) {
+function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust, onShare, onUnshare, onDelete, onAway }) {
   const [shareQ, setShareQ] = useState('');
   const [amt, setAmt] = useState(c.monthly ?? '');
   useEffect(() => { setAmt(c.monthly ?? ''); }, [c.id, c.monthly]);
@@ -850,6 +1107,21 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
         {!c.waiver && <div style={S.warn}><b style={S.warnB}>No waiver on file</b>Nothing signed in the new system yet.</div>}
 
         <div style={S.secH}>Membership status</div>
+        {/* Away sits above the status dropdown because it is the one people
+            reach for most, and because it is emphatically not the same thing:
+            'Paused' suspends a membership, this just says where they are. Also
+            here, not only on the swipe, so it's reachable on a laptop. */}
+        <div style={{ ...S.fld, ...(c.away ? S.fldAway : null) }}>
+          <label style={S.lbl}>Away — vacation, work, injured</label>
+          <div style={S.awayRow}>
+            <span style={S.awayNow}>
+              {c.away ? `${awayOf(c.away.reason).emoji} ${awaySummary(c.away)}` : 'Here as usual'}
+            </span>
+            <button type="button" style={S.tagBtn} onClick={onAway}>
+              {c.away ? 'Change' : 'Mark away'}
+            </button>
+          </div>
+        </div>
         <div style={{ ...S.fld, ...(c.status && c.status !== 'active' ? S.fldPaused : null) }}>
           <label style={S.lbl}>Are they still coming in?</label>
           <select value={c.status || 'active'} style={S.input}
@@ -1180,6 +1452,38 @@ const S = {
   tickMark: { position:'absolute', left:9.5, top:4.5, width:7, height:14,
               border:'solid #fff', borderWidth:'0 2.5px 2.5px 0', transform:'rotate(42deg)' },
   cardBtn: { flex:'0 0 auto', width:20, textAlign:'center', color:STEEL, fontSize:20 },
+
+  // Swipe-to-mark-away. The wrapper clips, the backing sits under the row, and
+  // touchAction:'pan-y' hands vertical gestures straight back to the scroller
+  // so the list never feels sticky.
+  swipeWrap: { position:'relative', overflow:'hidden', borderRadius:11, marginBottom:7, touchAction:'pan-y' },
+  swipeBack: { position:'absolute', inset:0, display:'flex', flexDirection:'column',
+               alignItems:'flex-start', justifyContent:'center', gap:2, paddingLeft:16,
+               background:SKY_S, borderRadius:11, border:`1px solid ${SKY}` },
+  swipeIco: { width:34, height:34, borderRadius:'50%', background:'#fff', border:`1px solid ${SKY}`,
+              display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, color:SKY,
+              transition:'transform .12s ease' },
+  swipeIcoArmed: { transform:'scale(1.16)', background:SKY, color:'#fff' },
+  swipeLbl: { fontSize:10.5, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', color:SKY },
+  rowAway: { background:SKY_S, borderColor:SKY_EDGE },
+  nmAway: { color:SKY },
+
+  // Away sheet
+  awayTop: { display:'flex', alignItems:'center', gap:10, marginBottom:16 },
+  awayName: { flex:'1 1 auto', textAlign:'center', fontSize:16, fontWeight:700,
+              overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
+  awayWhy: { display:'flex', flexWrap:'wrap', gap:7, marginBottom:18 },
+  cal: { background:'#fff', border:`1px solid ${HAIR}`, borderRadius:10, padding:'10px 10px 6px' },
+  calHead: { display:'flex', alignItems:'center', gap:8, marginBottom:6 },
+  calMon: { flex:'1 1 auto', textAlign:'center', fontSize:14.5, fontWeight:700, color:SKY },
+  calNav: { width:34, height:34, border:0, background:'transparent', color:SKY,
+            fontSize:20, cursor:'pointer', borderRadius:8 },
+  calGrid: { display:'grid', gridTemplateColumns:'repeat(7, 1fr)', gap:2 },
+  calDow: { textAlign:'center', fontSize:10.5, fontWeight:700, color:STEEL, padding:'2px 0 4px' },
+  calDay: { fontFamily:'inherit', fontSize:14, aspectRatio:'1 / 1', border:0, borderRadius:8,
+            background:'transparent', color:INK, cursor:'pointer', fontVariantNumeric:'tabular-nums' },
+  calDayIn: { background:SKY_S, borderRadius:0 },
+  calDayOn: { background:SKY, color:'#fff', fontWeight:700, borderRadius:8 },
   grp: { fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:STEEL, fontWeight:700, padding:'14px 4px 7px' },
   empty: { textAlign:'center', color:STEEL, padding:'44px 20px', fontSize:14.5, lineHeight:1.6 },
   bulk: { position:'fixed', left:0, right:0, bottom:0, zIndex:45, maxWidth:560, margin:'0 auto',
@@ -1220,6 +1524,10 @@ const S = {
   kpiB: { display:'block', fontSize:'1.15rem', fontWeight:700, fontVariantNumeric:'tabular-nums', lineHeight:1.1 },
   kpiS: { display:'block', fontSize:10.5, letterSpacing:'.08em', textTransform:'uppercase', color:STEEL, marginTop:3 },
   fldPaused: { borderColor:'#8A6410', background:'#FAF0D5' },
+  fldAway: { borderColor:SKY, background:SKY_S },
+  awayRow: { display:'flex', alignItems:'center', gap:10, marginTop:2 },
+  awayNow: { flex:'1 1 auto', minWidth:0, fontSize:14, color:INK,
+             overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
   fldOverdue: { borderColor:'#9E3226', background:'#F7E2DD' },
   hint: { margin:'9px 0 0', fontSize:12.5, lineHeight:1.5, color:'#6F7880' },
   addPersonBtn: { fontFamily:'inherit', fontSize:15, fontWeight:600, cursor:'pointer',
