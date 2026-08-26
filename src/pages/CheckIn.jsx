@@ -815,15 +815,24 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
   const REVEAL = 96, TRIGGER = 58;
   const away = c.away;
 
+  /* Pointer events, not touch events, for two reasons that both bit.
+     React attaches touchmove at the root as PASSIVE, so preventDefault() inside
+     an onTouchMove is silently a no-op — the horizontal pan is actually held off
+     by `touch-action: pan-y` on the wrapper, and calling preventDefault only
+     bought a console warning. And touch handlers are dead weight on a laptop:
+     the same drag now works with a mouse, so the gesture is usable at the desk
+     and testable in a browser rather than only on a phone. */
   const swStart = e => {
-    if (tagMode) return;
-    sw.current = { x0:e.touches[0].clientX, y0:e.touches[0].clientY, on:true, lock:null, moved:false };
+    if (tagMode || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    sw.current = { x0:e.clientX, y0:e.clientY, on:true, lock:null, moved:false };
+    // Keep receiving moves even if the finger slides off the row.
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not fatal */ }
   };
   const swMove = e => {
     const s = sw.current;
     if (!s.on) return;
-    const ddx = e.touches[0].clientX - s.x0;
-    const ddy = e.touches[0].clientY - s.y0;
+    const ddx = e.clientX - s.x0;
+    const ddy = e.clientY - s.y0;
     if (s.lock === null) {
       if (Math.abs(ddx) < 7 && Math.abs(ddy) < 7) return;
       // Biased towards letting the list scroll: a swipe has to be clearly
@@ -834,12 +843,12 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
     s.moved = true;
     // Rubber-band past the reveal width so it feels bounded rather than broken.
     setDx(ddx > REVEAL ? REVEAL + (ddx - REVEAL) * 0.18 : ddx);
-    e.preventDefault();
   };
-  const swEnd = () => {
+  const swEnd = e => {
     const s = sw.current;
     if (!s.on) return;
     s.on = false;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already gone */ }
     const fired = s.moved && dx >= TRIGGER;
     setDx(0);
     if (fired) (away ? onBack : onAway)();
@@ -879,7 +888,8 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
       </div>
       <div
         onClick={() => { if (!sw.current.moved) onCard(); }}
-        onTouchStart={swStart} onTouchMove={swMove} onTouchEnd={swEnd} onTouchCancel={swEnd}
+        onPointerDown={swStart} onPointerMove={swMove}
+        onPointerUp={swEnd} onPointerCancel={swEnd}
         style={{
           ...S.row,
           ...(sel ? S.rowSel : inn ? S.rowIn : away ? S.rowAway : null),
