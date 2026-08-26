@@ -1186,6 +1186,99 @@ def adjust_sessions():
         db.close()
 
 
+@checkin_bp.route("/sessions/package", methods=["POST"])
+@require_auth
+def sell_package():
+    """
+    She paid for twenty sessions. Record the purchase.
+
+    This is NOT /sessions/adjust, and the difference is not cosmetic. An
+    adjustment says "the number was wrong, make it right" — is_adjustment TRUE,
+    no money, a note explaining the correction. A purchase says "money changed
+    hands for this many sessions", and it is what the client's history is made
+    of: Cindy's card shows 25 for $300 in February, 25 for $300 in August, 20
+    for $300 in June. Filing a purchase as an adjustment gets the balance right
+    and quietly loses the money and the pattern.
+
+    There was no endpoint for this, which meant the only way to add sessions
+    somebody had paid for was to log them as a correction.
+    """
+    user_id = request.current_user["user_id"]
+    data = request.json or {}
+    client_id = data.get("client_id")
+    try:
+        sessions = float(data.get("sessions"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "sessions must be a number"}), 400
+    if not client_id or sessions <= 0:
+        return jsonify({"error": "client_id and a positive sessions count required"}), 400
+
+    amount = data.get("amount")
+    if amount not in (None, ""):
+        try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            return jsonify({"error": "amount must be a number"}), 400
+    else:
+        amount = None                       # off-books packages are a real thing
+
+    try:
+        paid_on = dt.date.fromisoformat(data["paid_on"]) if data.get("paid_on") else _today()
+    except ValueError:
+        return jsonify({"error": "paid_on must be YYYY-MM-DD"}), 400
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+        if not _owns(cur, user_id, client_id):
+            return jsonify({"error": "Not found"}), 404
+        cur.execute(
+            """INSERT INTO session_packages
+                 (client_id, purchased_on, sessions_purchased, amount_paid,
+                  payment_method, check_no, is_adjustment, needs_review, note)
+               VALUES (%s::uuid, %s, %s, %s, %s, %s, FALSE, FALSE, %s) RETURNING id""",
+            (client_id, paid_on, sessions, amount,
+             (data.get("method") or "").strip() or None,
+             (data.get("check_no") or "").strip() or None,
+             (data.get("note") or "").strip() or None),
+        )
+        pid = cur.fetchone()["id"]
+        bal = _balances_after(cur, client_id)
+        db.commit()
+        return jsonify({"success": True, "id": str(pid), "balances": bal,
+                        "remaining": bal.get(str(client_id))})
+    finally:
+        db.close()
+
+
+@checkin_bp.route("/packages/<client_id>", methods=["GET"])
+@require_auth
+def list_packages(client_id):
+    """What they have bought, newest first — the shape of the arrangement."""
+    user_id = request.current_user["user_id"]
+    db = get_db()
+    try:
+        cur = db.cursor()
+        if not _owns(cur, user_id, client_id):
+            return jsonify({"error": "Not found"}), 404
+        cur.execute(
+            """SELECT id, purchased_on, sessions_purchased, amount_paid,
+                      payment_method, is_adjustment, needs_review, note
+                 FROM session_packages WHERE client_id = %s::uuid
+                ORDER BY purchased_on DESC, created_at DESC LIMIT 24""",
+            (client_id,),
+        )
+        return jsonify({"success": True, "packages": [{
+            "id": str(r["id"]), "on": r["purchased_on"].isoformat(),
+            "sessions": float(r["sessions_purchased"]),
+            "amount": float(r["amount_paid"]) if r["amount_paid"] is not None else None,
+            "method": r["payment_method"], "isAdjustment": r["is_adjustment"],
+            "needsReview": r["needs_review"], "note": r["note"],
+        } for r in cur.fetchall()]})
+    finally:
+        db.close()
+
+
 @checkin_bp.route("/sessions/transfer", methods=["POST"])
 @require_auth
 def transfer_sessions():

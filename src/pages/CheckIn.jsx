@@ -377,6 +377,18 @@ export default function CheckIn() {
     } catch (e) { say(e.message || "Couldn't send"); return false; }
   };
 
+  /* Reloads rather than patching local state: `to` is worked out on the server
+     (minor vs adult, guardian vs self, which field wins) and duplicating that
+     rule in the browser is how the two quietly stop agreeing. */
+  const saveContact = async (id, body) => {
+    try {
+      await api.checkinUpdateClient(id, body);
+      await load();
+      say('Contact saved');
+      return true;
+    } catch (e) { say(`Didn't save — ${e.message}`); return false; }
+  };
+
   const patch = async (id, body) => {
     setData(d => ({ ...d, clients: d.clients.map(c => c.id === id ? { ...c, ...mapPatch(body) } : c) }));
     try {
@@ -424,6 +436,16 @@ export default function CheckIn() {
       setData(d => ({ ...d, clients: d.clients.map(x =>
         x.id === id ? { ...x, remaining: r.remaining } : x) }));
       say(`${sessions > 0 ? '+' : ''}${sessions} sessions · now ${r.remaining}`);
+    } catch (e) { say(`Didn't save — ${e.message}`); load(); }
+  };
+
+  const buyPackage = async (id, sessions, amount) => {
+    const c = clients.find(x => x.id === id);
+    try {
+      const r = await api.checkinBuyPackage(id, { sessions, amount, paid_on: viewDate });
+      setData(d => ({ ...d, clients: d.clients.map(x =>
+        (r.balances && x.id in r.balances) ? { ...x, remaining: r.balances[x.id] } : x) }));
+      say(`+${sessions} sessions${amount ? ` · $${amount}` : ''} · ${c ? c.n : ''} now ${r.remaining}`);
     } catch (e) { say(`Didn't save — ${e.message}`); load(); }
   };
 
@@ -713,15 +735,16 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
       {cardClient && (
         <Card c={cardClient} sess={sess} isIn={isIn(cardClient.id)}
           onClose={() => setCard(null)} onPatch={patch} onPay={pay}
-          all={clients} onAdjust={adjustSessions}
+          all={clients} onAdjust={adjustSessions} onBuy={buyPackage}
           onShare={shareWith} onUnshare={unshare} onDelete={removeClient}
           onToggle={() => { toggle(cardClient); setCard(null); }}
           onAway={() => { setAwayFor(cardClient.id); setCard(null); }}
-          onMessage={() => setMsgFor(cardClient.id)} />
+          onMessage={() => { setMsgFor(cardClient.id); setCard(null); }} />
       )}
       {msgClient && (
         <MessageSheet c={msgClient}
           onSend={(body, optimistic) => sendMessage(msgClient.id, body, optimistic)}
+          onSaveContact={body => saveContact(msgClient.id, body)}
           onClose={() => setMsgFor(null)} />
       )}
       {awayClient && (
@@ -1028,8 +1051,12 @@ const MSG_TEMPLATES = [
   { kind:'note', emoji:'✍️', label:'Blank', make:() => '' },
 ];
 
-function MessageSheet({ c, onSend, onClose }) {
+function MessageSheet({ c, onSend, onClose, onSaveContact }) {
   const to = c.to || {};
+  const has = !!(to.email || to.phone);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [saving, setSaving] = useState(false);
   const first = c.n.split(' ')[0];
   const ctx = { first, monthly: c.monthly };
   const initial = untilAnniv(c.dob) === 0 ? MSG_TEMPLATES[0] : MSG_TEMPLATES[3];
@@ -1067,13 +1094,54 @@ function MessageSheet({ c, onSend, onClose }) {
           <span style={{ width:56 }} />
         </div>
 
-        <div style={S.toBar}>
-          <b style={S.toB}>{to.name || 'No contact on file'}</b>
-          <span style={S.toNote}>
-            {to.is_guardian ? 'Parent or guardian' : to.name ? 'The client' : ''}
-            {to.email ? ` · ${to.email}` : ''}{to.phone ? ` · ${to.phone}` : ''}
+        <div style={{ ...S.toBar, ...(has ? null : S.toBarNone) }}>
+          <b style={{ ...S.toB, ...(has ? null : S.toBNone) }}>
+            {has ? to.name : `No way to reach ${first}`}
+          </b>
+          <span style={{ ...S.toNote, ...(has ? null : S.toNoteNone) }}>
+            {has
+              ? `${to.is_guardian ? 'Parent or guardian' : 'The client'}`
+                + `${to.email ? ` · ${to.email}` : ''}${to.phone ? ` · ${to.phone}` : ''}`
+              : 'Nothing on file — no email, no number, no guardian. Contact details '
+                + 'normally arrive with a signed waiver; add one here and it sticks.'}
           </span>
         </div>
+
+        {!has && (
+          /* The dead end made useful. Somebody tapped Message meaning to say
+             something, so the first thing offered is the way to make that
+             possible — not an apology. */
+          <>
+            <div style={S.fld}>
+              <label style={S.lbl}>Their email</label>
+              <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
+                placeholder="name@example.com" autoComplete="off" style={S.input} />
+            </div>
+            <div style={S.fld}>
+              <label style={S.lbl}>Their mobile</label>
+              <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)}
+                placeholder="414 555 0134" autoComplete="off" style={S.input} />
+            </div>
+            <div style={S.btnRow}>
+              <button type="button" disabled={saving || !(newEmail.trim() || newPhone.trim())}
+                style={{ ...S.btn, ...S.btnPrimary,
+                         ...((saving || !(newEmail.trim() || newPhone.trim())) ? S.btnOff : null) }}
+                onClick={async () => {
+                  setSaving(true);
+                  await onSaveContact({
+                    email: newEmail.trim() || null,
+                    cell_phone: newPhone.trim() || null,
+                  });
+                  setSaving(false);
+                }}>
+                {saving ? 'Saving…' : 'Save contact'}
+              </button>
+            </div>
+            <p style={S.hint}>
+              Saved to their card, so it's there next time — and on the waiver record.
+            </p>
+          </>
+        )}
 
         <label style={S.lbl}>Quick message</label>
         <div style={S.awayWhy}>
@@ -1218,8 +1286,10 @@ function AwaySheet({ c, onSave, onClose }) {
 }
 
 /* ── Card ──────────────────────────────────────────────────────────────── */
-function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust, onShare, onUnshare, onDelete, onAway, onMessage }) {
+function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust, onBuy, onShare, onUnshare, onDelete, onAway, onMessage }) {
   const [shareQ, setShareQ] = useState('');
+  const [buySess, setBuySess] = useState('');
+  const [buyAmt, setBuyAmt] = useState('');
   const [amt, setAmt] = useState(c.monthly ?? '');
   useEffect(() => { setAmt(c.monthly ?? ''); }, [c.id, c.monthly]);
   const sheetRef = useRef(null);
@@ -1420,13 +1490,27 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
                            : [];
             return (
               <div style={{ marginBottom:10 }}>
+                {/* Sat directly under a "Sessions remaining" heading with no
+                    label of its own, so it read as the place to type a number —
+                    and a number typed here silently searches for a person
+                    called "20" and does nothing at all. It now says what it is
+                    before it is tapped, and says so again if it gets a number. */}
+                <label style={S.lbl}>Share this balance with someone</label>
                 <input value={shareQ} onChange={e => setShareQ(e.target.value)}
-                  style={S.input2} autoComplete="off"
-                  placeholder={c.householdId ? 'Add someone to the pool — type a name'
-                                             : 'Share these sessions with — type a name'} />
+                  style={S.input2} autoComplete="off" inputMode="text"
+                  placeholder={c.householdId ? 'Add someone to the pool — type a NAME'
+                                             : 'Type a NAME to share these sessions with'} />
                 {q && (
                   <div style={S.shareList}>
-                    {hits.length === 0 && <div style={S.shareNone}>Nobody matches “{shareQ.trim()}”</div>}
+                    {hits.length === 0 && (
+                      <div style={S.shareNone}>
+                        {/^[\d.$\s]+$/.test(shareQ)
+                          ? `This box looks for a person to share sessions with — it isn't `
+                            + `where sessions get added. To give them ${shareQ.trim()} sessions, `
+                            + `use “They paid for sessions” below.`
+                          : `Nobody matches “${shareQ.trim()}”`}
+                      </div>
+                    )}
                     {hits.map(x => (
                       <button key={x.id} type="button" style={S.shareHit}
                         onClick={() => { onShare(c.id, x.id); setShareQ(''); }}>
@@ -1448,11 +1532,42 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
               {c.remaining == null ? '—' : c.remaining}
             </b>
             <button type="button" style={S.smallBtn} onClick={() => {
-              const v = window.prompt('Add or remove sessions (use a minus to remove):');
+              const v = window.prompt('Correct the number — add or remove sessions '
+                + '(use a minus to remove). For sessions somebody PAID for, use "They paid for sessions" below instead.');
               if (v && !isNaN(Number(v)) && Number(v) !== 0)
                 onAdjust(c.id, Number(v), window.prompt('Why? (optional)') || '');
             }}>Adjust</button>
           </div>
+        </div>
+
+        {/* Money changed hands for sessions. Emphatically not Adjust: an
+            adjustment says "the number was wrong", a purchase says "she paid
+            for twenty", and filing one as the other gets the balance right
+            while quietly losing the money and the pattern. Cindy's card is 25
+            for $300 in February, 25 for $300 in August — that history is the
+            arrangement, and it only exists if purchases are recorded as
+            purchases. */}
+        <div style={S.fld}>
+          <label style={S.lbl}>They paid for sessions</label>
+          <div style={S.buyRow}>
+            <input value={buySess} onChange={e => setBuySess(e.target.value)}
+              inputMode="decimal" placeholder="20" aria-label="How many sessions"
+              style={{ ...S.input2, ...S.buyN }} />
+            <span style={S.buyX}>sessions for</span>
+            <input value={buyAmt} onChange={e => setBuyAmt(e.target.value)}
+              inputMode="decimal" placeholder="$300" aria-label="How much they paid"
+              style={{ ...S.input2, ...S.buyN }} />
+            <button type="button" style={{ ...S.smallBtn, ...S.buyBtn }}
+              disabled={!(Number(buySess) > 0)}
+              onClick={() => {
+                onBuy(c.id, Number(buySess), buyAmt.replace(/[^0-9.]/g, '') || null);
+                setBuySess(''); setBuyAmt('');
+              }}>Add</button>
+          </div>
+          <p style={S.hint}>
+            Adds to their balance and keeps the amount on their record. Leave the
+            money blank if it was off the books.
+          </p>
           {c.billing === 'monthly' && c.remaining < 0 && (
             <p style={S.hint}>
               Not a debt. Monthly members never had sessions “purchased” in the old
@@ -1506,16 +1621,16 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
             <input type="date" defaultValue={c.dob || ''} style={{ ...S.input, flex:'1 1 auto' }}
               onChange={e => onPatch(c.id, { date_of_birth: e.target.value || null })} />
             {/* Right next to the birthday, because "it's her birthday" and
-                "say something" are one thought. Disabled rather than hidden
-                when there's nobody to reach: an absent button reads as a
-                missing feature, a dead one reads as missing information. */}
+                "say something" are one thought.
+
+                Never disabled, even with nothing to send to. A greyed-out
+                button explains itself through a tooltip, and a phone has no
+                hover — so on the device this screen is actually used on, it is
+                a rectangle that does nothing at all. Tapping opens the sheet,
+                which says who is missing and takes the number right there. */}
             <button type="button" onClick={onMessage}
-              disabled={!c.to?.email && !c.to?.phone}
-              style={{ ...S.msgBtn, ...((!c.to?.email && !c.to?.phone) ? S.msgBtnOff : null) }}
-              title={(c.to?.email || c.to?.phone)
-                ? `Message ${c.to.name}${c.to.is_guardian ? ' (guardian)' : ''}`
-                : 'No contact details on file — they arrive with a signed waiver'}>
-              ✉ Message
+              style={{ ...S.msgBtn, ...((!c.to?.email && !c.to?.phone) ? S.msgBtnBare : null) }}>
+              {(c.to?.email || c.to?.phone) ? '✉ Message' : '✉ Add contact'}
             </button>
           </div>
           {(c.to?.email || c.to?.phone) && (
@@ -1754,13 +1869,22 @@ const S = {
   msgBtn: { flex:'0 0 auto', fontFamily:'inherit', fontSize:13, fontWeight:700, cursor:'pointer',
             padding:'9px 13px', borderRadius:9, background:SKY, color:'#fff', border:`1px solid ${SKY}`,
             whiteSpace:'nowrap' },
-  msgBtnOff: { background:'#E9EBE8', color:STEEL, borderColor:HAIRS, cursor:'not-allowed' },
+  // Not a dead button — a quieter live one, so it reads as "something to do
+  // here" rather than "broken".
+  msgBtnBare: { background:'#fff', color:SKY, borderColor:SKY },
+  toBarNone: { background:BRASS_S, borderColor:BRASS },
+  toBNone: { color:BRASS },
+  toNoteNone: { color:BRASS, whiteSpace:'normal', lineHeight:1.45 },
   bdayHint: { margin:'7px 0 0', fontSize:12, color:STEEL },
   toBar: { display:'flex', flexDirection:'column', gap:2, margin:'0 0 16px', padding:'10px 12px',
            borderRadius:9, background:SKY_S, border:`1px solid ${SKY}` },
   toB: { fontSize:14.5, fontWeight:700, color:SKY },
   toNote: { fontSize:12, color:SKY, opacity:.85, overflow:'hidden', textOverflow:'ellipsis' },
   btnOff: { opacity:.45, cursor:'not-allowed' },
+  buyRow: { display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' },
+  buyN: { flex:'0 1 82px', minWidth:64, textAlign:'center', fontWeight:700 },
+  buyX: { flex:'0 0 auto', fontSize:12.5, color:'#6F7880' },
+  buyBtn: { flex:'0 0 auto', marginLeft:'auto' },
   awayRow: { display:'flex', alignItems:'center', gap:10, marginTop:2 },
   awayNow: { flex:'1 1 auto', minWidth:0, fontSize:14, color:INK,
              overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
