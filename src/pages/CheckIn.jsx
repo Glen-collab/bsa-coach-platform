@@ -996,7 +996,12 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
         <span style={{ ...S.nm, ...(inn ? S.nmIn : sel ? S.nmSel : null),
                        ...(away && !inn ? S.nmAway : null) }}>{c.n}</span>
         {away && <span style={S.bdg} title={awaySummary(away)}>{awayOf(away.reason).emoji}</span>}
-        {due && (
+        {/* 'ok' means paid up and nothing due for weeks — it must NOT get a dot.
+            `due &&` treated it as truthy, so everybody who had just paid wore an
+            amber warning: Cindy and Dan both paid this morning and both got
+            flagged. A dot that appears when someone is square is worse than no
+            dot, because it trains you to ignore the real ones. */}
+        {(due === 'over' || due === 'soon') && (
           <span style={{ ...S.dueDot, background: due === 'over' ? FLAG : AMBER }}
             title={due === 'over'
               ? `Owes — was due ${fmtDate(c.dueOn)}`
@@ -1505,6 +1510,29 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
               </div>
             </>
           )}
+          {/* The number and its Adjust button come FIRST, directly under the
+              "Sessions remaining" heading. They used to sit below a name-search
+              box, so the first input under that heading was not the balance at
+              all — Glen typed 20 into it, then -2, and both silently searched
+              for a client by that name. Order was the actual bug; the label was
+              only half a fix. */}
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <b style={{ fontSize:'1.5rem', fontWeight:700, flex:'1 1 auto',
+                        fontVariantNumeric:'tabular-nums',
+                        color: c.billing === 'monthly' && c.remaining < 0 ? '#6F7880' : undefined }}>
+              {c.remaining == null ? '—' : c.remaining}
+            </b>
+            <button type="button" style={S.smallBtn} onClick={() => {
+              const v = window.prompt('Correct the number — add or remove sessions '
+                + '(use a minus to remove). For sessions somebody PAID for, use "They paid for sessions" below instead.');
+              if (v && !isNaN(Number(v)) && Number(v) !== 0)
+                onAdjust(c.id, Number(v),
+                  window.prompt('Why? Shows on their card under "Where these sessions '
+                    + 'came from" — e.g. "evened up after the ledger import".') || '')
+                  .then(() => setBump(b => b + 1));
+            }}>Adjust</button>
+          </div>
+
           {(() => {
             // A native select with 180 names in it is unusable on a phone.
             // Type a few letters, tap the person.
@@ -1517,11 +1545,6 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
                            : [];
             return (
               <div style={{ marginBottom:10 }}>
-                {/* Sat directly under a "Sessions remaining" heading with no
-                    label of its own, so it read as the place to type a number —
-                    and a number typed here silently searches for a person
-                    called "20" and does nothing at all. It now says what it is
-                    before it is tapped, and says so again if it gets a number. */}
                 <label style={S.lbl}>Share this balance with someone</label>
                 <input value={shareQ} onChange={e => setShareQ(e.target.value)}
                   style={S.input2} autoComplete="off" inputMode="text"
@@ -1531,10 +1554,14 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
                   <div style={S.shareList}>
                     {hits.length === 0 && (
                       <div style={S.shareNone}>
-                        {/^[\d.$\s]+$/.test(shareQ)
-                          ? `This box looks for a person to share sessions with — it isn't `
-                            + `where sessions get added. To give them ${shareQ.trim()} sessions, `
-                            + `use “They paid for sessions” below.`
+                        {/* Catches "-2" and "20" alike. The first version missed
+                            the minus sign, so taking sessions OFF — the exact
+                            thing someone reaches for here — still fell through
+                            to a useless "Nobody matches". */}
+                        {/^[-+]?[\d.$\s]+$/.test(shareQ)
+                          ? `This box shares a balance with another person — it isn't `
+                            + `where sessions are added or removed. To change the number `
+                            + `by ${shareQ.trim()}, use the Adjust button above.`
                           : `Nobody matches “${shareQ.trim()}”`}
                       </div>
                     )}
@@ -1552,22 +1579,6 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
               </div>
             );
           })()}
-          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <b style={{ fontSize:'1.5rem', fontWeight:700, flex:'1 1 auto',
-                        fontVariantNumeric:'tabular-nums',
-                        color: c.billing === 'monthly' && c.remaining < 0 ? '#6F7880' : undefined }}>
-              {c.remaining == null ? '—' : c.remaining}
-            </b>
-            <button type="button" style={S.smallBtn} onClick={() => {
-              const v = window.prompt('Correct the number — add or remove sessions '
-                + '(use a minus to remove). For sessions somebody PAID for, use "They paid for sessions" below instead.');
-              if (v && !isNaN(Number(v)) && Number(v) !== 0)
-                onAdjust(c.id, Number(v),
-                  window.prompt('Why? Shows on their card under "Where these sessions '
-                    + 'came from" — e.g. "evened up after the ledger import".') || '')
-                  .then(() => setBump(b => b + 1));
-            }}>Adjust</button>
-          </div>
         </div>
 
         {/* Money changed hands for sessions. Emphatically not Adjust: an
