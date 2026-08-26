@@ -125,6 +125,15 @@ function untilAnniv(iso) {
    Still only ever a judgement about someone with a payment on record. Everyone
    else is unknown, not overdue — 173 of 180 active clients have no payment
    entered yet, and flagging them all would make the light worthless on day one. */
+/* A monthly member pays once a month. Two payments inside one calendar month
+   is nearly always the same money entered twice — and the way it happens is
+   pressing BOTH buttons, because "Mark paid today" and the back-date button sit
+   side by side and each looks like it might be the one that counts. Guarding on
+   an exact date match never caught it: today and the 18th are different days.
+   Libby Fox collected $200 twice inside 1.2 seconds that way. */
+const samePaidMonth = (pays, iso) =>
+  (pays || []).find(p => (p.paid_on || '').slice(0, 7) === (iso || '').slice(0, 7));
+
 function dueState(c) {
   // The dot is a monthly-membership thing and nothing else. Moving somebody to
   // a session package takes it away entirely — their money question is the
@@ -2006,10 +2015,13 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
                 <button type="button" style={S.payBtn}
                   onClick={async () => {
                     const v = String(amt).trim();
-                    if (c.lastPaid === todayISO() && !window.confirm(
-                      `${c.n} is already recorded as paid today.
+                    const clash = samePaidMonth(pays, todayISO());
+                    if (clash && !window.confirm(
+                      `${c.n} already has a payment recorded this month — `
+                      + `${clash.amount != null ? `$${clash.amount} ` : ''}on ${fmtDate(clash.paid_on)}.
 
-Record a SECOND payment?`)) return;
+`
+                      + `Record a SECOND payment for today?`)) return;
                     await onPay(c.id, v === '' ? null : Number(v));
                     setBump(b => b + 1);
                   }}>
@@ -2053,11 +2065,12 @@ Record a SECOND payment?`)) return;
                   if (!on) return;
                   const v = String(amt).trim();
                   const money = v === '' ? (c.monthly ?? null) : Number(v);
-                  const clash = (pays || []).find(p => p.paid_on === on);
+                  const clash = samePaidMonth(pays, on);
                   if (clash && !window.confirm(
-                    `${c.n} already has a payment recorded for ${fmtDate(on)}`
-                    + `${clash.amount != null ? ` of $${clash.amount}` : ''}.\n\n`
-                    + `Record a second one?`)) { e.target.value = ''; return; }
+                    `${c.n} already has a payment recorded this month — `
+                    + `${clash.amount != null ? `$${clash.amount} ` : ''}on ${fmtDate(clash.paid_on)}.\n\n`
+                    + `If you just pressed "Mark paid today", that one is already saved.\n\n`
+                    + `Record a SECOND payment, for ${fmtDate(on)}?`)) { e.target.value = ''; return; }
                   await onPay(c.id, money, on);
                   setBump(b => b + 1);
                   e.target.value = '';
