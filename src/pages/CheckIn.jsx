@@ -144,7 +144,13 @@ function dueState(c) {
   if (d >= -7) return 'soon';
   return 'ok';
 }
-const DUE_COLOR = { never: FLAG, over: FLAG, due: FLAG, soon: AMBER, ok: OK };
+/* A function, not a lookup object, and that is the whole point. As
+   `const DUE_COLOR = { never: FLAG, ... }` this sat at line 147 while FLAG,
+   AMBER and OK are declared two thousand lines below it — so every value came
+   out undefined, every dot rendered with no background at all, and the feature
+   looked like it had never been built. A function body is evaluated when it is
+   called, by which time the constants exist. */
+const dueColor = due => (due === 'soon' ? AMBER : due === 'ok' ? OK : FLAG);
 function fmtDate(iso) {
   if (!iso) return '—';
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined,
@@ -1161,7 +1167,7 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
             flagged. A dot that appears when someone is square is worse than no
             dot, because it trains you to ignore the real ones. */}
         {due && (
-          <span style={{ ...S.dueDot, background: DUE_COLOR[due] }}
+          <span style={{ ...S.dueDot, background: dueColor(due) }}
             title={due === 'never' ? 'No payment recorded yet'
               : due === 'over' ? `Owes — was due ${fmtDate(c.dueOn)}`
               : due === 'due' ? `Due ${fmtDate(c.dueOn)}`
@@ -1201,9 +1207,6 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
           {primaryTime && <span style={{ ...S.tg, ...S.tgSlot, ...(timeAuto ? S.tgAuto : null) }}>{tagLbl(primaryTime)}</span>}
           {sports.map(s => <span key={s} style={S.tg}>{s}</span>)}
           {(c.sports || []).length > 3 && <span style={{ ...S.tg, ...S.tgMore }}>+{c.sports.length - 3}</span>}
-          {due === 'never' && (
-            <strong style={{ color:FLAG }}>No payment recorded · </strong>
-          )}
           {due === 'over' && (
             <strong style={{ color:FLAG }}>
               Owes{c.monthly ? ` $${c.monthly}` : ''} · </strong>
@@ -2216,8 +2219,12 @@ const S = {
   chipSportOn: { background:BRASS, color:'#fff' },
   chipOwes: { color:FLAG, borderColor:FLAG, background:FLAG_S },
   chipOwesOn: { background:FLAG, color:'#fff' },
-  dueDot: { display:'inline-block', width:9, height:9, borderRadius:'50%',
-            marginLeft:7, verticalAlign:'middle', flex:'0 0 auto' },
+  // 9px was technically a dot and practically invisible — it sits next to
+  // full-size emoji badges and got lost beside them. The ring keeps it legible
+  // on the green checked-in rows as well as on white.
+  dueDot: { display:'inline-block', width:13, height:13, borderRadius:'50%',
+            marginLeft:8, verticalAlign:'middle', flex:'0 0 auto',
+            boxShadow:'0 0 0 2px rgba(255,255,255,.95)' },
   chipSlot: { color:SKY, borderColor:SKY, background:SKY_S },
   chipSlotOn: { background:SKY, color:'#fff' },
   chipC: { opacity:.62, fontVariantNumeric:'tabular-nums', marginLeft:4 },
