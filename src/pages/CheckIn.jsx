@@ -109,16 +109,33 @@ function untilAnniv(iso) {
   if (t < t0) t = Date.UTC(n.getFullYear()+1, m-1, d);
   return Math.round((t - t0) / 864e5);
 }
+/* A traffic light for the month:
+     green  paid up, more than a week to run
+     amber  due within a week
+     red    two days out, or already past — and it stays red until they pay
+   Green is for monthly members only. A package client's dot is a warning or
+   nothing, because "paid up" is not really a state they're in — their money
+   question is the session balance, which the row already carries.
+
+   'over' and 'due' are both red but kept apart, because the Owes chip must
+   count people who ACTUALLY owe. Folding "due Thursday" into "owes" would put
+   people who owe nothing behind a red chip, which is how a warning stops
+   meaning anything.
+
+   Still only ever a judgement about someone with a payment on record. Everyone
+   else is unknown, not overdue — 173 of 180 active clients have no payment
+   entered yet, and flagging them all would make the light worthless on day one. */
 function dueState(c) {
-  // Only ever a judgement about someone we've actually recorded a payment for.
-  // Everyone else is "unknown", not "owes" — flagging 141 people you've never
-  // entered a payment for would make the flag worthless on day one.
   if (!c.dueOn) return null;
   if (c.billing !== 'monthly' && c.billing !== 'package') return null;
-  const d = daysAgo(c.dueOn);
+  const d = daysAgo(c.dueOn);           // positive = days past due
   if (d === null) return null;
-  return d > 0 ? 'over' : d >= -3 ? 'soon' : 'ok';
+  if (d > 0) return 'over';
+  if (d >= -2) return 'due';
+  if (d >= -7) return 'soon';
+  return c.billing === 'monthly' ? 'ok' : null;
 }
+const DUE_COLOR = { over: FLAG, due: FLAG, soon: AMBER, ok: OK };
 function fmtDate(iso) {
   if (!iso) return '—';
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined,
@@ -1134,11 +1151,12 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
             amber warning: Cindy and Dan both paid this morning and both got
             flagged. A dot that appears when someone is square is worse than no
             dot, because it trains you to ignore the real ones. */}
-        {(due === 'over' || due === 'soon') && (
-          <span style={{ ...S.dueDot, background: due === 'over' ? FLAG : AMBER }}
-            title={due === 'over'
-              ? `Owes — was due ${fmtDate(c.dueOn)}`
-              : `Payment due ${fmtDate(c.dueOn)}`} />
+        {due && (
+          <span style={{ ...S.dueDot, background: DUE_COLOR[due] }}
+            title={due === 'over' ? `Owes — was due ${fmtDate(c.dueOn)}`
+              : due === 'due' ? `Due ${fmtDate(c.dueOn)}`
+              : due === 'soon' ? `Due ${fmtDate(c.dueOn)} — within the week`
+              : `Paid up — next due ${fmtDate(c.dueOn)}`} />
         )}
         {bs.length > 0 && <span style={S.badges}>{bs.map((b, i) =>
           <span key={i} title={b[1]} style={S.bdg}>{b[0]}</span>)}</span>}
@@ -1177,7 +1195,8 @@ function Row({ c, sel, inn, flash, tagMode, primaryTime, timeAuto, onRow, onCard
             <strong style={{ color:FLAG }}>
               Owes{c.monthly ? ` $${c.monthly}` : ''} · </strong>
           )}
-          {due === 'soon' && <strong style={{ color:AMBER }}>Due soon · </strong>}
+          {due === 'due' && <strong style={{ color:FLAG }}>Due {fmtShort(c.dueOn)} · </strong>}
+          {due === 'soon' && <strong style={{ color:AMBER }}>Due {fmtShort(c.dueOn)} · </strong>}
           {/* Recording a payment changed NOTHING visible. The toast cleared in
               1.7s, the dot correctly stays away for someone paid up, and the row
               read exactly as it had a moment earlier — so the only way to answer
@@ -1578,6 +1597,8 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
   const [pkgs, setPkgs] = useState(null);
   const [pays, setPays] = useState(null);
   const [bump, setBump] = useState(0);
+  const [openPkgs, setOpenPkgs] = useState(false);
+  const [openPays, setOpenPays] = useState(false);
   useEffect(() => {
     let alive = true;
     setPkgs(null); setPays(null);
@@ -1585,7 +1606,15 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
       .then(r => { if (alive) setPkgs(r.packages || []); })
       .catch(() => { if (alive) setPkgs([]); });
     api.checkinPayments(c.id)
-      .then(r => { if (alive) setPays(r.payments || []); })
+      .then(r => {
+        if (!alive) return;
+        const list = r.payments || [];
+        setPays(list);
+        // A suspected double entry opens itself. Hiding the one thing somebody
+        // needs to act on behind a tap is how it stays unfixed.
+        setOpenPays(list.some((p, i) => list.some((q, j) =>
+          j !== i && q.paid_on === p.paid_on && q.amount === p.amount)));
+      })
       .catch(() => { if (alive) setPays([]); });
     return () => { alive = false; };
   }, [c.id, bump]);
@@ -1894,8 +1923,19 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
             after the ledger import" is a repair. */}
         {pkgs !== null && pkgs.length > 0 && (
           <div style={S.fld}>
-            <label style={S.lbl}>Where these sessions came from</label>
-            <div style={S.pkgList}>
+            {/* Collapsed by default. It is a full purchase history — Cindy's runs
+                to six entries and the ledger import can leave dozens — and it
+                pushed everything below it, payments included, off the bottom of
+                the card. The summary line answers the common question without
+                opening anything. */}
+            <button type="button" style={S.foldHd} onClick={() => setOpenPkgs(o => !o)}>
+              <span style={S.foldLbl}>Where these sessions came from</span>
+              <span style={S.foldSum}>
+                {openPkgs ? 'hide' : `${pkgs.length} entr${pkgs.length === 1 ? 'y' : 'ies'}`}
+              </span>
+              <span style={{ ...S.foldCar, ...(openPkgs ? S.foldCarOpen : null) }}>›</span>
+            </button>
+            <div style={{ ...S.pkgList, display: openPkgs ? 'flex' : 'none' }}>
               {pkgs.map(p => (
                 <div key={p.id} style={S.pkgRow}>
                   <b style={{ ...S.pkgN, color: p.sessions < 0 ? FLAG : p.isAdjustment ? BRASS : OK }}>
@@ -1932,7 +1972,9 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
         {(c.billing === 'monthly' || c.billing === 'package') && (
           <>
             <div style={S.secH}>Monthly payment</div>
-            <div style={{ ...S.fld, ...(dueState(c) === 'over' ? S.fldOverdue : dueState(c) === 'soon' ? S.fldPaused : null) }}>
+            <div style={{ ...S.fld,
+              ...(['over','due'].includes(dueState(c)) ? S.fldOverdue
+                 : dueState(c) === 'soon' ? S.fldPaused : null) }}>
               <label style={S.lbl}>
                 {c.lastPaid
                   ? `Last paid ${fmtDate(c.lastPaid)} · next due ${fmtDate(c.dueOn)}`
@@ -1979,8 +2021,14 @@ Record a SECOND payment?`)) return;
                 same morning and nothing on this screen could have shown it. */}
             {pays !== null && pays.length > 0 && (
               <div style={S.fld}>
-                <label style={S.lbl}>Payments taken</label>
-                <div style={S.pkgList}>
+                <button type="button" style={S.foldHd} onClick={() => setOpenPays(o => !o)}>
+                  <span style={S.foldLbl}>Payments taken</span>
+                  <span style={S.foldSum}>
+                    {openPays ? 'hide' : `${pays.length} · last ${fmtShort(pays[0].paid_on)}`}
+                  </span>
+                  <span style={{ ...S.foldCar, ...(openPays ? S.foldCarOpen : null) }}>›</span>
+                </button>
+                <div style={{ ...S.pkgList, display: openPays ? 'flex' : 'none' }}>
                   {pays.map(p => (
                     <div key={p.id} style={S.pkgRow}>
                       <b style={{ ...S.pkgN, color:OK }}>
@@ -2225,6 +2273,14 @@ const S = {
               padding:'10px 12px', borderRadius:9, background:OK_S, border:`1px solid ${OK}` },
   moneyCtxB: { fontSize:14, fontWeight:700, color:OK },
   moneyCtxN: { fontSize:12, color:OK, opacity:.85 },
+  foldHd: { display:'flex', alignItems:'center', gap:8, width:'100%', padding:'2px 0 8px',
+            background:'transparent', border:0, cursor:'pointer', fontFamily:'inherit', textAlign:'left' },
+  foldLbl: { flex:'0 0 auto', fontSize:10.5, letterSpacing:'.09em', textTransform:'uppercase',
+             fontWeight:700, color:BRASS },
+  foldSum: { flex:'1 1 auto', fontSize:12, color:STEEL, textAlign:'right',
+             overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
+  foldCar: { flex:'0 0 auto', fontSize:16, color:STEEL, transition:'transform .15s ease' },
+  foldCarOpen: { transform:'rotate(90deg)' },
   paidWarn: { margin:'0 0 14px', padding:'10px 12px', borderRadius:9, fontSize:13, lineHeight:1.45,
               background:FLAG_S, color:FLAG, border:`1px solid ${FLAG}` },
   pkgX: { flex:'0 0 auto', width:28, height:28, border:0, background:'transparent',
