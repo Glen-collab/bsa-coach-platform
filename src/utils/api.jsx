@@ -161,7 +161,7 @@ export const api = {
   kioskPiQuitGame: (deviceSerial) => request('/kiosk/pi-quit-game', { method: 'POST', body: JSON.stringify(deviceSerial ? { device_serial: deviceSerial } : {}) }),
 
   // Check-in (client attendance ledger)
-  checkinRoster: () => request('/checkin/roster'),
+  checkinRoster: (date) => request(`/checkin/roster${date ? `?date=${date}` : ''}`),
   checkinToggle: (clientId, opts = {}) =>
     request('/checkin/toggle', { method: 'POST', body: JSON.stringify({ client_id: clientId, ...opts }) }),
   checkinSetPaid: (clientId, paid, opts = {}) =>

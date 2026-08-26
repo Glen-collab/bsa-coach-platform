@@ -116,6 +116,11 @@ function fmtShort(iso) {
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined,
     { month:'short', day:'numeric', timeZone:'UTC' });
 }
+function fmtLong(iso) {
+  if (!iso) return '';
+  return new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined,
+    { month:'long', day:'numeric', timeZone:'UTC' });
+}
 const isoOf = (y, m, d) =>
   `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 const addDaysISO = (iso, n) => {
@@ -133,6 +138,10 @@ export default function CheckIn() {
   const [selected, setSelected] = useState(() => new Set());
   const [card, setCard] = useState(null);       // client id
   const [awayFor, setAwayFor] = useState(null); // client id whose away sheet is open
+  /* The day being entered. Almost always today; the exception is catching up on
+     a session that ran last night, which is normal enough to deserve a control
+     rather than a workaround. Taps land on THIS date, not on today. */
+  const [viewDate, setViewDate] = useState(todayISO);
   const [toast, setToast] = useState('');
   const [flash, setFlash] = useState(() => new Set());
   const [newTag, setNewTag] = useState('');
@@ -147,9 +156,9 @@ export default function CheckIn() {
   }, []);
 
   const load = useCallback(async () => {
-    try { setData(await api.checkinRoster()); setErr(''); }
+    try { setData(await api.checkinRoster(viewDate === todayISO() ? null : viewDate)); setErr(''); }
     catch (e) { setErr(e.message || 'Could not load the roster'); }
-  }, []);
+  }, [viewDate]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => () => clearTimeout(toastT.current), []);
 
@@ -159,10 +168,23 @@ export default function CheckIn() {
   const isIn = id => !!checkedIn[id];
 
   const now = new Date();
+  const isToday = viewDate === todayISO();
+  // Parsed at noon UTC so a date-only string can't slide a day either way.
+  const viewDow = new Date(`${viewDate}T12:00:00Z`).getUTCDay();
   const sess = useMemo(() => {
     const d = new Date();
     return { dow:d.getDay(), hour:d.getHours(), blk:coarseOf(d.getHours()), key:sessKey(d.getDay(), coarseOf(d.getHours())) };
   }, [data]);
+
+  /* Moving off today drops the "now" filter for that day's regulars: there is
+     no meaningful time block for a session that finished last night, and
+     pretending otherwise would show the wrong group. Coming back to today
+     restores the default. */
+  useEffect(() => {
+    setFilter(f => isToday
+      ? { ...f, now:true, day:null }
+      : { ...f, now:false, day:viewDow });
+  }, [viewDate, isToday, viewDow]);
 
   const pinnedTo = useMemo(() => {
     const m = {};
@@ -274,12 +296,15 @@ export default function CheckIn() {
     setData(d => {                                    // optimistic — the tap must feel instant
       const next = { ...d.checkedIn };
       if (wasIn) delete next[c.id];
-      else next[c.id] = { at: new Date().toISOString(), paid: null };
+      // A back-dated visit carries no clock stamp, so don't pretend one here
+      // either — the row would show an arrival time that vanishes on reload.
+      else next[c.id] = { at: isToday ? new Date().toISOString() : null, paid: null };
       return { ...d, checkedIn: next };
     });
-    say(wasIn ? `Undone — ${c.n}` : `✓ ${c.n} · ${hourLbl(new Date().getHours())}`);
+    say(wasIn ? `Undone — ${c.n}`
+      : `✓ ${c.n} · ${isToday ? hourLbl(new Date().getHours()) : fmtShort(viewDate)}`);
     try {
-      const r = await api.checkinToggle(c.id);
+      const r = await api.checkinToggle(c.id, isToday ? {} : { date: viewDate });
       setData(d => {
         const next = { ...d.checkedIn };
         if (r.checked_in) next[c.id] = { at: r.at, paid: next[c.id]?.paid ?? null };
@@ -487,7 +512,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
   const inCount = Object.keys(checkedIn).length;
   const owesCount = clients.filter(c => dueState(c) === 'over').length;
   const awayCount = clients.filter(c => c.away).length;
-  const showBar = filter.now && !q.trim();
+  const showBar = filter.now && !q.trim() && isToday;
   const settled = isSettled(sess.key);
   const anyFacet = !filter.now || filter.sports.size || filter.times.size || filter.inOnly
     || filter.day !== null || filter.owes || filter.awayOnly;
@@ -507,7 +532,14 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
     <div style={{ ...S.wrap, paddingBottom: tagMode ? 220 : 60 }}>
       <div style={S.hdr}>
         <div style={S.hdrTop}>
-          <h1 style={S.h1}>{DAYN[now.getDay()]}, {now.toLocaleDateString(undefined, { month:'long', day:'numeric' })}</h1>
+          <h1 style={S.h1}>{DAYN[viewDow]}, {fmtLong(viewDate)}</h1>
+          <label style={{ ...S.tagBtn, ...(isToday ? null : S.tagBtnCatch) }} title="Enter a different day">
+            {isToday ? '📅' : '📅 ' + fmtShort(viewDate)}
+            {/* A native date input: on a phone this is the OS wheel, which beats
+                anything hand-rolled, and it can't offer a day in the future. */}
+            <input type="date" value={viewDate} max={todayISO()} style={S.dateInput}
+              onChange={e => { if (e.target.value) setViewDate(e.target.value); }} />
+          </label>
           <button type="button" style={S.tagBtn} onClick={async () => {
             setShowSummary(true);
             try { setSummary(await api.checkinSummary()); }
@@ -517,6 +549,15 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
             onClick={() => { setTagMode(t => !t); setSelected(new Set()); }}>Tag</button>
           <span style={{ ...S.tally, ...(inCount ? null : S.tallyZero) }}>{inCount} in</span>
         </div>
+
+        {!isToday && (
+          <div style={S.catchBar}>
+            <b style={S.catchB}>Catching up — {DAYN[viewDow]}, {fmtShort(viewDate)}</b>
+            <span style={S.catchNote}>Taps are recorded on that day, not today.</span>
+            <button type="button" style={S.catchBtn}
+              onClick={() => setViewDate(todayISO())}>Today</button>
+          </div>
+        )}
 
         {showBar && (
           <div style={S.sessBar}>
@@ -545,11 +586,11 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
             () => setFilter(f => ({ ...f, awayOnly: !f.awayOnly, now: f.awayOnly ? f.now : false })))}
           {anyFacet && chip('clr', 'clear', '✕ Back to now', null, false,
             () => setFilter({ now:true, day:null, sports:new Set(), times:new Set(), inOnly:false, owes:false, awayOnly:false }))}
-          {chip('now', 'slot', `Now · ${COARSE_LBL[sess.blk]}`, null, filter.now,
+          {isToday && chip('now', 'slot', `Now · ${COARSE_LBL[sess.blk]}`, null, filter.now,
             () => setFilter(f => ({ ...f, now: !f.now, day: !f.now ? null : f.day })))}
-          {chip('td', '', `${DAYS[now.getDay()]} — all day`, regularsOn(now.getDay()), filter.day === now.getDay(),
-            () => setFilter(f => ({ ...f, day: f.day === now.getDay() ? null : now.getDay(), now:false })))}
-          {[1,2,3,4,5].filter(d => d !== now.getDay() && regularsOn(d) > 2).map(d =>
+          {chip('td', '', `${DAYS[viewDow]} — all day`, regularsOn(viewDow), filter.day === viewDow,
+            () => setFilter(f => ({ ...f, day: f.day === viewDow ? null : viewDow, now:false })))}
+          {[1,2,3,4,5].filter(d => d !== viewDow && regularsOn(d) > 2).map(d =>
             chip(`d${d}`, '', DAYS[d], regularsOn(d), filter.day === d,
               () => setFilter(f => ({ ...f, day: f.day === d ? null : d, now:false }))))}
           {chip('all', '', 'Everyone', clients.length,
@@ -1402,11 +1443,28 @@ const S = {
   tally: { fontSize:12.5, fontWeight:600, color:OK, background:OK_S, border:`1px solid ${OK}`,
            padding:'3px 9px', borderRadius:99, whiteSpace:'nowrap', fontVariantNumeric:'tabular-nums' },
   tallyZero: { color:STEEL, background:'#E9EBE8', borderColor:HAIRS },
-  tagBtn: { fontFamily:'inherit', fontSize:12.5, fontWeight:600, cursor:'pointer', padding:'4px 10px',
+  tagBtn: { position:'relative', overflow:'hidden', display:'inline-block',
+            fontFamily:'inherit', fontSize:12.5, fontWeight:600, cursor:'pointer', padding:'4px 10px',
             borderRadius:99, background:'#fff', color:'#454D52', border:`1px solid ${HAIRS}` },
   tagBtnOn: { background:BRASS, color:'#fff', borderColor:BRASS },
   sessBar: { display:'flex', alignItems:'baseline', gap:8, margin:'-4px 0 11px', padding:'9px 12px',
              borderRadius:9, background:SKY_S, border:`1px solid ${SKY}` },
+
+  // Catching up on an earlier day. Brass rather than the session bar's blue,
+  // because the whole point is that this does NOT look like the normal state:
+  // every tap on this screen is landing on a different date.
+  catchBar: { display:'flex', alignItems:'center', flexWrap:'wrap', gap:'2px 8px',
+              margin:'-4px 0 11px', padding:'9px 12px', borderRadius:9,
+              background:BRASS_S, border:`1px solid ${BRASS}` },
+  catchB: { fontSize:13.5, color:BRASS, fontWeight:700, flex:'0 0 auto' },
+  catchNote: { fontSize:12, color:BRASS, opacity:.85, flex:'1 1 auto', minWidth:0 },
+  catchBtn: { flex:'0 0 auto', fontFamily:'inherit', fontSize:12.5, fontWeight:700, cursor:'pointer',
+              padding:'4px 12px', borderRadius:99, background:BRASS, color:'#fff', border:`1px solid ${BRASS}` },
+  tagBtnCatch: { background:BRASS, color:'#fff', borderColor:BRASS },
+  // The input covers its label so the whole pill is the tap target, but stays
+  // invisible — the label already says what it does.
+  dateInput: { position:'absolute', inset:0, width:'100%', height:'100%',
+               opacity:0, border:0, padding:0, cursor:'pointer' },
   sessB: { fontSize:13.5, color:SKY, fontWeight:700, flex:'0 0 auto' },
   sessNote: { fontSize:12, color:SKY, opacity:.85, flex:'1 1 auto', minWidth:0,
               overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },

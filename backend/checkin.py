@@ -148,7 +148,14 @@ def roster():
     that let the list narrow to whoever trains at this hour on this day.
     """
     user_id = request.current_user["user_id"]
-    today = _today()
+    # `?date=` is the catching-up case: yesterday's session entered this morning.
+    # Everything else about the roster is unchanged — it is only which day's
+    # check-marks come back that moves.
+    on = request.args.get("date")
+    try:
+        today = dt.date.fromisoformat(on) if on else _today()
+    except ValueError:
+        return jsonify({"error": "date must be YYYY-MM-DD"}), 400
     # Default to the working roster only. An eighteen-year ledger carries ~1,300
     # people who came exactly once in 2009; loading them puts a 1,499-row payload
     # on a phone and buries today's group. ?include=all reaches them when needed.
@@ -331,6 +338,7 @@ def roster():
         return jsonify({
             "success": True,
             "today": today.isoformat(),
+            "isToday": today == _today(),
             "clients": out,
             "runs": runs,
             "checkedIn": {str(k): v for k, v in today_map.items()},
@@ -386,12 +394,20 @@ def toggle():
         cur.execute("SELECT gym_id FROM users WHERE id = %s", (user_id,))
         gym_id = (cur.fetchone() or {}).get("gym_id")
 
+        # A back-dated check-in gets NO clock stamp. NOW() would record that
+        # Tuesday's group trains at 6am on the strength of Glen entering it over
+        # coffee on Wednesday, and that stamp is exactly what teaches the app who
+        # trains when — one catch-up session would bend the grouping for weeks.
+        # NULL is what the imported ledger rows carry: a real day, an unknown
+        # hour. It still counts towards the weekday pattern, just not the block.
+        live = attended_on == _today()
+
         cur.execute(
-            """
+            f"""
             INSERT INTO attendance
               (client_id, coach_id, gym_id, attended_on, attended_at,
                sessions_used, paid, amount, session_type, source, note)
-            VALUES (%s, %s, %s, %s, NOW(), %s, %s, %s, %s, 'phone', %s)
+            VALUES (%s, %s, %s, %s, {'NOW()' if live else 'NULL'}, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (client_id, attended_on) DO NOTHING
             RETURNING id, attended_at
             """,
@@ -400,10 +416,14 @@ def toggle():
              data.get("paid"),
              data.get("amount"),
              data.get("session_type"),
+             "phone" if live else "catchup",
              data.get("note")),
         )
         row = cur.fetchone()
-        came_back = _end_absence(cur, client_id, attended_on)
+        # Only a check-in happening NOW says anything about where someone is.
+        # Entering last Tuesday's session must not cancel the holiday they left
+        # for on Friday.
+        came_back = _end_absence(cur, client_id, attended_on) if live else 0
         bal = _balances_after(cur, client_id)
         db.commit()
         return jsonify({
