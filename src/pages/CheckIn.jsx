@@ -304,6 +304,24 @@ export default function CheckIn() {
     return (c.d || []).includes(s.dow);
   }, [pinnedTo, runs]);
 
+  /* Which weekdays a person actually trains, most-stated source first.
+     A pinned group is Glen saying it outright, so it wins alone — Troy Wendorf
+     is {Mon, Wed, Fri} and that is the whole answer, not a hint to be topped up
+     with whatever the clock also noticed. Failing that, the sessions the clock
+     has learned; failing that, the weekday pattern from eighteen years of
+     ledger.
+
+     An empty set means nobody has said and nothing has been observed — a name
+     tagged 5am this morning with no history. Unknown is not the same as absent,
+     so those stay in the list rather than being quietly filtered out. */
+  const daysOf = useCallback(c => {
+    const pinned = (c.pinned || []).map(k => +k.split('-')[0]);
+    if (pinned.length) return new Set(pinned);
+    const learned = Object.keys(c.sess || {}).map(k => +k.split('-')[0]);
+    if (learned.length) return new Set(learned);
+    return new Set(c.d || []);
+  }, []);
+
   const timeTags = useCallback(c => {
     const out = new Set();
     if (c.slot) { out.add(c.slot); if (c.slot.charAt(0) === 'h') out.add(coarseOf(+c.slot.slice(1))); }
@@ -366,10 +384,18 @@ export default function CheckIn() {
          straight back the moment they're checked in. */
       if (filter.now) set = set.filter(c => (inSession(c, sess) && !c.away) || isIn(c.id));
       if (filter.sports.size) set = set.filter(c => (c.sports || []).some(s => filter.sports.has(s)));
+      /* Time is day-aware. "5am" on a Thursday means the people who train at
+         5am ON THURSDAY, not everyone who trains at 5am on some day — Troy
+         Wendorf is a Monday/Wednesday/Friday 5am and has no business in
+         Thursday's list. The hour says which session, the day says whether it
+         is running. */
       if (filter.times.size) set = set.filter(c => {
         const t = timeTags(c);
-        for (const x of filter.times) if (t.has(x)) return true;
-        return false;
+        let hit = false;
+        for (const x of filter.times) if (t.has(x)) { hit = true; break; }
+        if (!hit) return false;
+        const days = daysOf(c);
+        return days.size === 0 || days.has(viewDow);
       });
     }
     return [...set].sort((a, b) => {
@@ -385,7 +411,7 @@ export default function CheckIn() {
       if (needle) return a.n.localeCompare(b.n);
       return (daysAgo(a.last) ?? 9e9) - (daysAgo(b.last) ?? 9e9) || a.n.localeCompare(b.n);
     });
-  }, [clients, q, filter, checkedIn, tagMode, inSession, sess, timeTags]);
+  }, [clients, q, filter, checkedIn, tagMode, inSession, sess, timeTags, daysOf, viewDow]);
 
   /* ── actions ───────────────────────────────────────────────────────── */
   const toggle = async c => {
