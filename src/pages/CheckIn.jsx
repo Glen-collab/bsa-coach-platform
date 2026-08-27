@@ -23,7 +23,7 @@ const COARSE_LBL = { morning:'Morning', afternoon:'Afternoon', evening:'Evening'
 const SPORT_PRESETS = ['Football','Basketball','Baseball','Softball','Soccer','Wrestling',
   'Hockey','Volleyball','Track','Cross Country','Golf','Tennis','Swimming','Lacrosse',
   'Boxing','Powerlifting','In-home','General Fitness'];
-const HOURS = [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
+const HOURS = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
 const STATUS_LBL = {
   active: 'Active — on the check-in list',
   paused: 'Paused — membership on hold',
@@ -206,7 +206,7 @@ export default function CheckIn() {
   const [data, setData] = useState(null);       // { clients, runs, checkedIn }
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
-  const [filter, setFilter] = useState({ now:true, sports:new Set(), inOnly:false, owes:false, awayOnly:false });
+  const [filter, setFilter] = useState({ now:true, sports:new Set(), times:new Set(), inOnly:false, owes:false, awayOnly:false });
   const [tagMode, setTagMode] = useState(false);
   const [selected, setSelected] = useState(() => new Set());
   const [card, setCard] = useState(null);       // client id
@@ -222,6 +222,7 @@ export default function CheckIn() {
      but "I can't find Debbie" needs an answer better than silence. */
   const [includeAll, setIncludeAll] = useState(false);
   const [pickSport, setPickSport] = useState(false);
+  const [pickTime, setPickTime] = useState(false);
   const [toast, setToast] = useState('');
   const [flash, setFlash] = useState(() => new Set());
   const [newTag, setNewTag] = useState('');
@@ -323,6 +324,17 @@ export default function CheckIn() {
     return null;
   };
 
+  /* Every time tag anyone answers to, with counts. Hours are the useful half —
+     a 5am group and a 6am group are different people, and both are "morning". */
+  const timeCounts = useMemo(() => {
+    const m = {};
+    clients.forEach(c => timeTags(c).forEach(t => { m[t] = (m[t] || 0) + 1; }));
+    const hrs = Object.keys(m).filter(t => t.charAt(0) === 'h')
+      .sort((a, b) => +a.slice(1) - +b.slice(1)).map(t => [t, m[t]]);
+    const coarse = COARSE.filter(t => m[t]).map(t => [t, m[t]]);
+    return hrs.concat(coarse);
+  }, [clients, timeTags]);
+
   const sportCounts = useMemo(() => {
     const m = {};
     clients.forEach(c => (c.sports || []).forEach(s => { m[s] = (m[s] || 0) + 1; }));
@@ -354,6 +366,11 @@ export default function CheckIn() {
          straight back the moment they're checked in. */
       if (filter.now) set = set.filter(c => (inSession(c, sess) && !c.away) || isIn(c.id));
       if (filter.sports.size) set = set.filter(c => (c.sports || []).some(s => filter.sports.has(s)));
+      if (filter.times.size) set = set.filter(c => {
+        const t = timeTags(c);
+        for (const x of filter.times) if (t.has(x)) return true;
+        return false;
+      });
     }
     return [...set].sort((a, b) => {
       const ai = isIn(a.id), bi = isIn(b.id);
@@ -665,7 +682,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
   const settled = isSettled(sess.key);
   /* What the When pill says. It has to carry day, time-of-day and away in one
      short string, because the whole point is not having to open it to know. */
-  const anyFacet = !filter.now || filter.sports.size || filter.inOnly
+  const anyFacet = !filter.now || filter.sports.size || filter.times.size || filter.inOnly
     || filter.owes || filter.awayOnly;
 
   const chip = (key, cls, label, count, on, go) => (
@@ -774,6 +791,12 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
           {isToday && chip('now', 'slot', 'Now', null, filter.now,
             () => setFilter(f => ({ ...f, now: !f.now, day: !f.now ? null : f.day })))}
           <span style={S.divider} />
+          <button type="button" onClick={() => setPickTime(true)} aria-pressed={filter.times.size > 0}
+            style={{ ...S.chip, ...S.chipSlot, ...(filter.times.size ? S.chipSlotOn : null) }}>
+            {filter.times.size
+              ? (filter.times.size === 1 ? tagLbl([...filter.times][0]) : `${filter.times.size} times`)
+              : 'Time'} <span style={S.chipCar}>▾</span>
+          </button>
           <button type="button" onClick={() => setPickSport(true)} aria-pressed={filter.sports.size > 0}
             style={{ ...S.chip, ...S.chipSport, ...(filter.sports.size ? S.chipSportOn : null) }}>
             {filter.sports.size
@@ -786,8 +809,8 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
           {owesCount > 0 && chip('owes', 'owes', 'Owes', owesCount, filter.owes,
             () => setFilter(f => ({ ...f, owes: !f.owes, now: f.owes ? f.now : false })))}
           {anyFacet && chip('clr', 'clear', '✕ Clear', null, false,
-            () => setFilter({ now:isToday, sports:new Set(), inOnly:false,
-                              owes:false, awayOnly:false }))}
+            () => setFilter({ now:isToday, sports:new Set(), times:new Set(),
+                              inOnly:false, owes:false, awayOnly:false }))}
         </div>
       </div>
 
@@ -863,7 +886,7 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
               <button key={t} type="button" disabled={!selected.size} style={{ ...S.preset, ...S.presetSlot }}
                 onClick={() => bulk({ slot: t }, COARSE_LBL[t])}>{COARSE_LBL[t]}</button>
             ))}
-            {[9,10,11].map(h => (
+            {HOURS.map(h => (
               <button key={h} type="button" disabled={!selected.size} style={{ ...S.preset, ...S.presetSlot }}
                 onClick={() => bulk({ slot: `h${h}` }, hourLbl(h))}>{hourLbl(h)}</button>
             ))}
@@ -892,6 +915,34 @@ If they simply stopped coming, use "No longer a client" instead — that keeps t
           onToggle={() => { toggle(cardClient); setCard(null); }}
           onAway={() => { setAwayFor(cardClient.id); setCard(null); }}
           onMessage={() => { setMsgFor(cardClient.id); setCard(null); }} />
+      )}
+      {pickTime && (
+        <FilterSheet title="Time" onClose={() => setPickTime(false)}>
+          {timeCounts.length === 0
+            ? <p style={S.hint}>
+                No times tagged yet. Use Tag to set an hour on a group of names,
+                or let a few check-ins teach it — an hour appears here once
+                somebody keeps to it.
+              </p>
+            : (
+              <div style={S.awayWhy}>
+                {timeCounts.map(([t, n]) => (
+                  <button key={t} type="button"
+                    style={{ ...S.chip, ...S.chipSlot, ...(filter.times.has(t) ? S.chipSlotOn : null) }}
+                    onClick={() => setFilter(f => { const x = new Set(f.times);
+                      x.has(t) ? x.delete(t) : x.add(t); return { ...f, times:x, now:false }; })}>
+                    {tagLbl(t)}<span style={S.chipC}>{n}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          {filter.times.size > 0 && (
+            <div style={S.btnRow}>
+              <button type="button" style={S.btn}
+                onClick={() => setFilter(f => ({ ...f, times:new Set() }))}>Clear times</button>
+            </div>
+          )}
+        </FilterSheet>
       )}
       {pickSport && (
         <FilterSheet title="Sport" onClose={() => setPickSport(false)}>
