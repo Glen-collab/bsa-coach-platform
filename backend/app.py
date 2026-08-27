@@ -81,6 +81,7 @@ from cast import cast_bp
 from social import social_bp
 from members import members_bp
 from challenges import challenges_bp
+from checkin import checkin_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(stripe_bp, url_prefix='/api/stripe')
@@ -94,6 +95,7 @@ app.register_blueprint(cast_bp, url_prefix='/api/cast')
 app.register_blueprint(social_bp, url_prefix='/api/social')
 app.register_blueprint(members_bp, url_prefix='/api/members')
 app.register_blueprint(challenges_bp, url_prefix='/api/challenges')
+app.register_blueprint(checkin_bp, url_prefix='/api/checkin')
 
 @app.route('/api/health')
 def health():

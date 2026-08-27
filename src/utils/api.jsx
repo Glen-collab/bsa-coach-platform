@@ -160,6 +160,51 @@ export const api = {
   kioskPiReboot:   (deviceSerial) => request('/kiosk/pi-reboot',    { method: 'POST', body: JSON.stringify(deviceSerial ? { device_serial: deviceSerial } : {}) }),
   kioskPiQuitGame: (deviceSerial) => request('/kiosk/pi-quit-game', { method: 'POST', body: JSON.stringify(deviceSerial ? { device_serial: deviceSerial } : {}) }),
 
+  // Check-in (client attendance ledger)
+  checkinRoster: (date, all) => {
+    const qs = [date ? `date=${date}` : '', all ? 'include=all' : ''].filter(Boolean).join('&');
+    return request(`/checkin/roster${qs ? `?${qs}` : ''}`);
+  },
+  checkinToggle: (clientId, opts = {}) =>
+    request('/checkin/toggle', { method: 'POST', body: JSON.stringify({ client_id: clientId, ...opts }) }),
+  checkinSetPaid: (clientId, paid, opts = {}) =>
+    request('/checkin/paid', { method: 'POST', body: JSON.stringify({ client_id: clientId, paid, ...opts }) }),
+  checkinUpdateClient: (clientId, body) =>
+    request(`/checkin/client/${clientId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  checkinBulkTag: (clientIds, body) =>
+    request('/checkin/bulk-tag', { method: 'POST', body: JSON.stringify({ client_ids: clientIds, ...body }) }),
+  checkinCreateClient: (body) =>
+    request('/checkin/client', { method: 'POST', body: JSON.stringify(body) }),
+  checkinPayment: (clientId, body = {}) =>
+    request('/checkin/payment', { method: 'POST', body: JSON.stringify({ client_id: clientId, ...body }) }),
+  checkinDeletePayment: (paymentId) =>
+    request(`/checkin/payment/${paymentId}`, { method: 'DELETE' }),
+  checkinPayments: (clientId) => request(`/checkin/payments/${clientId}`),
+  checkinAdjustSessions: (clientId, sessions, note) =>
+    request('/checkin/sessions/adjust', { method: 'POST', body: JSON.stringify({ client_id: clientId, sessions, note }) }),
+  checkinBuyPackage: (clientId, body) =>
+    request('/checkin/sessions/package', { method: 'POST', body: JSON.stringify({ client_id: clientId, ...body }) }),
+  checkinPackages: (clientId) => request(`/checkin/packages/${clientId}`),
+  checkinDeletePackage: (packageId) => request(`/checkin/package/${packageId}`, { method: 'DELETE' }),
+  checkinTransferSessions: (fromId, toId, sessions, note) =>
+    request('/checkin/sessions/transfer', { method: 'POST', body: JSON.stringify({ from_client_id: fromId, to_client_id: toId, sessions, note }) }),
+  checkinHouseholdAdd: (clientId, withClientId) =>
+    request('/checkin/household/add', { method: 'POST', body: JSON.stringify({ client_id: clientId, with_client_id: withClientId }) }),
+  checkinHouseholdRemove: (clientId) =>
+    request('/checkin/household/remove', { method: 'POST', body: JSON.stringify({ client_id: clientId }) }),
+  checkinDeleteClient: (clientId) =>
+    request(`/checkin/client/${clientId}`, { method: 'DELETE' }),
+  checkinSummary: () => request('/checkin/summary'),
+  checkinSetAway: (clientId, body) =>
+    request('/checkin/away', { method: 'POST', body: JSON.stringify({ client_id: clientId, ...body }) }),
+  checkinEndAway: (clientId) =>
+    request('/checkin/away/end', { method: 'POST', body: JSON.stringify({ client_id: clientId }) }),
+  checkinAwayHistory: (clientId) => request(`/checkin/away/${clientId}`),
+  checkinMessage: (clientId, body) =>
+    request('/checkin/message', { method: 'POST', body: JSON.stringify({ client_id: clientId, ...body }) }),
+  checkinMessages: (clientId) => request(`/checkin/messages/${clientId}`),
+  checkinDay: (date) => request(`/checkin/day${date ? `?date=${encodeURIComponent(date)}` : ''}`),
+
   // Health
   health: () => request('/health'),
 };
