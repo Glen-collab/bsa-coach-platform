@@ -1792,7 +1792,6 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
   const [amt, setAmt] = useState(c.monthly ?? '');
   const [payDate, setPayDate] = useState(todayISO);
   const [paying, setPaying] = useState(false);
-  const payDateRef = useRef(null);
   useEffect(() => { setAmt(c.monthly ?? ''); }, [c.id, c.monthly]);
   const sheetRef = useRef(null);
   const drag = useRef({ y0: 0, dy: 0, on: false });
@@ -2210,27 +2209,23 @@ function Card({ c, sess, isIn, onClose, onPatch, onPay, onToggle, all, onAdjust,
                   onBlur={e => { const v = e.target.value.trim();
                     onPatch(c.id, { monthly_amount: v === '' ? null : Number(v) }); }} />
               </div>
-              {/* Its own full-width row, not a chip wedged beside the amount.
-                  Squeezed in there it was 84px wide against the 339px header
-                  picker Glen uses without trouble, and it stopped being findable
-                  or tappable on a phone.
+              {/* EXACTLY the header date picker's shape, just full width: a
+                  label with a real, full-size, transparent date input lying on
+                  top of it. The tap lands on the input itself and iOS opens its
+                  own picker — no scripting involved.
 
-                  showPicker() opens it outright where the browser has it, rather
-                  than trusting a tap to land on a transparent input laid over a
-                  small target. click() is the fallback for older Safari. */}
-              <button type="button" style={S.dayRow}
-                onClick={() => {
-                  const el = payDateRef.current;
-                  if (!el) return;
-                  try { if (el.showPicker) return el.showPicker(); } catch { /* fall through */ }
-                  el.click();
-                }}>
+                  This was briefly a button calling showPicker() on a 1x1 hidden
+                  input, which did not open on Glen's phone. The size was the
+                  original bug; swapping the mechanism as well replaced a working
+                  pattern with an unproven one. The header has never failed, so
+                  this is the header. */}
+              <label style={S.dayRow}>
                 📅 {payDate === todayISO() ? 'Today' : fmtShort(payDate)}
                 <span style={S.dayRowHint}>tap to change the day</span>
-              </button>
-              <input ref={payDateRef} type="date" value={payDate} max={todayISO()}
-                style={S.dayRowInput} tabIndex={-1} aria-label="Day the payment was made"
-                onChange={e => setPayDate(e.target.value || todayISO())} />
+                <input type="date" value={payDate} max={todayISO()} style={S.dateInput}
+                  aria-label="Day the payment was made"
+                  onChange={e => setPayDate(e.target.value || todayISO())} />
+              </label>
               <button type="button" style={{ ...S.btn, ...S.payWide, ...(paying ? S.btnOff : null) }}
                 disabled={paying}
                 onClick={async () => {
@@ -2567,15 +2562,14 @@ const S = {
             borderRadius:10, background:BRASS, color:'#fff', border:`1px solid ${BRASS}` },
   // The date is a chooser, never an action. Sits inside the amount row so the
   // two things a payment needs are side by side, with one button under them.
-  dayRow: { display:'flex', alignItems:'center', gap:8, width:'100%', boxSizing:'border-box',
+  // position:relative + overflow:hidden so the transparent input can cover it,
+  // which is the whole mechanism. Same as S.h1Wrap in the header.
+  dayRow: { position:'relative', overflow:'hidden',
+            display:'flex', alignItems:'center', gap:8, width:'100%', boxSizing:'border-box',
             marginBottom:8, padding:'12px 13px', borderRadius:10, cursor:'pointer',
             fontFamily:'inherit', fontSize:15, fontWeight:700, textAlign:'left',
             background:'#fff', color:SKY, border:`1px solid ${SKY}` },
   dayRowHint: { marginLeft:'auto', fontSize:12, fontWeight:600, opacity:.75 },
-  // Kept in the layout rather than display:none — Safari will not open a picker
-  // for an input that is not rendered.
-  dayRowInput: { position:'absolute', width:1, height:1, opacity:0, pointerEvents:'none',
-                 border:0, padding:0, margin:0 },
   dayPick: { position:'relative', overflow:'hidden', display:'inline-block', flex:'0 0 auto',
              cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:700,
              padding:'11px 12px', borderRadius:10, whiteSpace:'nowrap',
