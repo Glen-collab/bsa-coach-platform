@@ -59,7 +59,7 @@ const buildStyles = (isMobile) => ({
   sectionLead: { fontSize: '15px', color: '#566', textAlign: 'center', maxWidth: '560px', margin: '0 auto 36px', lineHeight: 1.6 },
 
   // HOW IT WORKS — numbered steps
-  steps: { display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: isMobile ? '20px' : '32px' },
+  steps: { display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: isMobile ? '20px' : '24px' },
   step: { textAlign: 'center', padding: '12px' },
   stepNum: {
     width: '52px', height: '52px', borderRadius: '50%',
@@ -318,9 +318,10 @@ export default function Landing() {
 
       {/* HOW IT WORKS */}
       <section style={s.section}>
-        <h2 style={s.sectionTitle}>Three steps. That's it.</h2>
+        <h2 style={s.sectionTitle}>Four steps. That's it.</h2>
         <p style={s.sectionLead}>
-          No consult call. No discovery form. Sign up, pay, train.
+          No consult call to book. Just a few questions, so I know who I'm
+          writing for.
         </p>
         <div style={s.steps}>
           <div style={s.step}>
@@ -335,6 +336,11 @@ export default function Landing() {
           </div>
           <div style={s.step}>
             <div style={s.stepNum}>3</div>
+            <div style={s.stepTitle}>Tell me about you</div>
+            <div style={s.stepText}>Your goal, your gear, what hurts. I read every one.</div>
+          </div>
+          <div style={s.step}>
+            <div style={s.stepNum}>4</div>
             <div style={s.stepTitle}>Train</div>
             <div style={s.stepText}>Beginner-friendly program loads instantly.</div>
           </div>
