@@ -40,6 +40,7 @@ import re as _re
 
 CORS(app, origins=[
     "https://bestrongagain.netlify.app",          # workout tracker
+    "https://tracker.bestrongagain.com",          # workout tracker (custom domain alias)
     "https://workoutbuild.netlify.app",           # program builder
     "https://bsa-trainer-dashboard.netlify.app",  # trainer dashboard
     "https://app.bestrongagain.com",              # this platform
