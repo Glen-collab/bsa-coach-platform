@@ -2863,3 +2863,105 @@ def delete_custom_exercise():
         return jsonify({"success": True})
     finally:
         db.close()
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXERCISE INDEX — the tracker's exercise list, served instead of bundled
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The tracker used to know only the list compiled into its build, so a new
+# exercise needed a tracker rebuild — and would need an App Store review in a
+# native app. This serves the bundled libraries (backend/data/exercise_index.json,
+# built by scripts/build_exercise_index.mjs) plus every approved custom exercise
+# saved from the builder, in the same shape as the tracker's bundled
+# exerciseSwapIndex.json. Clients keep that bundled copy as the offline fallback.
+#
+# Public on purpose: exercise names and public video uids, nothing per-user.
+
+import hashlib
+from flask import make_response
+
+_INDEX_PATH = os.path.join(os.path.dirname(__file__), "data", "exercise_index.json")
+_index_cache = {"mtime": None, "data": None}
+
+# Placement keys are namespaced by library in the builder ("mob:flexibility",
+# "gm:agility"); the index files them under the bare library key.
+_PLACEMENT_PREFIXES = ("mob:", "gm:")
+
+
+def _bundled_exercise_index():
+    mtime = os.path.getmtime(_INDEX_PATH)
+    if _index_cache["mtime"] != mtime:
+        with open(_INDEX_PATH, "r", encoding="utf-8") as f:
+            _index_cache["data"] = json.load(f)
+        _index_cache["mtime"] = mtime
+    return _index_cache["data"]
+
+
+@workout_bp.route("/exercise-index", methods=["GET", "OPTIONS"])
+def exercise_index():
+    if request.method == "OPTIONS":
+        return "", 200
+    bundled = _bundled_exercise_index()
+    items = list(bundled.get("list", []))
+    seen = {e["name"].strip().lower() for e in items if e.get("name")}
+
+    try:
+        db = get_db()
+        try:
+            cur = db.cursor()
+            cur.execute("""
+                SELECT name, category, subcategory, video_uid
+                FROM custom_exercises
+                WHERE status = 'approved'
+            """)
+            rows = cur.fetchall()
+        finally:
+            db.close()
+    except Exception as e:
+        # The library alone is still a complete, useful answer.
+        print(f"exercise-index: custom exercises unavailable: {e}")
+        rows = []
+
+    for r in rows:
+        name = (r["name"] or "").strip()
+        # A bundled exercise of the same name wins: it carries movement and
+        # equipment tags that a custom row doesn't have.
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        category = r["category"] or ""
+        for prefix in _PLACEMENT_PREFIXES:
+            if category.startswith(prefix):
+                category = category[len(prefix):]
+        items.append({
+            "name": name,
+            "category": category,
+            "sub": r["subcategory"] or "",
+            "equipment": [],
+            "movement": [],
+            "video": r["video_uid"] or "",
+            "custom": True,
+        })
+
+    items.sort(key=lambda e: e["name"].lower())
+    version = hashlib.sha1(
+        json.dumps(items, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+    body = json.dumps(
+        {"generatedFrom": bundled.get("generatedFrom"), "version": version,
+         "count": len(items), "list": items},
+        separators=(",", ":"), ensure_ascii=False,
+    )
+    etag = '"' + version + '"'
+
+    if request.headers.get("If-None-Match") == etag:
+        resp = make_response("", 304)
+    else:
+        resp = make_response(body, 200)
+        resp.headers["Content-Type"] = "application/json; charset=utf-8"
+    resp.headers["ETag"] = etag
+    # The tracker is on another origin; without this the browser hides ETag
+    # from it. The version is in the body too, so this is belt and braces.
+    resp.headers["Access-Control-Expose-Headers"] = "ETag"
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    return resp
